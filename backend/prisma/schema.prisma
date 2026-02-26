@@ -1,0 +1,139 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id                String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email             String             @unique
+  name              String
+  password_hash     String
+  created_at        DateTime           @default(now()) @db.Timestamptz(6)
+  expenses          Expense[]
+  mutual_funds      MutualFund[]
+  stocks            Stock[]
+  stock_transactions StockTransaction[]
+  people            Person[]
+  dues_transactions DuesTransaction[]
+  rent_entries      RentEntry[]
+
+  @@map("users")
+}
+
+model Expense {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id        String   @db.Uuid
+  amount         Decimal  @db.Decimal(15, 2)
+  category       String   @db.VarChar(100)
+  expense_date   DateTime @db.Date
+  payment_method String?  @db.VarChar(50)
+  notes          String?
+  created_at     DateTime @default(now()) @db.Timestamptz(6)
+  user           User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("expenses")
+}
+
+model MutualFund {
+  id                        String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id                   String              @db.Uuid
+  fund_name                 String              @db.VarChar(255)
+  fund_symbol               String              @db.VarChar(50)
+  units                     Decimal             @db.Decimal(15, 4)
+  current_nav               Decimal             @db.Decimal(10, 4)
+  current_value             Decimal             @db.Decimal(15, 2)
+  invested_amount           Decimal             @db.Decimal(15, 2)
+  gain_loss_fytd            Decimal?            @db.Decimal(15, 2)
+  gain_loss_since_inception Decimal?            @db.Decimal(15, 2)
+  status                    String              @default("active") @db.VarChar(20)
+  created_at                DateTime            @default(now()) @db.Timestamptz(6)
+  user                      User                @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  history                   MutualFundHistory[]
+
+  @@map("mutual_funds")
+}
+
+model MutualFundHistory {
+  id             String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  mutual_fund_id String     @db.Uuid
+  nav            Decimal    @db.Decimal(10, 4)
+  value          Decimal    @db.Decimal(15, 2)
+  record_date    DateTime   @default(now()) @db.Timestamptz(6)
+  mutual_fund    MutualFund @relation(fields: [mutual_fund_id], references: [id], onDelete: Cascade)
+
+  @@map("mutual_fund_history")
+}
+model Stock {
+  id                   String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id              String             @db.Uuid
+  stock_symbol         String             @db.VarChar(20)
+  company_name         String?            @db.VarChar(255)
+  current_market_price Decimal?           @default(0.00) @db.Decimal(15, 2)
+  created_at           DateTime           @default(now()) @db.Timestamptz(6)
+  user                 User               @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  transactions         StockTransaction[]
+
+  @@map("stocks")
+}
+
+model StockTransaction {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id        String   @db.Uuid
+  stock_id       String   @db.Uuid
+  buy_date       DateTime @db.Date
+  buy_price      Decimal  @db.Decimal(10, 2)
+  quantity       Int
+  brokerage_fee  Decimal? @default(0.00) @db.Decimal(10, 2)
+  created_at     DateTime @default(now()) @db.Timestamptz(6)
+  user           User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  stock          Stock    @relation(fields: [stock_id], references: [id], onDelete: Cascade)
+
+  @@map("stock_transactions")
+}
+
+model Person {
+  id           String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id      String            @db.Uuid
+  name         String            @db.VarChar(255)
+  created_at   DateTime          @default(now()) @db.Timestamptz(6)
+  user         User              @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  transactions DuesTransaction[]
+
+  @@map("people")
+}
+
+model DuesTransaction {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id          String   @db.Uuid
+  person_id        String   @db.Uuid
+  transaction_type String   @db.VarChar(20) // 'receivable' or 'payable'
+  amount           Decimal  @db.Decimal(15, 2)
+  transaction_date DateTime @db.Date
+  description      String?
+  created_at       DateTime @default(now()) @db.Timestamptz(6)
+  user             User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  person           Person   @relation(fields: [person_id], references: [id], onDelete: Cascade)
+
+  @@map("dues_transactions")
+}
+
+model RentEntry {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id        String   @db.Uuid
+  month          String   @db.VarChar(20)   // e.g. "January", "February"
+  year           Int
+  payer_name     String   @db.VarChar(255)
+  amount         Decimal  @db.Decimal(15, 2)
+  payment_date   DateTime @db.Date
+  account_source String   @db.VarChar(255)  // e.g. "HBL Account", "Cash", "JazzCash"
+  notes          String?
+  created_at     DateTime @default(now()) @db.Timestamptz(6)
+  user           User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("rent_entries")
+}
