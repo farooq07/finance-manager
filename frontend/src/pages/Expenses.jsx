@@ -71,7 +71,7 @@ export default function Expenses() {
                 <form onSubmit={handleSubmit} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Amount ($)</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Amount (PKR)</label>
                             <input required type="number" step="0.01" value={formData.amount} onChange={e => setFormData({ ...formData, amount: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-emerald-500 focus:border-emerald-500" />
                         </div>
                         <div>
@@ -115,7 +115,7 @@ export default function Expenses() {
                             <tr key={expense.id} className="hover:bg-gray-50">
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{new Date(expense.expense_date).toLocaleDateString()}</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{expense.category}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-red-600">-${Number(expense.amount).toFixed(2)}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-red-600">-PKR {Number(expense.amount).toLocaleString()}</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{expense.payment_method || '-'}</td>
                                 <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">{expense.notes || '-'}</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-right">

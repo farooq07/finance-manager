@@ -119,7 +119,7 @@ export default function RentTracker() {
             </div>
 
             {/* Summary Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
                     <div className="flex items-center justify-between mb-2">
                         <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">Total Received (All Time)</span>
@@ -142,16 +142,6 @@ export default function RentTracker() {
                     <p className="text-xs text-gray-400 mt-1">{yearEntries.length} payments this year</p>
                 </div>
 
-                <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-                    <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">Monthly Average</span>
-                        <div className="w-8 h-8 rounded-full bg-purple-50 flex items-center justify-center">
-                            <Building className="w-4 h-4 text-purple-500" />
-                        </div>
-                    </div>
-                    <div className="text-2xl font-bold text-purple-600">PKR {formatPKR(yearEntries.length > 0 ? yearTotal / Math.max(1, new Set(yearEntries.map(e => e.month)).size) : 0)}</div>
-                    <p className="text-xs text-gray-400 mt-1">Per active month in {selectedYear}</p>
-                </div>
             </div>
 
             {/* Add / Edit Form */}
@@ -160,7 +150,7 @@ export default function RentTracker() {
                     <h3 className="font-semibold text-blue-800 mb-4 text-sm">{editingId ? 'Edit Payment' : 'Add New Payment'}</h3>
                     <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 items-end">
                         <div>
-                            <label className="block text-xs text-gray-600 mb-1">Month</label>
+                            <label className="block text-xs text-gray-600 mb-1">Rent Month</label>
                             <select value={form.month} onChange={e => setForm({ ...form, month: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white text-sm">
                                 {MONTHS.map(m => <option key={m} value={m}>{m}</option>)}
                             </select>
@@ -171,7 +161,11 @@ export default function RentTracker() {
                         </div>
                         <div>
                             <label className="block text-xs text-gray-600 mb-1">Received From</label>
-                            <input required type="text" value={form.payer_name} onChange={e => setForm({ ...form, payer_name: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" placeholder="e.g. Usman Shad" />
+                            <select required value={form.payer_name} onChange={e => setForm({ ...form, payer_name: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white text-sm">
+                                <option value="">Select payer...</option>
+                                <option value="Usman Shad">Usman Shad</option>
+                                <option value="Naim Shad">Naim Shad</option>
+                            </select>
                         </div>
                         <div>
                             <label className="block text-xs text-gray-600 mb-1">Amount (PKR)</label>
@@ -183,7 +177,15 @@ export default function RentTracker() {
                         </div>
                         <div>
                             <label className="block text-xs text-gray-600 mb-1">Received In (Account/Source)</label>
-                            <input required type="text" value={form.account_source} onChange={e => setForm({ ...form, account_source: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" placeholder="e.g. HBL Account, Cash, JazzCash" />
+                            <select required value={form.account_source} onChange={e => setForm({ ...form, account_source: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white text-sm">
+                                <option value="">Select account...</option>
+                                <option value="Easy Paisa">Easy Paisa</option>
+                                <option value="Standard Chartered Bank">Standard Chartered Bank</option>
+                                <option value="Cash">Cash</option>
+                                <option value="Jazz Cash">Jazz Cash</option>
+                                <option value="Habib Metro Bank">Habib Metro Bank</option>
+                                <option value="Naya Pay">Naya Pay</option>
+                            </select>
                         </div>
                         <div>
                             <label className="block text-xs text-gray-600 mb-1">Notes (Optional)</label>

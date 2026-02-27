@@ -172,16 +172,16 @@ export default function Stocks() {
                                 </div>
                                 <div>
                                     <p className="text-xs text-gray-500 mb-1">Avg Cost</p>
-                                    <p className="font-semibold">${avgPrice}</p>
+                                    <p className="font-semibold">PKR {avgPrice}</p>
                                 </div>
                                 <div>
                                     <p className="text-xs text-gray-500 mb-1">CMP</p>
-                                    <p className="font-semibold text-blue-600">${currentPrice.toFixed(2)}</p>
+                                    <p className="font-semibold text-blue-600">PKR {currentPrice.toFixed(2)}</p>
                                 </div>
                                 <div>
                                     <p className="text-xs text-gray-500 mb-1">Return</p>
                                     <p className={`font-semibold ${profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                                        {profit >= 0 ? '+' : ''}{profit.toFixed(2)} ({profitPercent}%)
+                                        {profit >= 0 ? '+' : ''}PKR {profit.toFixed(2)} ({profitPercent}%)
                                     </p>
                                 </div>
                             </div>

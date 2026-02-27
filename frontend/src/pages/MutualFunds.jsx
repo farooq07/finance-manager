@@ -1,14 +1,18 @@
 import { useState, useRef, useEffect } from 'react';
 import api from '../services/api';
-import { Upload, Plus, ChevronDown, Bell, LogOut, Loader2, ArrowRight } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
+import { Upload, Plus, ChevronDown, ChevronRight, Loader2, Trash2, Calendar, TrendingUp, TrendingDown } from 'lucide-react';
+import ReactECharts from 'echarts-for-react';
+
+const COLORS = ['#7c2889', '#a855f7', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#06b6d4'];
 
 export default function MutualFunds() {
-    const { user } = useAuth();
     const [data, setData] = useState({ funds: [], portfolioSummary: {} });
+    const [snapshots, setSnapshots] = useState([]);
     const [loading, setLoading] = useState(true);
     const [isUploading, setIsUploading] = useState(false);
     const [uploadMessage, setUploadMessage] = useState('');
+    const [selectedIds, setSelectedIds] = useState(new Set());
+    const [expandedSnap, setExpandedSnap] = useState(null);
     const fileInputRef = useRef(null);
 
     const [showForm, setShowForm] = useState(false);
@@ -19,7 +23,6 @@ export default function MutualFunds() {
     const fetchFunds = async () => {
         try {
             const res = await api.get('/mutual-funds');
-            // If the backend returns an array (old schema), format it safely
             if (Array.isArray(res.data)) {
                 setData({ funds: res.data, portfolioSummary: {} });
             } else {
@@ -32,28 +35,33 @@ export default function MutualFunds() {
         }
     };
 
-    useEffect(() => {
-        fetchFunds();
-    }, []);
+    const fetchSnapshots = async () => {
+        try {
+            const res = await api.get('/mutual-funds/snapshots');
+            setSnapshots(res.data || []);
+        } catch (error) {
+            console.error('Error fetching snapshots', error);
+        }
+    };
+
+    useEffect(() => { fetchFunds(); fetchSnapshots(); }, []);
 
     const handleFileUpload = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
-
         setIsUploading(true);
         setUploadMessage('');
-
         const form = new FormData();
         form.append('portfolioCSV', file);
-
         try {
             const res = await api.post('/mutual-funds/upload', form, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
             setUploadMessage(res.data.message);
             fetchFunds();
+            fetchSnapshots();
         } catch (error) {
-            setUploadMessage('Error uploading CSV.');
+            setUploadMessage('Error uploading file.');
             console.error('Upload error', error);
         } finally {
             setIsUploading(false);
@@ -73,184 +81,411 @@ export default function MutualFunds() {
         }
     };
 
-    // Styling configuration reflecting the Meezan screenshot
-    const theme = {
-        primary: "bg-[#7c2889]", // Meezan Purple
-        primaryLight: "bg-[#8b2d9a]",
-        textPrimary: "text-[#7c2889]"
+    const handleDelete = async (id, name) => {
+        if (!window.confirm(`Delete "${name}" from your portfolio?`)) return;
+        try {
+            await api.delete(`/mutual-funds/${id}`);
+            setSelectedIds(prev => { const n = new Set(prev); n.delete(id); return n; });
+            fetchFunds();
+        } catch (error) {
+            console.error('Error deleting fund', error);
+        }
     };
 
+    const handleBulkDelete = async () => {
+        if (selectedIds.size === 0) return;
+        if (!window.confirm(`Delete ${selectedIds.size} selected fund(s)?`)) return;
+        try {
+            await api.post('/mutual-funds/bulk-delete', { ids: Array.from(selectedIds) });
+            setSelectedIds(new Set());
+            fetchFunds();
+        } catch (error) {
+            console.error('Error bulk deleting', error);
+        }
+    };
+
+    const toggleSelect = (id) => {
+        setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+    };
+    const toggleSelectAll = () => {
+        setSelectedIds(prev => prev.size === funds.length ? new Set() : new Set(funds.map(f => f.id)));
+    };
+
+    // Computed
+    const funds = data?.funds || [];
+    const totalValue = funds.reduce((s, f) => s + Number(f.current_value), 0);
+    const totalToDate = funds.reduce((s, f) => s + Number(f.gain_loss_since_inception), 0);
+    const totalInvested = funds.reduce((s, f) => s + Number(f.invested_amount), 0);
+
+    const theme = { primary: "bg-[#7c2889]", textPrimary: "text-[#7c2889]" };
+    const fmtPKR = (v) => Number(v).toLocaleString('en-PK', { maximumFractionDigits: 0 });
+    const fmtDate = (d) => new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    const pctChange = (curr, prev) => prev === 0 ? 0 : (((curr - prev) / Math.abs(prev)) * 100).toFixed(2);
+
+    // --- ECharts: Bar Chart (value vs invested per fund) ---
+    const barOption = {
+        tooltip: { trigger: 'axis', formatter: (p) => p.map(s => `${s.marker} ${s.seriesName}: PKR ${Number(s.value).toLocaleString()}`).join('<br/>') },
+        grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
+        xAxis: { type: 'category', data: funds.filter(f => Number(f.current_value) > 0).map(f => f.fund_symbol), axisLine: { show: false }, axisTick: { show: false } },
+        yAxis: { type: 'value', axisLabel: { formatter: (v) => `${(v / 1000).toFixed(0)}k` }, splitLine: { lineStyle: { type: 'dashed', color: '#E5E7EB' } } },
+        series: [
+            { name: 'Invested', type: 'bar', data: funds.filter(f => Number(f.current_value) > 0).map(f => Number(f.invested_amount)), itemStyle: { color: '#D1D5DB', borderRadius: [4, 4, 0, 0] }, barGap: '20%' },
+            { name: 'Current Value', type: 'bar', data: funds.filter(f => Number(f.current_value) > 0).map(f => Number(f.current_value)), itemStyle: { color: '#7c2889', borderRadius: [4, 4, 0, 0] } }
+        ]
+    };
+
+    // --- ECharts: Pie Chart (allocation) ---
+    const pieOption = {
+        tooltip: { formatter: (p) => `${p.marker} ${p.name}: PKR ${Number(p.value).toLocaleString()} (${p.percent}%)` },
+        series: [{
+            type: 'pie', radius: ['45%', '70%'], center: ['50%', '50%'], padAngle: 2,
+            label: { formatter: '{b} {d}%', fontSize: 11 },
+            data: funds.filter(f => Number(f.current_value) > 0).map((f, i) => ({
+                name: f.fund_symbol, value: Number(f.current_value), itemStyle: { color: COLORS[i % COLORS.length] }
+            }))
+        }]
+    };
+
+    // --- ECharts: Portfolio Timeline (from snapshots) ---
+    const sortedSnaps = [...snapshots].sort((a, b) => new Date(a.upload_date) - new Date(b.upload_date));
+    const timelineOption = sortedSnaps.length > 1 ? {
+        tooltip: { trigger: 'axis', formatter: (p) => `${p[0].axisValue}<br/>` + p.map(s => `${s.marker} ${s.seriesName}: PKR ${Number(s.value).toLocaleString()}`).join('<br/>') },
+        legend: { data: ['Portfolio Value', 'Total Invested', 'Gain/Loss'], bottom: 0, textStyle: { fontSize: 11 } },
+        grid: { left: '3%', right: '4%', bottom: '15%', top: '10%', containLabel: true },
+        xAxis: { type: 'category', data: sortedSnaps.map(s => fmtDate(s.upload_date)), axisLine: { show: false }, axisTick: { show: false } },
+        yAxis: { type: 'value', axisLabel: { formatter: (v) => `${(v / 1000).toFixed(0)}k` }, splitLine: { lineStyle: { type: 'dashed', color: '#E5E7EB' } } },
+        series: [
+            { name: 'Portfolio Value', type: 'line', data: sortedSnaps.map(s => Number(s.total_value)), smooth: true, lineStyle: { width: 3, color: '#7c2889' }, itemStyle: { color: '#7c2889' }, areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: 'rgba(124,40,137,0.25)' }, { offset: 1, color: 'rgba(124,40,137,0.02)' }] } } },
+            { name: 'Total Invested', type: 'line', data: sortedSnaps.map(s => Number(s.total_invested)), smooth: true, lineStyle: { width: 2, color: '#9CA3AF', type: 'dashed' }, itemStyle: { color: '#9CA3AF' } },
+            { name: 'Gain/Loss', type: 'bar', data: sortedSnaps.map(s => Number(s.total_gain)), itemStyle: { color: (p) => p.value >= 0 ? '#10b981' : '#ef4444', borderRadius: [4, 4, 0, 0] } }
+        ]
+    } : null;
+
     if (loading) return (
-        <div className="flex justify-center items-center h-screen space-x-2 text-[#7c2889]">
+        <div className="flex justify-center items-center h-64 space-x-2 text-[#7c2889]">
             <Loader2 className="w-8 h-8 animate-spin" />
             <span className="font-medium text-lg">Loading Portfolio...</span>
         </div>
     );
 
     return (
-        <div className="min-h-screen bg-gray-50 flex flex-col font-sans -mx-8 -mt-8">
+        <div className="space-y-6">
+            {/* Header */}
+            <div className="flex justify-between items-center">
+                <div>
+                    <h1 className="text-2xl font-bold text-gray-900">Mutual Funds</h1>
+                    <p className="text-sm text-gray-500 mt-1">Portfolio Tracker</p>
+                </div>
+                <div className="flex items-center gap-3">
+                    <input type="file" accept=".csv,.xlsx,.xls" className="hidden" ref={fileInputRef} onChange={handleFileUpload} />
+                    <button onClick={() => fileInputRef.current?.click()} disabled={isUploading}
+                        className="flex items-center px-4 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 disabled:opacity-70 transition-all shadow-sm">
+                        {isUploading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
+                        Upload File
+                    </button>
+                    <button onClick={() => setShowForm(!showForm)}
+                        className="flex items-center px-4 py-2.5 border border-gray-200 bg-white text-sm font-medium rounded-lg hover:bg-gray-50 transition-all">
+                        <Plus className="w-4 h-4 mr-2" /> Add Manual
+                    </button>
+                </div>
+            </div>
 
+            {uploadMessage && (
+                <div className="px-4 py-2.5 bg-emerald-50 text-emerald-700 text-sm font-medium rounded-lg border border-emerald-200">{uploadMessage}</div>
+            )}
 
+            {/* Summary Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+                    <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">Portfolio Value</span>
+                    <div className={`text-2xl font-bold mt-1 ${theme.textPrimary}`}>PKR {fmtPKR(totalValue)}</div>
+                    <p className="text-xs text-gray-400 mt-1">{funds.length} active funds</p>
+                </div>
+                <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+                    <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">Gain/Loss (To Date)</span>
+                    <div className={`text-2xl font-bold mt-1 ${totalToDate >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                        {totalToDate >= 0 ? '+' : ''}PKR {fmtPKR(totalToDate)}
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1">{totalInvested > 0 ? `${pctChange(totalValue, totalInvested)}% return` : 'Since inception'}</p>
+                </div>
+                <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+                    <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">Total Invested</span>
+                    <div className="text-2xl font-bold mt-1 text-gray-900">PKR {fmtPKR(totalInvested)}</div>
+                    <p className="text-xs text-gray-400 mt-1">{snapshots.length} upload(s) recorded</p>
+                </div>
+            </div>
 
-            <main className="flex-1 w-full max-w-4xl mx-auto bg-white min-h-[calc(100vh-60px)] shadow-xl sm:my-6 sm:rounded-2xl overflow-hidden pb-20">
-
-                {/* Welcome & Total Hero Section */}
-                <div className="px-6 py-6 bg-white border-b border-gray-100">
-                    <p className="text-sm text-gray-400  mb-1">All Portfolios</p>
-                    <div className="flex justify-between items-end mb-2">
-                        <h2 className="text-xl md:text-2xl font-medium text-gray-800">Total Investment</h2>
-                        <div className={`text-2xl md:text-3xl font-semibold ${theme.textPrimary}`}>
-                            <span className="text-xs mr-1 font-medium text-gray-500">PKR</span>
-                            {data?.portfolioSummary?.totalInvestmentPKR || "0.00"}
-                        </div>
+            {/* Charts Row */}
+            {funds.length > 0 && (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+                        <h3 className="text-sm font-semibold text-gray-800 mb-2">Fund Value vs Invested</h3>
+                        <ReactECharts option={barOption} style={{ height: 280 }} />
+                    </div>
+                    <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+                        <h3 className="text-sm font-semibold text-gray-800 mb-2">Portfolio Allocation</h3>
+                        <ReactECharts option={pieOption} style={{ height: 280 }} />
                     </div>
                 </div>
+            )}
 
-                <div className="bg-gray-100 px-6 py-2 border-b border-gray-200 flex justify-between text-xs text-gray-500">
-                    <span>Details as of {new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+            {/* Portfolio Timeline Chart */}
+            {timelineOption && (
+                <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+                    <h3 className="text-sm font-semibold text-gray-800 mb-2">Portfolio Timeline</h3>
+                    <ReactECharts option={timelineOption} style={{ height: 300 }} />
                 </div>
+            )}
 
-                <div className="px-6 py-4 flex justify-between items-center border-b border-gray-100 cursor-pointer hover:bg-gray-50">
-                    <div>
-                        <p className="text-xs text-gray-500 mb-1">Portfolio ID</p>
-                        <p className={`font-medium text-sm ${theme.textPrimary}`}>All Portfolios</p>
-                    </div>
-                    <ChevronDown className={`w-5 h-5 ${theme.textPrimary}`} />
-                </div>
-
-                {/* Main Card */}
-                <div className="p-4 md:p-6 bg-gray-50/50">
-                    <div className="bg-white rounded-xl shadow-[0_2px_15px_-3px_rgba(0,0,0,0.07),0_10px_20px_-2px_rgba(0,0,0,0.04)] border border-gray-100 overflow-hidden">
-
-                        {/* Inner Total Header */}
-                        <div className="bg-gray-50 px-5 py-4 flex justify-between items-center border-b border-gray-100">
-                            <span className="text-sm font-medium text-gray-600">Total Investment</span>
-                            <div className={`text-lg md:text-xl font-semibold ${theme.textPrimary}`}>
-                                <span className="text-xs mr-1 font-medium text-gray-600">PKR</span>
-                                {data?.portfolioSummary?.totalInvestmentPKR || "0.00"}
-                            </div>
+            {/* Manual Entry Form */}
+            {showForm && (
+                <form onSubmit={handleCreateManually} className="bg-blue-50/70 p-5 rounded-xl border border-blue-200">
+                    <h3 className="font-semibold text-blue-800 mb-4 text-sm">Manual Portfolio Entry</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 items-end">
+                        <div>
+                            <label className="block text-xs text-gray-600 mb-1">Fund Name</label>
+                            <input required placeholder="Meezan Sovereign Fund" type="text" value={formData.fund_name} onChange={e => setFormData({ ...formData, fund_name: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white text-sm" />
                         </div>
-
-                        {/* Interactive Data Table */}
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-sm text-left whitespace-nowrap">
-                                <thead>
-                                    <tr className={`border-b border-gray-100 ${theme.textPrimary} font-medium`}>
-                                        <th className="px-5 py-4 font-medium">Fund</th>
-                                        <th className="px-5 py-4 font-medium">Units</th>
-                                        <th className="px-5 py-4 font-medium">NAV</th>
-                                        <th className="px-5 py-4 font-medium text-right">Value</th>
-                                        <th className="px-5 py-4 font-medium text-right bg-purple-50/50">
-                                            <div className="flex flex-col items-end">
-                                                <span>Gain/loss</span>
-                                                <span className="text-[10px] text-gray-500 font-normal">Fiscal Year to Date</span>
-                                            </div>
-                                        </th>
-                                        <th className="px-5 py-4 font-medium text-right">
-                                            <div className="flex flex-col items-end">
-                                                <span>Gain/loss</span>
-                                                <span className="text-[10px] text-gray-500 font-normal">Since Inception</span>
-                                            </div>
-                                        </th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {(data?.funds || []).map((fund) => (
-                                        <tr key={fund.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
-                                            <td className="px-5 py-4">
-                                                <div className={`${theme.primary} text-white px-3 py-1.5 rounded-md inline-flex items-center text-xs font-medium w-24 justify-between cursor-pointer hover:bg-purple-800 transition-colors`}>
-                                                    {fund.fund_symbol}
-                                                    <ChevronDown className="w-3 h-3 -rotate-90 opacity-70" />
-                                                </div>
-                                            </td>
-                                            <td className="px-5 py-4 text-gray-600 font-medium">{Number(fund.units).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</td>
-                                            <td className="px-5 py-4 text-gray-600 font-medium">{Number(fund.current_nav).toFixed(4)}</td>
-                                            <td className="px-5 py-4 text-right text-gray-600 font-medium">{Number(fund.current_value).toLocaleString()}</td>
-                                            <td className="px-5 py-4 text-right text-gray-600 font-medium bg-purple-50/30">
-                                                {Number(fund.gain_loss_fytd).toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                                            </td>
-                                            <td className="px-5 py-4 text-right text-gray-600 font-medium">
-                                                {Number(fund.gain_loss_since_inception).toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                                            </td>
-                                        </tr>
-                                    ))}
-                                    {(data?.funds || []).length === 0 && (
-                                        <tr>
-                                            <td colSpan="6" className="px-5 py-12 text-center text-gray-400">
-                                                No portfolio data available. Please upload a statement.
-                                            </td>
-                                        </tr>
-                                    )}
-                                </tbody>
-                            </table>
+                        <div>
+                            <label className="block text-xs text-gray-600 mb-1">Symbol</label>
+                            <input required placeholder="MSF" type="text" value={formData.fund_symbol} onChange={e => setFormData({ ...formData, fund_symbol: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white text-sm" />
+                        </div>
+                        <div>
+                            <label className="block text-xs text-gray-600 mb-1">Units</label>
+                            <input required placeholder="1500.55" type="number" step="0.0001" value={formData.units} onChange={e => setFormData({ ...formData, units: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white text-sm" />
+                        </div>
+                        <div>
+                            <label className="block text-xs text-gray-600 mb-1">NAV (PKR)</label>
+                            <input required placeholder="55.18" type="number" step="0.0001" value={formData.current_nav} onChange={e => setFormData({ ...formData, current_nav: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white text-sm" />
+                        </div>
+                        <div>
+                            <label className="block text-xs text-gray-600 mb-1">Invested (PKR)</label>
+                            <input required placeholder="100000" type="number" step="0.01" value={formData.invested_amount} onChange={e => setFormData({ ...formData, invested_amount: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white text-sm" />
                         </div>
                     </div>
+                    <div className="flex gap-2 mt-4">
+                        <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 border border-gray-200 rounded-lg bg-white text-sm hover:bg-gray-50">Cancel</button>
+                        <button type="submit" className={`px-4 py-2 ${theme.primary} text-white text-sm font-medium rounded-lg hover:bg-purple-800`}>Save Record</button>
+                    </div>
+                </form>
+            )}
 
-                    {/* Management Actions */}
-                    <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-between items-center">
-                        <div className="flex items-center space-x-3">
-                            <input
-                                type="file"
-                                accept=".csv"
-                                className="hidden"
-                                ref={fileInputRef}
-                                onChange={handleFileUpload}
-                            />
-                            <button
-                                onClick={() => fileInputRef.current?.click()}
-                                disabled={isUploading}
-                                className="flex items-center px-4 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 disabled:opacity-70 transition-all shadow-sm"
-                            >
-                                {isUploading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
-                                Upload Statement CSV
+            {/* Current Holdings Table */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                <div className="bg-gray-50 px-5 py-3 flex justify-between items-center border-b border-gray-100">
+                    <div className="flex items-center gap-3">
+                        <span className="text-sm font-semibold text-gray-700">Current Holdings</span>
+                        {selectedIds.size > 0 && (
+                            <button onClick={handleBulkDelete}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500 text-white text-xs font-medium rounded-lg hover:bg-red-600 transition-colors">
+                                <Trash2 className="w-3 h-3" /> Delete {selectedIds.size} selected
                             </button>
-                            {uploadMessage && <span className="text-sm text-emerald-600 font-medium">{uploadMessage}</span>}
-                        </div>
-
-                        <button
-                            onClick={() => setShowForm(!showForm)}
-                            className="text-sm font-medium text-gray-500 hover:text-gray-800 transition-colors flex items-center"
-                        >
-                            <Plus className="w-4 h-4 mr-1" /> Add Manual Entry
-                        </button>
+                        )}
                     </div>
-
-                    {/* Manual Form Toggle */}
-                    {showForm && (
-                        <form onSubmit={handleCreateManually} className="mt-6 bg-white p-6 rounded-xl shadow-sm border border-gray-200 animate-in slide-in-from-top-4 fade-in duration-300">
-                            <h3 className="font-semibold text-gray-800 mb-4">Manual Portfolio Entry</h3>
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                                <div>
-                                    <label className="block text-xs font-medium text-gray-500 mb-1 uppercase tracking-wider">Fund Name</label>
-                                    <input required placeholder="Meezan Sovereign Fund" type="text" value={formData.fund_name} onChange={e => setFormData({ ...formData, fund_name: e.target.value })} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none" />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-medium text-gray-500 mb-1 uppercase tracking-wider">Symbol / Ticker</label>
-                                    <input required placeholder="MSF" type="text" value={formData.fund_symbol} onChange={e => setFormData({ ...formData, fund_symbol: e.target.value })} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none" />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-medium text-gray-500 mb-1 uppercase tracking-wider">Invested PKR</label>
-                                    <input required placeholder="100000" type="number" step="0.01" value={formData.invested_amount} onChange={e => setFormData({ ...formData, invested_amount: e.target.value })} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none" />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-medium text-gray-500 mb-1 uppercase tracking-wider">Units</label>
-                                    <input required placeholder="1500.55" type="number" step="0.0001" value={formData.units} onChange={e => setFormData({ ...formData, units: e.target.value })} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none" />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-medium text-gray-500 mb-1 uppercase tracking-wider">Current NAV</label>
-                                    <input required placeholder="55.18" type="number" step="0.0001" value={formData.current_nav} onChange={e => setFormData({ ...formData, current_nav: e.target.value })} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none" />
-                                </div>
-                            </div>
-                            <div className="flex justify-end mt-6">
-                                <button type="submit" className={`px-6 py-2 ${theme.primary} text-white text-sm font-medium rounded-lg hover:bg-purple-800 transition-colors shadow-sm`}>
-                                    Save Record
-                                </button>
-                            </div>
-                        </form>
-                    )}
-
+                    <span className="text-xs text-gray-400">{fmtDate(new Date())}</span>
                 </div>
-            </main>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm text-left whitespace-nowrap">
+                        <thead>
+                            <tr className={`border-b border-gray-100 ${theme.textPrimary} font-medium`}>
+                                <th className="px-5 py-3 w-10">
+                                    <input type="checkbox" checked={funds.length > 0 && selectedIds.size === funds.length} onChange={toggleSelectAll}
+                                        className="w-4 h-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500 cursor-pointer" />
+                                </th>
+                                <th className="px-5 py-3 font-medium">Funds</th>
+                                <th className="px-5 py-3 font-medium">Type</th>
+                                <th className="px-5 py-3 font-medium">Units</th>
+                                <th className="px-5 py-3 font-medium">NAV</th>
+                                <th className="px-5 py-3 font-medium text-right">Investment Value</th>
+                                <th className="px-5 py-3 font-medium text-right">Gain/Loss (To Date)</th>
+                                <th className="px-5 py-3 w-14"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {funds.map((fund) => {
+                                const isSelected = selectedIds.has(fund.id);
+                                const gl = Number(fund.gain_loss_since_inception);
+                                const inv = Number(fund.invested_amount);
+                                const glPct = inv > 0 ? ((gl / inv) * 100).toFixed(1) : '0.0';
+                                return (
+                                    <tr key={fund.id} className={`border-b border-gray-50 hover:bg-gray-50 transition-colors group ${isSelected ? 'bg-purple-50/40' : ''}`}>
+                                        <td className="px-5 py-3">
+                                            <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(fund.id)}
+                                                className="w-4 h-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500 cursor-pointer" />
+                                        </td>
+                                        <td className="px-5 py-3">
+                                            <div className={`${theme.primary} text-white px-3 py-1 rounded-md inline-flex items-center text-xs font-medium min-w-[4.5rem] justify-between`}>
+                                                {fund.fund_symbol}
+                                                <ChevronDown className="w-3 h-3 -rotate-90 opacity-70 ml-1" />
+                                            </div>
+                                            <p className="text-[10px] text-gray-400 mt-0.5 truncate max-w-[140px]">{fund.fund_name}</p>
+                                        </td>
+                                        <td className="px-5 py-3 text-gray-500 text-xs">
+                                            {fund.fund_name?.includes(',') ? fund.fund_name.split(',')[1]?.trim() : '—'}
+                                        </td>
+                                        <td className="px-5 py-3 text-gray-600 font-medium">{Number(fund.units).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</td>
+                                        <td className="px-5 py-3 text-gray-600 font-medium">{Number(fund.current_nav).toFixed(4)}</td>
+                                        <td className="px-5 py-3 text-right text-gray-700 font-semibold">{Number(fund.current_value).toLocaleString()}</td>
+                                        <td className="px-5 py-3 text-right font-medium">
+                                            <span className={gl >= 0 ? 'text-emerald-600' : 'text-red-500'}>
+                                                {gl >= 0 ? '+' : ''}{gl.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                            </span>
+                                            <span className="text-[10px] text-gray-400 ml-1">({glPct}%)</span>
+                                        </td>
+                                        <td className="px-5 py-3 text-center">
+                                            <button onClick={() => handleDelete(fund.id, fund.fund_symbol)}
+                                                className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors opacity-0 group-hover:opacity-100" title="Delete">
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                            </button>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                            {funds.length === 0 && (
+                                <tr><td colSpan="8" className="px-5 py-12 text-center text-gray-400">No portfolio data. Upload a file to get started.</td></tr>
+                            )}
+                        </tbody>
+                        {funds.length > 0 && (
+                            <tfoot>
+                                <tr className="border-t-2 border-gray-200 bg-gray-50">
+                                    <td></td>
+                                    <td colSpan="4" className="px-5 py-3 text-xs font-bold text-gray-700 uppercase tracking-wider">Portfolio Total</td>
+                                    <td className="px-5 py-3 text-right font-bold text-gray-900">{totalValue.toLocaleString()}</td>
+                                    <td className="px-5 py-3 text-right font-bold">
+                                        <span className={totalToDate >= 0 ? 'text-emerald-600' : 'text-red-500'}>
+                                            {totalToDate >= 0 ? '+' : ''}{totalToDate.toLocaleString()}
+                                        </span>
+                                        <span className="text-[10px] text-gray-400 ml-1">({pctChange(totalValue, totalInvested)}%)</span>
+                                    </td>
+                                    <td></td>
+                                </tr>
+                            </tfoot>
+                        )}
+                    </table>
+                </div>
+            </div>
+
+            {/* Date-wise Snapshot History */}
+            {snapshots.length > 0 && (
+                <div className="space-y-3">
+                    <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                        <Calendar className="w-5 h-5 text-[#7c2889]" /> Upload History
+                    </h2>
+                    {snapshots.map((snap, idx) => {
+                        const prevSnap = idx < snapshots.length - 1 ? snapshots[idx + 1] : null; // snapshots are desc
+                        const isOpen = expandedSnap === snap.id;
+                        const snapValue = Number(snap.total_value);
+                        const snapGain = Number(snap.total_gain);
+                        const snapInvested = Number(snap.total_invested);
+
+                        // Compute changes vs previous snapshot
+                        const prevValue = prevSnap ? Number(prevSnap.total_value) : null;
+                        const valueChange = prevValue !== null ? snapValue - prevValue : null;
+                        const valuePct = prevValue ? pctChange(snapValue, prevValue) : null;
+                        const prevGain = prevSnap ? Number(prevSnap.total_gain) : null;
+                        const gainChange = prevGain !== null ? snapGain - prevGain : null;
+
+                        const fundsData = Array.isArray(snap.funds_data) ? snap.funds_data : [];
+                        const prevFunds = prevSnap && Array.isArray(prevSnap.funds_data) ? prevSnap.funds_data : [];
+
+                        return (
+                            <div key={snap.id} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                                {/* Snapshot Header */}
+                                <button
+                                    onClick={() => setExpandedSnap(isOpen ? null : snap.id)}
+                                    className="w-full px-5 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
+                                >
+                                    <div className="flex items-center gap-4">
+                                        {isOpen ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
+                                        <div className="text-left">
+                                            <p className="text-sm font-semibold text-gray-800">{fmtDate(snap.upload_date)}</p>
+                                            <p className="text-xs text-gray-400">{fundsData.length} funds</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-6 text-right">
+                                        <div>
+                                            <p className="text-xs text-gray-500">Value</p>
+                                            <p className={`text-sm font-bold ${theme.textPrimary}`}>PKR {fmtPKR(snapValue)}</p>
+                                            {valueChange !== null && (
+                                                <p className={`text-[10px] font-medium flex items-center justify-end gap-0.5 ${valueChange >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                                                    {valueChange >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                                                    {valueChange >= 0 ? '+' : ''}{fmtPKR(valueChange)} ({valuePct}%)
+                                                </p>
+                                            )}
+                                        </div>
+                                        <div>
+                                            <p className="text-xs text-gray-500">Gain/Loss</p>
+                                            <p className={`text-sm font-bold ${snapGain >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                                                {snapGain >= 0 ? '+' : ''}PKR {fmtPKR(snapGain)}
+                                            </p>
+                                            {gainChange !== null && (
+                                                <p className={`text-[10px] font-medium ${gainChange >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                                                    {gainChange >= 0 ? '↑' : '↓'} {fmtPKR(Math.abs(gainChange))} vs prev
+                                                </p>
+                                            )}
+                                        </div>
+                                        <div>
+                                            <p className="text-xs text-gray-500">Return</p>
+                                            <p className={`text-sm font-bold ${snapGain >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                                                {pctChange(snapValue, snapInvested)}%
+                                            </p>
+                                        </div>
+                                    </div>
+                                </button>
+
+                                {/* Expanded Fund Details */}
+                                {isOpen && (
+                                    <div className="border-t border-gray-100">
+                                        <table className="w-full text-xs text-left whitespace-nowrap">
+                                            <thead>
+                                                <tr className="bg-gray-50 text-gray-500">
+                                                    <th className="px-5 py-2 font-medium">Fund</th>
+                                                    <th className="px-5 py-2 font-medium">Units</th>
+                                                    <th className="px-5 py-2 font-medium">NAV</th>
+                                                    <th className="px-5 py-2 font-medium text-right">Value</th>
+                                                    <th className="px-5 py-2 font-medium text-right">Gain/Loss</th>
+                                                    {prevSnap && <th className="px-5 py-2 font-medium text-right">Δ Value</th>}
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {fundsData.map((f, fi) => {
+                                                    const pf = prevFunds.find(p => p.fund_name === f.fund_name);
+                                                    const dv = pf ? f.value - pf.value : null;
+                                                    return (
+                                                        <tr key={fi} className="border-b border-gray-50 hover:bg-gray-50">
+                                                            <td className="px-5 py-2.5">
+                                                                <span className="font-semibold text-gray-800">{f.fund_symbol}</span>
+                                                                <span className="text-gray-400 ml-1">{f.fund_name?.includes(',') ? f.fund_name.split(',')[1]?.trim() : ''}</span>
+                                                            </td>
+                                                            <td className="px-5 py-2.5 text-gray-600">{Number(f.units).toLocaleString(undefined, { maximumFractionDigits: 4 })}</td>
+                                                            <td className="px-5 py-2.5 text-gray-600">{Number(f.nav).toFixed(4)}</td>
+                                                            <td className="px-5 py-2.5 text-right font-medium text-gray-700">{Number(f.value).toLocaleString()}</td>
+                                                            <td className="px-5 py-2.5 text-right font-medium">
+                                                                <span className={f.gain_loss >= 0 ? 'text-emerald-600' : 'text-red-500'}>
+                                                                    {f.gain_loss >= 0 ? '+' : ''}{Number(f.gain_loss).toLocaleString()}
+                                                                </span>
+                                                            </td>
+                                                            {prevSnap && (
+                                                                <td className="px-5 py-2.5 text-right font-medium">
+                                                                    {dv !== null ? (
+                                                                        <span className={dv >= 0 ? 'text-emerald-600' : 'text-red-500'}>
+                                                                            {dv >= 0 ? '+' : ''}{dv.toLocaleString()}
+                                                                        </span>
+                                                                    ) : <span className="text-gray-300">—</span>}
+                                                                </td>
+                                                            )}
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
         </div>
     );
 }

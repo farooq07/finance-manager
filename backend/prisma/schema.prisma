@@ -9,18 +9,19 @@ datasource db {
 }
 
 model User {
-  id                String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  email             String             @unique
-  name              String
-  password_hash     String
-  created_at        DateTime           @default(now()) @db.Timestamptz(6)
-  expenses          Expense[]
-  mutual_funds      MutualFund[]
-  stocks            Stock[]
-  stock_transactions StockTransaction[]
-  people            Person[]
-  dues_transactions DuesTransaction[]
-  rent_entries      RentEntry[]
+  id                  String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email               String              @unique
+  name                String
+  password_hash       String
+  created_at          DateTime            @default(now()) @db.Timestamptz(6)
+  expenses            Expense[]
+  mutual_funds        MutualFund[]
+  stocks              Stock[]
+  stock_transactions  StockTransaction[]
+  people              Person[]
+  dues_transactions   DuesTransaction[]
+  rent_entries        RentEntry[]
+  portfolio_snapshots PortfolioSnapshot[]
 
   @@map("users")
 }
@@ -68,6 +69,7 @@ model MutualFundHistory {
 
   @@map("mutual_fund_history")
 }
+
 model Stock {
   id                   String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   user_id              String             @db.Uuid
@@ -125,15 +127,28 @@ model DuesTransaction {
 model RentEntry {
   id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   user_id        String   @db.Uuid
-  month          String   @db.VarChar(20)   // e.g. "January", "February"
+  month          String   @db.VarChar(20)
   year           Int
   payer_name     String   @db.VarChar(255)
   amount         Decimal  @db.Decimal(15, 2)
   payment_date   DateTime @db.Date
-  account_source String   @db.VarChar(255)  // e.g. "HBL Account", "Cash", "JazzCash"
+  account_source String   @db.VarChar(255)
   notes          String?
   created_at     DateTime @default(now()) @db.Timestamptz(6)
   user           User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@map("rent_entries")
+}
+
+model PortfolioSnapshot {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id        String   @db.Uuid
+  upload_date    DateTime @default(now()) @db.Timestamptz(6)
+  total_value    Decimal  @db.Decimal(15, 2)
+  total_gain     Decimal  @db.Decimal(15, 2)
+  total_invested Decimal  @db.Decimal(15, 2)
+  funds_data     Json
+  user           User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("portfolio_snapshots")
 }

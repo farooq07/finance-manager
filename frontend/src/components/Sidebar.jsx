@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Home, Receipt, TrendingUp, BarChart2, Users, FileText, Building } from 'lucide-react';
+import { Home, Receipt, TrendingUp, BarChart2, Users, FileText, Building, Wallet } from 'lucide-react';
 import clsx from 'clsx';
 
 const navItems = [
@@ -16,11 +16,14 @@ export default function Sidebar() {
     const location = useLocation();
 
     return (
-        <aside className="w-64 bg-gray-900 text-white flex flex-col hidden md:flex">
-            <div className="h-16 flex items-center px-6 border-b border-gray-800">
-                <h1 className="text-xl font-bold tracking-wider text-emerald-400">FinanceManager</h1>
+        <aside className="w-[64px] bg-white border-r border-gray-200 flex flex-col items-center py-4 hidden md:flex shrink-0">
+            {/* Logo mark */}
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center mb-6 shadow-sm">
+                <Wallet className="w-[18px] h-[18px] text-white" strokeWidth={2.5} />
             </div>
-            <nav className="flex-1 px-4 py-6 space-y-2">
+
+            {/* Navigation */}
+            <nav className="flex-1 flex flex-col items-center gap-1 w-full px-2">
                 {navItems.map((item) => {
                     const isActive = location.pathname === item.path ||
                         (item.path !== '/' && location.pathname.startsWith(item.path));
@@ -29,18 +32,24 @@ export default function Sidebar() {
                             key={item.name}
                             to={item.path}
                             className={clsx(
-                                "flex items-center px-4 py-3 rounded-lg transition-colors group",
-                                isActive ? "bg-emerald-500/10 text-emerald-400" : "text-gray-400 hover:bg-gray-800 hover:text-white"
+                                "sidebar-item w-10 h-10 flex items-center justify-center rounded-lg transition-all duration-150",
+                                isActive
+                                    ? "bg-emerald-50 text-emerald-600 shadow-sm"
+                                    : "text-gray-400 hover:bg-gray-100 hover:text-gray-700"
                             )}
                         >
-                            <item.icon className={clsx("w-5 h-5 mr-3", isActive ? "text-emerald-400" : "text-gray-400 group-hover:text-white")} />
-                            <span className="font-medium">{item.name}</span>
+                            <item.icon className="w-[20px] h-[20px]" strokeWidth={isActive ? 2.2 : 1.8} />
+                            <span className="sidebar-tooltip">{item.name}</span>
                         </Link>
                     );
                 })}
             </nav>
-            <div className="p-4 border-t border-gray-800 text-xs text-gray-500 text-center">
-                &copy; 2026 Personal Finance
+
+            {/* Bottom indicator */}
+            <div className="mt-auto pt-4">
+                <div className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center">
+                    <span className="text-[10px] font-semibold text-gray-500">FM</span>
+                </div>
             </div>
         </aside>
     );

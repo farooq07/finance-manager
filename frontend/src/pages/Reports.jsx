@@ -48,16 +48,16 @@ export default function Reports() {
                         <div className="space-y-3">
                             <div className="flex justify-between">
                                 <span className="text-gray-600">Total Capital Invested:</span>
-                                <span className="font-semibold text-gray-900">${data?.metrics.totalInvestments.toFixed(2)}</span>
+                                <span className="font-semibold text-gray-900">PKR {data?.metrics.totalInvestments.toLocaleString()}</span>
                             </div>
                             <div className="flex justify-between">
                                 <span className="text-gray-600">Current Portfolio Value:</span>
-                                <span className="font-semibold text-blue-600">${data?.metrics.currentPortfolioValue.toFixed(2)}</span>
+                                <span className="font-semibold text-blue-600">PKR {data?.metrics.currentPortfolioValue.toLocaleString()}</span>
                             </div>
                             <div className="flex justify-between border-t pt-2">
                                 <span className="text-gray-600 font-bold">Unrealized P/L:</span>
                                 <span className={`font-bold ${data?.metrics.profitLoss >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                                    {data?.metrics.profitLoss >= 0 ? '+' : ''}${data?.metrics.profitLoss.toFixed(2)}
+                                    {data?.metrics.profitLoss >= 0 ? '+' : ''}PKR {data?.metrics.profitLoss.toLocaleString()}
                                 </span>
                             </div>
                         </div>
@@ -68,15 +68,15 @@ export default function Reports() {
                         <div className="space-y-3">
                             <div className="flex justify-between">
                                 <span className="text-gray-600">Total Expenses Logged:</span>
-                                <span className="font-semibold text-gray-900">${data?.metrics.totalExpenses.toFixed(2)}</span>
+                                <span className="font-semibold text-gray-900">PKR {data?.metrics.totalExpenses.toLocaleString()}</span>
                             </div>
                             <div className="flex justify-between">
                                 <span className="text-gray-600">Receivables (Money owed to you):</span>
-                                <span className="font-semibold text-emerald-600">${data?.metrics.totalReceivable.toFixed(2)}</span>
+                                <span className="font-semibold text-emerald-600">PKR {data?.metrics.totalReceivable.toLocaleString()}</span>
                             </div>
                             <div className="flex justify-between">
                                 <span className="text-gray-600">Payables (Money you owe):</span>
-                                <span className="font-semibold text-red-600">-${data?.metrics.totalPayable.toFixed(2)}</span>
+                                <span className="font-semibold text-red-600">-PKR {data?.metrics.totalPayable.toLocaleString()}</span>
                             </div>
                         </div>
                     </div>
@@ -87,7 +87,7 @@ export default function Reports() {
                     <p className="text-sm text-gray-600">
                         Estimated Liquidity Index:
                         <span className="ml-2 font-bold text-xl text-gray-900">
-                            ${((data?.metrics.currentPortfolioValue || 0) + (data?.metrics.totalReceivable || 0) - (data?.metrics.totalPayable || 0)).toFixed(2)}
+                            PKR {((data?.metrics.currentPortfolioValue || 0) + (data?.metrics.totalReceivable || 0) - (data?.metrics.totalPayable || 0)).toLocaleString()}
                         </span>
                     </p>
                     <p className="text-xs text-gray-400 mt-1 italic">* Excludes cash savings since they are not tracked comprehensively in the current schema.</p>
