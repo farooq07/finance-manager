@@ -8,6 +8,11 @@ import mutualFundRoutes from './src/routes/mutualFund.routes.js';
 import stockRoutes from './src/routes/stock.routes.js';
 import duesRoutes from './src/routes/dues.routes.js';
 import rentRoutes from './src/routes/rent.routes.js';
+import psxRoutes from './src/routes/psx.routes.js';
+import walletRoutes from './src/routes/wallet.routes.js';
+import bankRoutes from './src/routes/bank.routes.js';
+import institutionRoutes from './src/routes/institution.routes.js';
+import brokerRoutes from './src/routes/broker.routes.js';
 
 dotenv.config();
 
@@ -24,6 +29,11 @@ app.use('/api/mutual-funds', mutualFundRoutes);
 app.use('/api/stocks', stockRoutes);
 app.use('/api/dues', duesRoutes);
 app.use('/api/rents', rentRoutes);
+app.use('/api/psx', psxRoutes);
+app.use('/api/wallets', walletRoutes);
+app.use('/api/banks', bankRoutes);
+app.use('/api/institutions', institutionRoutes);
+app.use('/api/broker-accounts', brokerRoutes);
 
 const PORT = process.env.PORT || 5000;
 

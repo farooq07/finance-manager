@@ -3,7 +3,7 @@ import { z } from 'zod';
 // ========== Auth Schemas ==========
 
 export const loginSchema = z.object({
-    email: z.string().email('Invalid email address'),
+    email: z.string().min(1, 'Email or Username is required'),
     password: z.string().min(6, 'Password must be at least 6 characters'),
 });
 

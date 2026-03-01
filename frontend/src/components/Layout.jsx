@@ -14,10 +14,10 @@ const pageTitles = {
 
 export default function Layout() {
     const location = useLocation();
-    const pageTitle = pageTitles[location.pathname] || 'Finance Manager';
+    const pageTitle = pageTitles[location.pathname] || 'WealthAxis';
 
     return (
-        <div className="flex h-screen bg-gray-50 overflow-hidden">
+        <div className="flex h-screen bg-gray-50 dark:bg-neutral-950 transition-colors overflow-hidden">
             <Sidebar />
             <div className="flex-1 flex flex-col overflow-hidden min-w-0">
                 <Header pageTitle={pageTitle} />

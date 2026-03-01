@@ -1,6 +1,7 @@
 import prisma from '../utils/prisma.js';
 import fs from 'fs';
 import csv from 'csv-parser';
+import { sendOtpEmail } from '../utils/email.js';
 
 // Get all people associated with user and their net balances
 export const getPeopleWithLedgers = async (req, res) => {
@@ -32,7 +33,7 @@ export const getPeopleWithLedgers = async (req, res) => {
 
 export const createPerson = async (req, res) => {
     try {
-        const { name } = req.body;
+        const { name, email } = req.body;
 
         // Check if name already exists
         let person = await prisma.person.findFirst({
@@ -46,13 +47,82 @@ export const createPerson = async (req, res) => {
         person = await prisma.person.create({
             data: {
                 user_id: req.user.id,
-                name
+                name,
+                email: email || null
             }
         });
 
         res.status(201).json(person);
     } catch (error) {
         res.status(500).json({ message: 'Error adding person' });
+    }
+};
+
+export const updatePerson = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { name, email } = req.body;
+
+        const existing = await prisma.person.findUnique({ where: { id } });
+        if (!existing || existing.user_id !== req.user.id) {
+            return res.status(404).json({ message: 'Person not found' });
+        }
+
+        const person = await prisma.person.update({
+            where: { id },
+            data: {
+                name,
+                email: email || null
+            }
+        });
+
+        res.json(person);
+    } catch (error) {
+        res.status(500).json({ message: 'Error updating person' });
+    }
+};
+
+// Send Reminder Email (if net balance > 0)
+export const sendReminderEmailHandler = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        // Verify person and access
+        const person = await prisma.person.findUnique({
+            where: { id },
+            include: { transactions: true }
+        });
+
+        if (!person || person.user_id !== req.user.id) {
+            return res.status(404).json({ message: 'Person not found' });
+        }
+
+        if (!person.email) {
+            return res.status(400).json({ message: 'Person does not have an email address associated' });
+        }
+
+        // Compute net balance 
+        let netBalance = 0;
+        person.transactions.forEach(t => {
+            if (t.transaction_type === 'receivable') {
+                netBalance += Number(t.amount);
+            } else if (t.transaction_type === 'payable') {
+                netBalance -= Number(t.amount);
+            }
+        });
+
+        if (netBalance <= 0) {
+            return res.status(400).json({ message: 'Only active outstanding positive balances can be reminded.' });
+        }
+
+        // Dynamically import specific email function specifically built for reminders to avoid bleeding dependencies
+        const { sendReminderEmail } = await import('../utils/email.js');
+        await sendReminderEmail(person.email, person.name, netBalance);
+
+        res.json({ message: `Reminder email successfully dispatched to ${person.email}` });
+    } catch (error) {
+        console.error("Error sending reminder email:", error);
+        res.status(500).json({ message: 'Error sending reminder email' });
     }
 };
 

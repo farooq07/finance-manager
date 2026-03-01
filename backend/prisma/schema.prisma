@@ -13,6 +13,8 @@ model User {
   email               String              @unique
   name                String
   password_hash       String
+  otp_code            String?             @db.VarChar(6)
+  otp_expires_at      DateTime?           @db.Timestamptz(6)
   created_at          DateTime            @default(now()) @db.Timestamptz(6)
   expenses            Expense[]
   mutual_funds        MutualFund[]
@@ -22,6 +24,12 @@ model User {
   dues_transactions   DuesTransaction[]
   rent_entries        RentEntry[]
   portfolio_snapshots PortfolioSnapshot[]
+  psx_snapshots       PsxSnapshot[]
+  bank_investments    BankInvestment[]
+  wallets             Wallet[]
+  banks               Bank[]
+  institutions        Institution[]
+  broker_accounts     BrokerAccount[]
 
   @@map("users")
 }
@@ -102,6 +110,7 @@ model Person {
   id           String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   user_id      String            @db.Uuid
   name         String            @db.VarChar(255)
+  email        String?           @db.VarChar(255)
   created_at   DateTime          @default(now()) @db.Timestamptz(6)
   user         User              @relation(fields: [user_id], references: [id], onDelete: Cascade)
   transactions DuesTransaction[]
@@ -151,4 +160,101 @@ model PortfolioSnapshot {
   user           User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@map("portfolio_snapshots")
+}
+
+model PsxSnapshot {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id        String   @db.Uuid
+  snapshot_date  DateTime @db.Date // One snapshot per day
+  total_custody  Decimal  @db.Decimal(15, 2)
+  total_invested Decimal  @db.Decimal(15, 2)
+  holdings_data  Json     // Array of { symbol, holding, market_rate, custody_val }
+  summary_data   Json?    // Optional: { trading_cash, working_capital, total_worth, margin_pct, etc. }
+  created_at     DateTime @default(now()) @db.Timestamptz(6)
+  user           User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, snapshot_date])
+  @@map("psx_snapshots")
+}
+
+model BankInvestment {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id          String   @db.Uuid
+  transaction_date DateTime @db.Date
+  amount           Decimal  @db.Decimal(15, 2) // Positive for deposit, negative for withdrawal
+  description      String?
+  created_at       DateTime @default(now()) @db.Timestamptz(6)
+  user             User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("bank_investments")
+}
+
+model Wallet {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id     String   @db.Uuid
+  name        String   @db.VarChar(100)
+  institution String   @db.VarChar(100)
+  balance     Decimal  @default(0.00) @db.Decimal(15, 2)
+  color_theme String   @default("blue") @db.VarChar(50)
+  account_num String?  @db.VarChar(50)
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  user        User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("wallets")
+}
+
+model Bank {
+  id               String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id          String            @db.Uuid
+  name             String            @db.VarChar(255)
+  account_no       String            @db.VarChar(100)
+  iban_no          String            @db.VarChar(100)
+  starting_balance Decimal           @db.Decimal(15, 2)
+  current_balance  Decimal           @default(0.00) @db.Decimal(15, 2)
+  created_at       DateTime          @default(now()) @db.Timestamptz(6)
+  user             User              @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  statements       BankStatement[]
+
+  @@map("banks")
+}
+
+model BankStatement {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  bank_id         String    @db.Uuid
+  month           String    @db.VarChar(20)
+  year            Int
+  file_path       String?   // Location of uploaded file
+  upload_date     DateTime  @default(now()) @db.Timestamptz(6)
+  transactions    Json?     // Parsed transaction data
+  closing_balance Decimal?  @db.Decimal(15, 2)
+  bank            Bank      @relation(fields: [bank_id], references: [id], onDelete: Cascade)
+
+  @@map("bank_statements")
+}
+
+model Institution {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String   @db.Uuid
+  name       String   @db.VarChar(100)
+  type       String   @default("bank") @db.VarChar(50) // e.g. bank, wallet, cash
+  color      String   @default("blue") @db.VarChar(20) // For UI thematic matching
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, name])
+  @@map("institutions")
+}
+
+model BrokerAccount {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id            String   @db.Uuid
+  account_title      String   @db.VarChar(255)
+  client_code        String   @db.VarChar(100)
+  participant_acc_no String?  @db.VarChar(100)
+  cdc_sub_acc_no     String?  @db.VarChar(100)
+  stock_pin_code     String?  @db.VarChar(50)
+  created_at         DateTime @default(now()) @db.Timestamptz(6)
+  user               User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("broker_accounts")
 }

@@ -1,12 +1,9 @@
 import { useState, useEffect } from 'react';
 import api from '../services/api';
-import {
-    BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
-    PieChart, Pie, Cell, Legend
-} from 'recharts';
-import { TrendingUp, PieChart as PieIcon, Activity, FileText, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
-
-const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444'];
+import ReactECharts from 'echarts-for-react';
+import { TrendingUp, PieChart as PieIcon, Activity, FileText, ArrowUpCircle, ArrowDownCircle, Wallet, Landmark } from 'lucide-react';
+import { fmtPKR } from '../utils/currency';
+import { StatSkeleton, ChartSkeleton } from '../components/Skeleton';
 
 export default function Dashboard() {
     const [data, setData] = useState(null);
@@ -26,81 +23,142 @@ export default function Dashboard() {
         fetchDashboard();
     }, []);
 
-    if (loading) return <div className="flex h-full items-center justify-center text-gray-500">Loading dashboard data...</div>;
+    if (loading) return (
+        <div className="space-y-6">
+            <div className="flex justify-between items-center">
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 transition-colors">Dashboard Overview</h1>
+            </div>
+            <div className="bg-gradient-to-r from-gray-200 to-gray-300 dark:from-neutral-800 dark:to-neutral-700 rounded-2xl p-8 h-48 animate-pulse shadow-sm" />
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <StatSkeleton />
+                <StatSkeleton />
+                <StatSkeleton />
+                <StatSkeleton />
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <ChartSkeleton />
+                <ChartSkeleton />
+            </div>
+        </div>
+    );
     if (!data) return <div className="flex h-full items-center justify-center text-red-500">Error loading data.</div>;
 
     const { metrics, charts } = data;
 
-    const formatCurrency = (val) => 'PKR ' + Number(val).toLocaleString('en-PK', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+    // ECharts Configurations
+    const expensesChartOption = {
+        tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+        grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
+        xAxis: [
+            {
+                type: 'category',
+                data: charts.monthlyExpenses.map(d => d.month),
+                axisTick: { alignWithLabel: true },
+                axisLine: { lineStyle: { color: '#9ca3af' } }
+            }
+        ],
+        yAxis: [
+            {
+                type: 'value',
+                axisLine: { show: false },
+                splitLine: { lineStyle: { type: 'dashed', color: '#e5e7eb' } }
+            }
+        ],
+        series: [
+            {
+                name: 'Expenses',
+                type: 'bar',
+                barWidth: '60%',
+                data: charts.monthlyExpenses.map(d => d.amount),
+                itemStyle: { color: '#10b981', borderRadius: [4, 4, 0, 0] }
+            }
+        ]
+    };
+
+    const assetAllocationOption = {
+        tooltip: { trigger: 'item', formatter: '{b}: Rs {c} ({d}%)' },
+        legend: { bottom: '0%', left: 'center' },
+        series: [
+            {
+                name: 'Asset Allocation',
+                type: 'pie',
+                radius: ['45%', '70%'],
+                avoidLabelOverlap: false,
+                itemStyle: {
+                    borderRadius: 10,
+                    borderColor: '#fff',
+                    borderWidth: 2
+                },
+                label: { show: false, position: 'center' },
+                emphasis: {
+                    label: { show: true, fontSize: 18, fontWeight: 'bold' }
+                },
+                labelLine: { show: false },
+                data: charts.assetAllocation,
+                color: ['#3b82f6', '#8b5cf6', '#10b981'] // Blue (Cash), Purple (Investments), Emerald (Receivables)
+            }
+        ]
+    };
 
     return (
         <div className="space-y-6">
             <div className="flex justify-between items-center">
-                <h1 className="text-2xl font-bold text-gray-900">Dashboard Overview</h1>
-                <div className="text-sm text-gray-500">
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 transition-colors">Dashboard Overview</h1>
+                <div className="text-sm text-gray-500 dark:text-gray-400">
                     Last Updated: {new Date().toLocaleTimeString()}
                 </div>
             </div>
 
+            {/* Net Worth Highlight Card */}
+            <div className="bg-gradient-to-r from-blue-900 to-indigo-900 rounded-2xl p-8 text-white shadow-xl relative overflow-hidden">
+                <div className="absolute top-0 right-0 -mt-10 -mr-10 w-40 h-40 bg-white/10 rounded-full blur-3xl"></div>
+                <div className="relative z-10">
+                    <p className="text-blue-200 font-medium mb-1">Total Comprehensive Net Worth</p>
+                    <h2 className="text-4xl md:text-5xl font-bold tracking-tight"> {fmtPKR(metrics.netWorth)}</h2>
+                    <div className="flex items-center gap-4 mt-6">
+                        <div>
+                            <p className="text-sm text-blue-300">Liquid Cash</p>
+                            <p className="text-lg font-semibold"> {fmtPKR(metrics.totalBankBalance)}</p>
+                        </div>
+                        <div className="h-8 w-px bg-blue-700/50"></div>
+                        <div>
+                            <p className="text-sm text-blue-300">Total Invested Assets</p>
+                            <p className="text-lg font-semibold"> {fmtPKR(metrics.totalInvestments)}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <MetricCard title="Total Investments" value={metrics.totalInvestments} icon={PieIcon} color="blue" />
-                <MetricCard title="Portfolio Value" value={metrics.currentPortfolioValue} icon={TrendingUp} color="emerald" />
-                <MetricCard
-                    title="Profit / Loss"
-                    value={metrics.profitLoss}
-                    icon={Activity}
-                    color={metrics.profitLoss >= 0 ? "emerald" : "red"}
-                />
-                <MetricCard title="Total Expenses" value={metrics.totalExpenses} icon={FileText} color="amber" />
-                <MetricCard title="Receivable Dues" value={metrics.totalReceivable} icon={ArrowUpCircle} color="emerald" />
-                <MetricCard title="Payable Dues" value={metrics.totalPayable} icon={ArrowDownCircle} color="red" />
+                <MetricCard title="Total Bank Balance" value={metrics.totalBankBalance} icon={Landmark} color="blue" />
+                <MetricCard title="Total Wallet Balance" value={metrics.totalWalletBalance} icon={Wallet} color="cyan" />
+                <MetricCard title="PSX Total" value={metrics.stockValue} icon={TrendingUp} color="indigo" />
+                <MetricCard title="Mutual Fund Total" value={metrics.mutualFundValue} icon={PieIcon} color="purple" />
+                <MetricCard title="Payment to Receive" value={metrics.totalReceivable} icon={ArrowUpCircle} color="emerald" />
+                <MetricCard title="Payment to Send" value={metrics.totalPayable} icon={ArrowDownCircle} color="red" />
+                <MetricCard title="Expenses (This Month)" value={metrics.currentMonthExpenses} icon={FileText} color="amber" />
+                <MetricCard title="Total Expenses" value={metrics.totalExpenses} icon={Activity} color="orange" />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Monthly Expenses Chart */}
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                    <h2 className="text-lg font-semibold text-gray-800 mb-4">Monthly Expenses (Current Year)</h2>
+                <div className="bg-white dark:bg-neutral-900 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-neutral-800 hidden md:block transition-colors">
+                    <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">Monthly Expenses (Current Year)</h2>
                     <div className="h-80 w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={charts.monthlyExpenses}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                                <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: '#6B7280' }} />
-                                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#6B7280' }} tickFormatter={(value) => `PKR ${value}`} />
-                                <RechartsTooltip cursor={{ fill: '#F3F4F6' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-                                <Bar dataKey="amount" fill="#10b981" radius={[4, 4, 0, 0]} />
-                            </BarChart>
-                        </ResponsiveContainer>
+                        <ReactECharts option={expensesChartOption} style={{ height: '100%', width: '100%' }} />
                     </div>
                 </div>
 
-                {/* Investment Distribution Chart */}
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                    <h2 className="text-lg font-semibold text-gray-800 mb-4">Investment Distribution</h2>
-                    {charts.investmentDistribution.length > 0 ? (
-                        <div className="h-80 w-full flex items-center justify-center">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <PieChart>
-                                    <Pie
-                                        data={charts.investmentDistribution}
-                                        cx="50%"
-                                        cy="50%"
-                                        innerRadius={80}
-                                        outerRadius={110}
-                                        paddingAngle={5}
-                                        dataKey="value"
-                                    >
-                                        {charts.investmentDistribution.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                        ))}
-                                    </Pie>
-                                    <RechartsTooltip formatter={(value) => formatCurrency(value)} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-                                    <Legend verticalAlign="bottom" height={36} iconType="circle" />
-                                </PieChart>
-                            </ResponsiveContainer>
+                {/* Asset Allocation Chart */}
+                <div className="bg-white dark:bg-neutral-900 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-neutral-800 hidden md:block transition-colors">
+                    <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">Asset Allocation</h2>
+                    {charts.assetAllocation && charts.assetAllocation.length > 0 ? (
+                        <div className="h-80 w-full">
+                            <ReactECharts option={assetAllocationOption} style={{ height: '100%', width: '100%' }} />
                         </div>
                     ) : (
-                        <div className="h-80 w-full flex items-center justify-center text-gray-400">
-                            No investment data to display.
+                        <div className="h-80 w-full flex items-center justify-center text-gray-400 dark:text-gray-500">
+                            No asset data to display.
                         </div>
                     )}
                 </div>
@@ -110,20 +168,24 @@ export default function Dashboard() {
 
     function MetricCard({ title, value, icon: Icon, color }) {
         const colorClasses = {
-            emerald: 'bg-emerald-50 text-emerald-600',
-            blue: 'bg-blue-50 text-blue-600',
-            red: 'bg-red-50 text-red-600',
-            amber: 'bg-amber-50 text-amber-600',
+            emerald: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400',
+            blue: 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400',
+            red: 'bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400',
+            amber: 'bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-400',
+            purple: 'bg-purple-50 text-purple-600 dark:bg-purple-900/20 dark:text-purple-400',
+            cyan: 'bg-cyan-50 text-cyan-600 dark:bg-cyan-900/20 dark:text-cyan-400',
+            indigo: 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/20 dark:text-indigo-400',
+            orange: 'bg-orange-50 text-orange-600 dark:bg-orange-900/20 dark:text-orange-400',
         };
 
         return (
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center space-x-4">
-                <div className={`p-4 rounded-full ${colorClasses[color]}`}>
-                    <Icon className="w-6 h-6" />
+            <div className="bg-white dark:bg-neutral-900 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-neutral-800 flex items-center space-x-4 transition-colors">
+                <div className={`p-3 rounded-full ${colorClasses[color]} transition-colors`}>
+                    <Icon className="w-5 h-5" />
                 </div>
                 <div>
-                    <p className="text-sm font-medium text-gray-500">{title}</p>
-                    <p className="text-2xl font-bold text-gray-900">{formatCurrency(value)}</p>
+                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400 transition-colors">{title}</p>
+                    <p className="text-2xl font-bold text-gray-900 dark:text-gray-100 transition-colors"> {fmtPKR(value)}</p>
                 </div>
             </div>
         );

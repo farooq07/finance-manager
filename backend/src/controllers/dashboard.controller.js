@@ -4,52 +4,59 @@ export const getDashboardSummary = async (req, res) => {
     try {
         const userId = req.user.id; // from auth middleware
 
-        // 1. Get Expenses
-        const expenses = await prisma.expense.findMany({
-            where: { user_id: userId }
-        });
-        const totalExpenses = expenses.reduce((sum, exp) => sum + Number(exp.amount), 0);
+        // 1. Bank Balance (Wallets and Banks)
+        const wallets = await prisma.wallet.findMany({ where: { user_id: userId } });
+        const totalWalletBalance = wallets.reduce((sum, w) => sum + Number(w.balance), 0);
 
-        // 2. Get Mutual Funds
-        const mutualFunds = await prisma.mutualFund.findMany({
-            where: { user_id: userId }
-        });
-        let mfInvested = 0;
-        let mfCurrentValue = 0;
-        mutualFunds.forEach(fund => {
-            mfInvested += Number(fund.invested_amount);
-            mfCurrentValue += Number(fund.units_purchased) * Number(fund.current_nav);
-        });
+        const banks = await prisma.bank.findMany({ where: { user_id: userId } });
+        const totalBankBalance = banks.reduce((sum, b) => sum + Number(b.current_balance), 0);
 
-        // 3. Get Stocks & Transactions
-        const stocks = await prisma.stock.findMany({
-            where: { user_id: userId },
-            include: { transactions: true }
-        });
-
-        let stockInvested = 0;
+        // 2. PSX Stock Value (from snapshots + trading cash fallback)
         let stockCurrentValue = 0;
+        let psxTradingCash = 0;
 
-        stocks.forEach(stock => {
-            let totalQty = 0;
-            let totalCost = 0;
-            stock.transactions.forEach(tx => {
-                totalQty += tx.quantity;
-                totalCost += Number(tx.buy_price) * tx.quantity + Number(tx.brokerage_fee || 0);
+        const latestPsx = await prisma.psxSnapshot.findFirst({
+            where: { user_id: userId },
+            orderBy: { snapshot_date: 'desc' }
+        });
+
+        if (latestPsx) {
+            stockCurrentValue = Number(latestPsx.total_custody);
+            // Include trading cash from the new summary feature if available
+            if (latestPsx.summary_data && latestPsx.summary_data.trading_cash) {
+                psxTradingCash = Number(latestPsx.summary_data.trading_cash);
+            }
+        } else {
+            // Fallback to manual entry if they haven't uploaded a CSV
+            const stocks = await prisma.stock.findMany({
+                where: { user_id: userId },
+                include: { transactions: true }
             });
-            stockInvested += totalCost;
-            stockCurrentValue += totalQty * Number(stock.current_market_price || 0);
+            stocks.forEach(stock => {
+                let totalQty = 0;
+                stock.transactions.forEach(tx => totalQty += tx.quantity);
+                stockCurrentValue += totalQty * Number(stock.current_market_price || 0);
+            });
+        }
+
+        // 3. Mutual Fund Value (from snapshots or fallback)
+        let mfCurrentValue = 0;
+        const latestMfSnapshot = await prisma.portfolioSnapshot.findFirst({
+            where: { user_id: userId },
+            orderBy: { upload_date: 'desc' }
         });
 
-        const totalInvestments = mfInvested + stockInvested;
-        const currentPortfolioValue = mfCurrentValue + stockCurrentValue;
-        const profitLoss = currentPortfolioValue - totalInvestments;
+        if (latestMfSnapshot) {
+            mfCurrentValue = Number(latestMfSnapshot.total_value);
+        } else {
+            const mutualFunds = await prisma.mutualFund.findMany({ where: { user_id: userId } });
+            mutualFunds.forEach(fund => mfCurrentValue += Number(fund.current_value || 0));
+        }
 
-        // 4. Get Dues / Ledger
-        const dues = await prisma.duesTransaction.findMany({
-            where: { user_id: userId }
-        });
+        const totalInvestments = mfCurrentValue + stockCurrentValue + psxTradingCash;
 
+        // 4. Ledger Dues
+        const dues = await prisma.duesTransaction.findMany({ where: { user_id: userId } });
         let totalReceivable = 0;
         let totalPayable = 0;
         dues.forEach(due => {
@@ -57,19 +64,23 @@ export const getDashboardSummary = async (req, res) => {
             if (due.transaction_type === 'payable') totalPayable += Number(due.amount);
         });
 
-        // Calculate a naive "Total Balance" 
-        // This could mean logical Net Worth: Assets - Liabilities - Expenses
-        // Or just cash balance depending on incomes logging (which we don't have a table for).
-        // Let's just return all these distinct metrics for the UI to display neatly.
+        // 5. Monthly Expenses (Current Year)
+        const expenses = await prisma.expense.findMany({ where: { user_id: userId } });
+        const totalExpenses = expenses.reduce((sum, exp) => sum + Number(exp.amount), 0);
 
-        // Calculate monthly expense distribution for charts
-        // Grouping current year expenses by month
         const currentYear = new Date().getFullYear();
+        const currentMonth = new Date().getMonth();
         const monthlyExpenses = Array(12).fill(0);
+        let currentMonthExpenses = 0;
+
         expenses.forEach(exp => {
             const date = new Date(exp.expense_date);
             if (date.getFullYear() === currentYear) {
-                monthlyExpenses[date.getMonth()] += Number(exp.amount);
+                const monthIdx = date.getMonth();
+                monthlyExpenses[monthIdx] += Number(exp.amount);
+                if (monthIdx === currentMonth) {
+                    currentMonthExpenses += Number(exp.amount);
+                }
             }
         });
 
@@ -78,24 +89,35 @@ export const getDashboardSummary = async (req, res) => {
             amount
         }));
 
-        // Calculate Investment distribution
-        const investmentDistribution = [
-            { name: 'Mutual Funds', value: mfCurrentValue },
-            { name: 'Stocks', value: stockCurrentValue }
-        ].filter(item => item.value > 0);
+        // Net Worth formula = Liquid Cash + Assets + Receivables - Payables
+        const netWorth = totalBankBalance + totalWalletBalance + totalInvestments + totalReceivable - totalPayable;
 
         res.json({
             metrics: {
-                totalExpenses,
+                netWorth,
+                totalBankBalance,
+                totalWalletBalance,
                 totalInvestments,
-                currentPortfolioValue,
-                profitLoss,
+                mutualFundValue: mfCurrentValue,
+                stockValue: stockCurrentValue,
                 totalReceivable,
-                totalPayable
+                totalPayable,
+                totalExpenses,
+                currentMonthExpenses
             },
             charts: {
                 monthlyExpenses: chartData,
-                investmentDistribution
+                investmentDistribution: [
+                    { name: 'Mutual Funds', value: mfCurrentValue },
+                    { name: 'Stocks', value: stockCurrentValue }
+                ].filter(i => i.value > 0),
+                assetAllocation: [
+                    { name: 'Banks', value: totalBankBalance },
+                    { name: 'Wallets', value: totalWalletBalance },
+                    { name: 'Mutual Funds', value: mfCurrentValue },
+                    { name: 'Stocks', value: stockCurrentValue },
+                    { name: 'Ledger Dues', value: totalReceivable } // Only positive assets
+                ].filter(i => i.value > 0)
             }
         });
 

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../services/api';
 import { Plus, Trash2, Pencil, Check, X, Loader2, Building, Calendar, Banknote } from 'lucide-react';
+import DatePickerInput from '../components/DatePickerInput';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
@@ -99,7 +100,7 @@ export default function RentTracker() {
     const yearTotal = yearEntries.reduce((sum, e) => sum + Number(e.amount), 0);
 
     if (loading) return (
-        <div className="flex justify-center items-center h-64 space-x-2 text-gray-500">
+        <div className="flex justify-center items-center h-64 space-x-2 text-gray-500 dark:text-gray-400">
             <Loader2 className="w-6 h-6 animate-spin" />
             <span className="font-medium">Loading rent data...</span>
         </div>
@@ -110,74 +111,78 @@ export default function RentTracker() {
             {/* Header */}
             <div className="flex justify-between items-center">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900">Rent Tracker</h1>
-                    <p className="text-sm text-gray-500 mt-1">Track monthly rent payments received from properties</p>
+                    <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Rent Tracker</h1>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Track monthly rent payments received from properties</p>
                 </div>
-                <button onClick={() => { setShowForm(!showForm); setEditingId(null); setForm({ ...emptyForm }); }} className="flex items-center px-4 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 shadow-sm transition-colors">
+                <button onClick={() => { setShowForm(!showForm); setEditingId(null); setForm({ ...emptyForm }); }} className="flex items-center px-4 py-2.5 bg-gray-900 dark:bg-neutral-800 text-white text-sm font-medium rounded-lg hover:bg-gray-800 dark:hover:bg-neutral-700 shadow-sm transition-colors">
                     <Plus className="w-4 h-4 mr-2" /> Add Payment
                 </button>
             </div>
 
             {/* Summary Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+                <div className="bg-white dark:bg-neutral-900 rounded-xl border border-gray-100 dark:border-neutral-800 shadow-sm p-5 transition-colors">
                     <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">Total Received (All Time)</span>
-                        <div className="w-8 h-8 rounded-full bg-emerald-50 flex items-center justify-center">
-                            <Banknote className="w-4 h-4 text-emerald-500" />
+                        <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Total Received (All Time)</span>
+                        <div className="w-8 h-8 rounded-full bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center">
+                            <Banknote className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
                         </div>
                     </div>
-                    <div className="text-2xl font-bold text-emerald-600">PKR {formatPKR(data.totalReceived)}</div>
-                    <p className="text-xs text-gray-400 mt-1">{data.entries.length} total payments</p>
+                    <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">PKR {formatPKR(data.totalReceived)}</div>
+                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{data.entries.length} total payments</p>
                 </div>
 
-                <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+                <div className="bg-white dark:bg-neutral-900 rounded-xl border border-gray-100 dark:border-neutral-800 shadow-sm p-5 transition-colors">
                     <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">{selectedYear} Total</span>
-                        <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center">
-                            <Calendar className="w-4 h-4 text-blue-500" />
+                        <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{selectedYear} Total</span>
+                        <div className="w-8 h-8 rounded-full bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center">
+                            <Calendar className="w-4 h-4 text-blue-500 dark:text-blue-400" />
                         </div>
                     </div>
-                    <div className="text-2xl font-bold text-blue-600">PKR {formatPKR(yearTotal)}</div>
-                    <p className="text-xs text-gray-400 mt-1">{yearEntries.length} payments this year</p>
+                    <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">PKR {formatPKR(yearTotal)}</div>
+                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{yearEntries.length} payments this year</p>
                 </div>
 
             </div>
 
             {/* Add / Edit Form */}
             {showForm && (
-                <div className="bg-blue-50/70 p-5 rounded-xl border border-blue-200">
-                    <h3 className="font-semibold text-blue-800 mb-4 text-sm">{editingId ? 'Edit Payment' : 'Add New Payment'}</h3>
+                <div className="bg-blue-50/70 dark:bg-neutral-800/50 p-5 rounded-xl border border-blue-200 dark:border-neutral-700 transition-colors">
+                    <h3 className="font-semibold text-blue-800 dark:text-blue-400 mb-4 text-sm">{editingId ? 'Edit Payment' : 'Add New Payment'}</h3>
                     <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 items-end">
                         <div>
-                            <label className="block text-xs text-gray-600 mb-1">Rent Month</label>
-                            <select value={form.month} onChange={e => setForm({ ...form, month: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white text-sm">
+                            <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Rent Month</label>
+                            <select value={form.month} onChange={e => setForm({ ...form, month: e.target.value })} className="w-full px-3 py-2 border border-gray-200 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-900 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors">
                                 {MONTHS.map(m => <option key={m} value={m}>{m}</option>)}
                             </select>
                         </div>
                         <div>
-                            <label className="block text-xs text-gray-600 mb-1">Year</label>
-                            <input required type="number" value={form.year} onChange={e => setForm({ ...form, year: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" />
+                            <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Year</label>
+                            <input required type="number" value={form.year} onChange={e => setForm({ ...form, year: e.target.value })} className="w-full px-3 py-2 border border-gray-200 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-900 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors" />
                         </div>
                         <div>
-                            <label className="block text-xs text-gray-600 mb-1">Received From</label>
-                            <select required value={form.payer_name} onChange={e => setForm({ ...form, payer_name: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white text-sm">
+                            <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Received From</label>
+                            <select required value={form.payer_name} onChange={e => setForm({ ...form, payer_name: e.target.value })} className="w-full px-3 py-2 border border-gray-200 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-900 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors">
                                 <option value="">Select payer...</option>
                                 <option value="Usman Shad">Usman Shad</option>
                                 <option value="Naim Shad">Naim Shad</option>
                             </select>
                         </div>
                         <div>
-                            <label className="block text-xs text-gray-600 mb-1">Amount (PKR)</label>
-                            <input required type="number" step="0.01" value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" />
+                            <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Amount (PKR)</label>
+                            <input required type="number" step="0.01" value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} className="w-full px-3 py-2 border border-gray-200 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-900 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors" />
                         </div>
                         <div>
-                            <label className="block text-xs text-gray-600 mb-1">Payment Date</label>
-                            <input required type="date" value={form.payment_date} onChange={e => setForm({ ...form, payment_date: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" />
+                            <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Payment Date</label>
+                            <DatePickerInput
+                                required
+                                selectedDate={form.payment_date}
+                                onChange={val => setForm({ ...form, payment_date: val })}
+                            />
                         </div>
                         <div>
-                            <label className="block text-xs text-gray-600 mb-1">Received In (Account/Source)</label>
-                            <select required value={form.account_source} onChange={e => setForm({ ...form, account_source: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white text-sm">
+                            <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Received In (Account/Source)</label>
+                            <select required value={form.account_source} onChange={e => setForm({ ...form, account_source: e.target.value })} className="w-full px-3 py-2 border border-gray-200 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-900 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors">
                                 <option value="">Select account...</option>
                                 <option value="Easy Paisa">Easy Paisa</option>
                                 <option value="Standard Chartered Bank">Standard Chartered Bank</option>
@@ -188,12 +193,12 @@ export default function RentTracker() {
                             </select>
                         </div>
                         <div>
-                            <label className="block text-xs text-gray-600 mb-1">Notes (Optional)</label>
-                            <input type="text" value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" placeholder="Any notes" />
+                            <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Notes (Optional)</label>
+                            <input type="text" value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} className="w-full px-3 py-2 border border-gray-200 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-900 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors" placeholder="Any notes" />
                         </div>
                         <div className="flex space-x-2">
-                            <button type="button" onClick={cancelEdit} className="px-3 py-2 border border-gray-200 rounded-lg bg-white text-sm w-full hover:bg-gray-50">Cancel</button>
-                            <button type="submit" className="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium w-full hover:bg-blue-700">{editingId ? 'Update' : 'Save'}</button>
+                            <button type="button" onClick={cancelEdit} className="px-3 py-2 border border-gray-200 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 text-gray-700 dark:text-gray-300 text-sm w-full hover:bg-gray-50 dark:hover:bg-neutral-700 transition-colors">Cancel</button>
+                            <button type="submit" className="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium w-full hover:bg-blue-700 transition-colors">{editingId ? 'Update' : 'Save'}</button>
                         </div>
                     </form>
                 </div>
@@ -202,25 +207,25 @@ export default function RentTracker() {
             {/* Year Tabs */}
             <div className="flex items-center space-x-2">
                 {years.map(y => (
-                    <button key={y} onClick={() => setSelectedYear(y)} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${selectedYear === y ? 'bg-gray-900 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                    <button key={y} onClick={() => setSelectedYear(y)} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${selectedYear === y ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900' : 'bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-neutral-800'}`}>
                         {y}
                     </button>
                 ))}
             </div>
 
             {/* Monthly Overview Bar */}
-            <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-100">
-                    <h3 className="text-sm font-semibold text-gray-800">Monthly Breakdown — {selectedYear}</h3>
+            <div className="bg-white dark:bg-neutral-900 rounded-xl border border-gray-100 dark:border-neutral-800 shadow-sm overflow-hidden transition-colors">
+                <div className="px-6 py-4 border-b border-gray-100 dark:border-neutral-800">
+                    <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200">Monthly Breakdown — {selectedYear}</h3>
                 </div>
-                <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-12 gap-px bg-gray-100">
+                <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-12 gap-px bg-gray-100 dark:bg-neutral-800">
                     {MONTHS.map((m, i) => {
                         const amt = monthlyTotals[m];
                         const hasEntry = amt > 0;
                         return (
-                            <div key={m} className={`p-3 text-center ${hasEntry ? 'bg-emerald-50' : 'bg-white'}`}>
-                                <div className="text-[10px] font-medium text-gray-400 uppercase">{m.slice(0, 3)}</div>
-                                <div className={`text-xs font-bold mt-1 ${hasEntry ? 'text-emerald-600' : 'text-gray-300'}`}>
+                            <div key={m} className={`p-3 text-center ${hasEntry ? 'bg-emerald-50 dark:bg-emerald-900/10' : 'bg-white dark:bg-neutral-900'}`}>
+                                <div className="text-[10px] font-medium text-gray-400 dark:text-gray-500 uppercase">{m.slice(0, 3)}</div>
+                                <div className={`text-xs font-bold mt-1 ${hasEntry ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-300 dark:text-gray-700'}`}>
                                     {hasEntry ? formatPKR(amt) : '—'}
                                 </div>
                             </div>
@@ -230,17 +235,17 @@ export default function RentTracker() {
             </div>
 
             {/* Entries Table */}
-            <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center">
-                    <h3 className="text-sm font-semibold text-gray-800">Payment Records — {selectedYear}</h3>
-                    <span className="text-xs text-gray-400">{yearEntries.length} entries</span>
+            <div className="bg-white dark:bg-neutral-900 rounded-xl border border-gray-100 dark:border-neutral-800 shadow-sm overflow-hidden transition-colors">
+                <div className="px-6 py-4 border-b border-gray-100 dark:border-neutral-800 flex justify-between items-center">
+                    <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200">Payment Records — {selectedYear}</h3>
+                    <span className="text-xs text-gray-400 dark:text-gray-500">{yearEntries.length} entries</span>
                 </div>
 
                 {yearEntries.length > 0 ? (
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm">
                             <thead>
-                                <tr className="text-xs text-gray-500 uppercase tracking-wider border-b border-gray-100">
+                                <tr className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-100 dark:border-neutral-800">
                                     <th className="px-5 py-3 text-left font-medium">#</th>
                                     <th className="px-5 py-3 text-left font-medium">Month</th>
                                     <th className="px-5 py-3 text-left font-medium">Received From</th>
@@ -251,26 +256,26 @@ export default function RentTracker() {
                                     <th className="px-5 py-3 text-center font-medium w-20">Actions</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody className="divide-y divide-gray-50 dark:divide-neutral-800/50">
                                 {yearEntries.map((entry, idx) => (
-                                    <tr key={entry.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
-                                        <td className="px-5 py-3 text-gray-400 font-mono text-xs">{idx + 1}</td>
+                                    <tr key={entry.id} className="hover:bg-gray-50/50 dark:hover:bg-neutral-800/50 transition-colors">
+                                        <td className="px-5 py-3 text-gray-400 dark:text-gray-500 font-mono text-xs">{idx + 1}</td>
                                         <td className="px-5 py-3">
-                                            <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700">{entry.month}</span>
+                                            <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400">{entry.month}</span>
                                         </td>
-                                        <td className="px-5 py-3 text-gray-800 font-medium">{entry.payer_name}</td>
-                                        <td className="px-5 py-3 text-gray-500">{new Date(entry.payment_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
+                                        <td className="px-5 py-3 text-gray-800 dark:text-gray-200 font-medium">{entry.payer_name}</td>
+                                        <td className="px-5 py-3 text-gray-500 dark:text-gray-400">{new Date(entry.payment_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
                                         <td className="px-5 py-3">
-                                            <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-purple-50 text-purple-700">{entry.account_source}</span>
+                                            <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400">{entry.account_source}</span>
                                         </td>
-                                        <td className="px-5 py-3 text-right font-semibold text-emerald-600">+{formatPKR(Number(entry.amount))}</td>
-                                        <td className="px-5 py-3 text-gray-400 text-xs">{entry.notes || '—'}</td>
+                                        <td className="px-5 py-3 text-right font-semibold text-emerald-600 dark:text-emerald-400">+{formatPKR(Number(entry.amount))}</td>
+                                        <td className="px-5 py-3 text-gray-400 dark:text-gray-500 text-xs">{entry.notes || '—'}</td>
                                         <td className="px-5 py-3 text-center">
                                             <div className="flex items-center justify-center space-x-1">
-                                                <button onClick={() => handleEdit(entry)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Edit">
+                                                <button onClick={() => handleEdit(entry)} className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors" title="Edit">
                                                     <Pencil className="w-3.5 h-3.5" />
                                                 </button>
-                                                <button onClick={() => handleDelete(entry.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors" title="Delete">
+                                                <button onClick={() => handleDelete(entry.id)} className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors" title="Delete">
                                                     <Trash2 className="w-3.5 h-3.5" />
                                                 </button>
                                             </div>
@@ -279,9 +284,9 @@ export default function RentTracker() {
                                 ))}
                             </tbody>
                             <tfoot>
-                                <tr className="border-t-2 border-gray-200 bg-gray-50/80">
-                                    <td colSpan="5" className="px-5 py-3 text-right text-xs font-bold text-gray-600 uppercase tracking-wider">Year Total</td>
-                                    <td className="px-5 py-3 text-right font-bold text-base text-emerald-600">PKR {formatPKR(yearTotal)}</td>
+                                <tr className="border-t-2 border-gray-200 dark:border-neutral-700 bg-gray-50/80 dark:bg-neutral-800/80 transition-colors">
+                                    <td colSpan="5" className="px-5 py-3 text-right text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Year Total</td>
+                                    <td className="px-5 py-3 text-right font-bold text-base text-emerald-600 dark:text-emerald-400">PKR {formatPKR(yearTotal)}</td>
                                     <td colSpan="2"></td>
                                 </tr>
                             </tfoot>
@@ -289,9 +294,9 @@ export default function RentTracker() {
                     </div>
                 ) : (
                     <div className="px-6 py-12 text-center">
-                        <Building className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-                        <p className="text-gray-400 text-sm">No rent payments recorded for {selectedYear}</p>
-                        <p className="text-gray-300 text-xs mt-1">Click "Add Payment" to log a rent received</p>
+                        <Building className="w-10 h-10 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
+                        <p className="text-gray-400 dark:text-gray-500 text-sm">No rent payments recorded for {selectedYear}</p>
+                        <p className="text-gray-300 dark:text-gray-600 text-xs mt-1">Click "Add Payment" to log a rent received</p>
                     </div>
                 )}
             </div>

@@ -3,13 +3,16 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import Layout from './components/Layout';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import OTPVerification from './pages/OTPVerification';
 import Dashboard from './pages/Dashboard';
 import Expenses from './pages/Expenses';
 import MutualFunds from './pages/MutualFunds';
 import Stocks from './pages/Stocks';
 import DuesLedger from './pages/DuesLedger';
 import RentTracker from './pages/RentTracker';
-import Reports from './pages/Reports';
+import Accounts from './pages/Accounts';
+import BankDetail from './pages/BankDetail';
+import Settings from './pages/Settings';
 
 const ProtectedRoute = ({ children }) => {
   const { user } = useAuth();
@@ -30,6 +33,7 @@ function App() {
         <Routes>
           <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
           <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
+          <Route path="/verify-otp" element={<PublicRoute><OTPVerification /></PublicRoute>} />
 
           <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
             <Route index element={<Dashboard />} />
@@ -38,7 +42,10 @@ function App() {
             <Route path="stocks" element={<Stocks />} />
             <Route path="dues" element={<DuesLedger />} />
             <Route path="rents" element={<RentTracker />} />
-            <Route path="reports" element={<Reports />} />
+            <Route path="psx-engine" element={<Stocks />} />
+            <Route path="accounts" element={<Accounts />} />
+            <Route path="banks/:id" element={<BankDetail />} />
+            <Route path="settings" element={<Settings />} />
           </Route>
         </Routes>
       </Router>

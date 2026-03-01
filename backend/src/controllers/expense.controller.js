@@ -31,6 +31,34 @@ export const createExpense = async (req, res) => {
     }
 };
 
+export const createBatchExpenses = async (req, res) => {
+    try {
+        const expensesData = req.body;
+
+        // Map the payload to inject the current user ID and ensure proper date object formatting
+        const batchPayload = expensesData.map(exp => ({
+            user_id: req.user.id,
+            amount: exp.amount,
+            category: exp.category,
+            expense_date: new Date(exp.expense_date),
+            payment_method: exp.payment_method,
+            notes: exp.notes
+        }));
+
+        const result = await prisma.expense.createMany({
+            data: batchPayload
+        });
+
+        res.status(201).json({
+            message: 'Batch uploaded successfully',
+            count: result.count
+        });
+    } catch (error) {
+        console.error('Batch error:', error);
+        res.status(500).json({ message: 'Error creating bulk expenses' });
+    }
+};
+
 export const updateExpense = async (req, res) => {
     try {
         const { id } = req.params;

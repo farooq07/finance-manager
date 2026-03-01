@@ -16,8 +16,8 @@ describe('loginSchema', () => {
         expect(result.success).toBe(true);
     });
 
-    it('rejects invalid email', () => {
-        const result = loginSchema.safeParse({ email: 'not-an-email', password: '123456' });
+    it('rejects empty email/username', () => {
+        const result = loginSchema.safeParse({ email: '', password: '123456' });
         expect(result.success).toBe(false);
     });
 
@@ -154,7 +154,7 @@ describe('getFormErrors', () => {
     });
 
     it('returns error map for invalid data', () => {
-        const result = loginSchema.safeParse({ email: 'bad', password: '12' });
+        const result = loginSchema.safeParse({ email: '', password: '12' });
         const errors = getFormErrors(result);
         expect(errors.email).toBeDefined();
         expect(errors.password).toBeDefined();
