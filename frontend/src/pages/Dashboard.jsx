@@ -130,7 +130,7 @@ export default function Dashboard() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <MetricCard title="Total Bank Balance" value={metrics.totalBankBalance} icon={Landmark} color="blue" />
+                <MetricCard title="Total Bank Balance" value={metrics.totalBankBalance} icon={Landmark} color="primary" />
                 <MetricCard title="Total Wallet Balance" value={metrics.totalWalletBalance} icon={Wallet} color="cyan" />
                 <MetricCard title="PSX Total" value={metrics.stockValue} icon={TrendingUp} color="indigo" />
                 <MetricCard title="Mutual Fund Total" value={metrics.mutualFundValue} icon={PieIcon} color="purple" />

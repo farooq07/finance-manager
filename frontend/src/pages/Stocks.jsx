@@ -9,6 +9,7 @@ import { fmtDate, fmtDateLong } from '../utils/dates';
 import { StatSkeleton, TableSkeleton } from '../components/Skeleton';
 import DatePickerInput from '../components/DatePickerInput';
 import DatePicker from 'react-datepicker';
+import toast from 'react-hot-toast';
 
 export default function Stocks() {
     // ---- Server State ----
@@ -99,7 +100,7 @@ export default function Stocks() {
                 });
 
                 if (holdings.length === 0) {
-                    alert("No valid stock data found in CSV. Please ensure columns exist like 'symbol', 'holding', 'market_rate'.");
+                    toast.error("No valid stock data found in CSV. Please ensure columns exist like 'symbol', 'holding', 'market_rate'.");
                     return;
                 }
 
@@ -109,9 +110,9 @@ export default function Stocks() {
                         total_custody: totalCSVValue,
                         holdings_data: holdings
                     });
-                    alert(`Snapshot for ${fmtDate(csvDate)} uploaded successfully! Portfolio Value: PKR ${fmtPKR(totalCSVValue)}`);
+                    toast.success(`Snapshot for ${fmtDate(csvDate)} uploaded successfully! Portfolio Value: PKR ${fmtPKR(totalCSVValue)}`);
                 } catch (err) {
-                    alert(err.response?.data?.message || 'Failed to upload snapshot');
+                    toast.error(err.response?.data?.message || 'Failed to upload snapshot');
                 }
 
                 // Reset file input
@@ -129,8 +130,9 @@ export default function Stocks() {
                 description: bankForm.description
             });
             setBankForm({ transaction_date: new Date().toISOString().split('T')[0], amount: '', description: '' });
+            toast.success('Bank transaction added successfully');
         } catch (err) {
-            alert(err.response?.data?.message || 'Failed to add bank transaction');
+            toast.error(err.response?.data?.message || 'Failed to add bank transaction');
         }
     };
 
@@ -158,8 +160,9 @@ export default function Stocks() {
                 }
             });
             setShowSummaryModal(false);
+            toast.success('Summary stats updated successfully');
         } catch (err) {
-            alert('Failed to update summary stats');
+            toast.error('Failed to update summary stats');
         }
     }
 

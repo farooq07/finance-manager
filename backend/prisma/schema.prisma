@@ -13,6 +13,7 @@ model User {
   email               String              @unique
   name                String
   password_hash       String
+  app_pin_code        String?             @db.VarChar(255)
   otp_code            String?             @db.VarChar(6)
   otp_expires_at      DateTime?           @db.Timestamptz(6)
   created_at          DateTime            @default(now()) @db.Timestamptz(6)
@@ -252,7 +253,7 @@ model BrokerAccount {
   client_code        String   @db.VarChar(100)
   participant_acc_no String?  @db.VarChar(100)
   cdc_sub_acc_no     String?  @db.VarChar(100)
-  stock_pin_code     String?  @db.VarChar(50)
+  stock_pin_code     String?  @db.VarChar(255)
   created_at         DateTime @default(now()) @db.Timestamptz(6)
   user               User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
 

@@ -62,7 +62,7 @@ export const rentEntrySchema = z.object({
 export const duesTransactionSchema = z.object({
     amount: z.coerce.number().positive('Amount must be > 0'),
     transaction_type: z.enum(['receivable', 'payable']),
-    transaction_date: z.string().min(1, 'Date is required'),
+    transaction_date: z.string().optional().nullable().or(z.literal('')),
     description: z.string().optional().nullable(),
 });
 

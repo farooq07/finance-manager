@@ -1,4 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Layout from './components/Layout';
 import Login from './pages/Login';
@@ -13,6 +14,9 @@ import RentTracker from './pages/RentTracker';
 import Accounts from './pages/Accounts';
 import BankDetail from './pages/BankDetail';
 import Settings from './pages/Settings';
+import Reports from './pages/Reports';
+import DesignSystem from './pages/DesignSystem';
+
 
 const ProtectedRoute = ({ children }) => {
   const { user } = useAuth();
@@ -30,6 +34,19 @@ function App() {
   return (
     <AuthProvider>
       <Router>
+        <Toaster position="bottom-center" toastOptions={{
+          style: {
+            background: '#333',
+            color: '#fff',
+            borderRadius: '10px',
+          },
+          success: {
+            iconTheme: {
+              primary: '#10b981',
+              secondary: '#fff',
+            },
+          },
+        }} />
         <Routes>
           <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
           <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
@@ -46,6 +63,8 @@ function App() {
             <Route path="accounts" element={<Accounts />} />
             <Route path="banks/:id" element={<BankDetail />} />
             <Route path="settings" element={<Settings />} />
+            <Route path="reports" element={<Reports />} />
+            <Route path="design-system" element={<DesignSystem />} />
           </Route>
         </Routes>
       </Router>

@@ -62,8 +62,10 @@ export const updatePerson = async (req, res) => {
     try {
         const { id } = req.params;
         const { name, email } = req.body;
+        console.log("Updating person ID:", id);
 
         const existing = await prisma.person.findUnique({ where: { id } });
+        console.log("Existing person:", existing);
         if (!existing || existing.user_id !== req.user.id) {
             return res.status(404).json({ message: 'Person not found' });
         }
@@ -143,7 +145,7 @@ export const createDuesTransaction = async (req, res) => {
                 person_id: id,
                 transaction_type, // 'receivable' or 'payable'
                 amount,
-                transaction_date: new Date(transaction_date),
+                transaction_date: transaction_date ? new Date(transaction_date) : new Date(),
                 description
             }
         });
@@ -269,7 +271,7 @@ export const updateTransaction = async (req, res) => {
             data: {
                 ...(description !== undefined && { description }),
                 ...(amount !== undefined && { amount: Math.abs(Number(amount)) }),
-                ...(transaction_date !== undefined && { transaction_date: new Date(transaction_date) }),
+                ...(transaction_date !== undefined && { transaction_date: transaction_date ? new Date(transaction_date) : new Date() }),
                 ...(transaction_type !== undefined && { transaction_type })
             }
         });

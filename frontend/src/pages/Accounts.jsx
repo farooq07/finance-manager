@@ -4,9 +4,11 @@ import { Link } from 'react-router-dom';
 import { useWallets, useCreateWallet, useUpdateWalletBalance, useDeleteWallet } from '../hooks/useWallets';
 import { useBanks, useCreateBank, useDeleteBank } from '../hooks/useBanks';
 import { useInstitutions } from '../hooks/useInstitutions';
+import { Button, TextInput } from 'flowbite-react';
 import { fmtPKR } from '../utils/currency';
 import { CardSkeleton } from '../components/Skeleton';
 import Select from '../components/Select';
+import toast from 'react-hot-toast';
 
 // Mapping color themes to Tailwind gradients for the Credit Card UI
 const CARD_THEMES = {
@@ -44,14 +46,31 @@ export default function Accounts() {
 
     // Security States
     const [revealedBankIds, setRevealedBankIds] = useState([]);
+    const [pinModal, setPinModal] = useState({ isOpen: false, targetId: null, pin: '', loading: false });
 
     const toggleBalanceReveal = (e, bankId) => {
         e.preventDefault();
         e.stopPropagation();
         if (revealedBankIds.includes(bankId)) {
+            // Instantly lock
             setRevealedBankIds(prev => prev.filter(id => id !== bankId));
         } else {
-            setRevealedBankIds(prev => [...prev, bankId]);
+            // Prompt for PIN to unlock
+            setPinModal({ isOpen: true, targetId: bankId, pin: '', loading: false });
+        }
+    };
+
+    const handleVerifyPin = async (e) => {
+        e.preventDefault();
+        setPinModal(prev => ({ ...prev, loading: true }));
+        try {
+            await api.post('/auth/verify-pin', { pin: pinModal.pin });
+            setRevealedBankIds(prev => [...prev, pinModal.targetId]);
+            setPinModal({ isOpen: false, targetId: null, pin: '', loading: false });
+            toast.success("Balance Unlocked");
+        } catch (error) {
+            toast.error(error.response?.data?.message || 'Invalid PIN');
+            setPinModal(prev => ({ ...prev, loading: false }));
         }
     };
 
@@ -79,7 +98,7 @@ export default function Accounts() {
         e.preventDefault();
         try {
             const selectedInst = institutions.find(i => i.id === walletForm.institution_id);
-            if (!selectedInst) return alert('Please select a valid institution');
+            if (!selectedInst) return toast.error('Please select a valid institution');
 
             await createWallet.mutateAsync({
                 ...walletForm,
@@ -88,8 +107,9 @@ export default function Accounts() {
             });
             setShowWalletModal(false);
             setWalletForm({ name: '', institution_id: '', balance: '', color_theme: 'blue', account_num: '' });
+            toast.success('Wallet created successfully');
         } catch (error) {
-            alert(error.response?.data?.message || 'Failed to create wallet');
+            toast.error(error.response?.data?.message || 'Failed to create wallet');
         }
     };
 
@@ -99,8 +119,9 @@ export default function Accounts() {
             await updateWalletBalance.mutateAsync({ id, balance: balanceInput });
             setEditWalletId(null);
             setBalanceInput('');
+            toast.success('Balance updated');
         } catch (error) {
-            alert('Failed to update balance');
+            toast.error('Failed to update balance');
         }
     };
 
@@ -114,7 +135,7 @@ export default function Accounts() {
         e.preventDefault();
         try {
             const selectedInst = institutions.find(i => i.id === bankForm.institution_id);
-            if (!selectedInst) return alert('Please select a valid bank institution');
+            if (!selectedInst) return toast.error('Please select a valid bank institution');
 
             await createBank.mutateAsync({
                 name: selectedInst.name,
@@ -124,8 +145,9 @@ export default function Accounts() {
             });
             setShowBankModal(false);
             setBankForm({ name: '', institution_id: '', account_no: '', iban_no: '', starting_balance: '' });
+            toast.success('Bank created successfully');
         } catch (error) {
-            alert(error.response?.data?.message || 'Failed to create bank');
+            toast.error(error.response?.data?.message || 'Failed to create bank');
         }
     };
 
@@ -166,12 +188,9 @@ export default function Accounts() {
                     <h2 className="text-xl font-bold text-gray-800 dark:text-gray-200 flex items-center gap-2">
                         <Building2 className="w-5 h-5 text-blue-600 dark:text-blue-500" /> Formal Banking
                     </h2>
-                    <button
-                        onClick={() => setShowBankModal(true)}
-                        className="flex items-center px-4 py-2 bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors text-sm font-semibold"
-                    >
+                    <Button color="light" size="sm" onClick={() => setShowBankModal(true)}>
                         <Plus className="w-4 h-4 mr-1.5" /> Add Bank
-                    </button>
+                    </Button>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -346,7 +365,7 @@ export default function Accounts() {
                         <form onSubmit={handleWalletCreate} className="p-6 space-y-4">
                             <div>
                                 <Select
-                                    label="Wallet Institution"
+                                    label="Wallets"
                                     options={formatInstitutionOptions('wallet')} // Include cash/other? we can filter differently later if needed
                                     value={walletForm.institution_id}
                                     onChange={(val) => setWalletForm({ ...walletForm, institution_id: val })}
@@ -356,18 +375,24 @@ export default function Accounts() {
                             </div>
 
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Account Nickname</label>
-                                <input required type="text" placeholder="e.g. My Everyday Wallet" className="w-full px-4 py-2 border border-gray-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-900 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 transition-colors" value={walletForm.name} onChange={e => setWalletForm({ ...walletForm, name: e.target.value })} />
+                                <div className="mb-1 block">
+                                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Account Nickname</label>
+                                </div>
+                                <TextInput id="wallet-name" required type="text" placeholder="e.g. My Everyday Wallet" value={walletForm.name} onChange={e => setWalletForm({ ...walletForm, name: e.target.value })} />
                             </div>
 
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Starting Balance</label>
-                                    <input required type="number" step="0.01" min="0" className="w-full px-4 py-2 border border-gray-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-900 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 transition-colors" value={walletForm.balance} onChange={e => setWalletForm({ ...walletForm, balance: e.target.value })} />
+                                    <div className="mb-1 block">
+                                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Starting Balance</label>
+                                    </div>
+                                    <TextInput id="wallet-balance" required type="number" step="0.01" min="0" value={walletForm.balance} onChange={e => setWalletForm({ ...walletForm, balance: e.target.value })} />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Last 4 Digits <span className="text-gray-400 dark:text-gray-500 text-xs">(optional)</span></label>
-                                    <input type="text" maxLength="4" placeholder="1234" className="w-full px-4 py-2 border border-gray-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-900 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 font-mono tracking-widest transition-colors" value={walletForm.account_num} onChange={e => setWalletForm({ ...walletForm, account_num: e.target.value })} />
+                                    <div className="mb-1 block">
+                                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Last 4 Digits <span className="text-gray-400 dark:text-gray-500 text-xs">(optional)</span></label>
+                                    </div>
+                                    <TextInput id="wallet-digits" type="text" maxLength="4" placeholder="1234" value={walletForm.account_num} onChange={e => setWalletForm({ ...walletForm, account_num: e.target.value })} className="font-mono tracking-widest" />
                                 </div>
                             </div>
 
@@ -386,10 +411,10 @@ export default function Accounts() {
                             </div>
 
                             <div className="pt-4 flex justify-end gap-3">
-                                <button type="button" onClick={() => setShowWalletModal(false)} className="px-5 py-2 text-gray-700 dark:text-gray-300 font-medium hover:bg-gray-100 dark:hover:bg-neutral-800 rounded-lg transition-colors">Cancel</button>
-                                <button type="submit" disabled={createWallet.isPending || institutions.length === 0} className="px-6 py-2 bg-emerald-600 text-white font-medium rounded-lg hover:bg-emerald-700 disabled:opacity-50 transition-colors">
-                                    {createWallet.isPending ? 'Adding...' : 'Add Wallet'}
-                                </button>
+                                <Button color="light" onClick={() => setShowWalletModal(false)}>Cancel</Button>
+                                <Button type="submit" color="blue" disabled={createWallet.isPending || institutions.length === 0} isProcessing={createWallet.isPending}>
+                                    Add Wallet
+                                </Button>
                             </div>
                         </form>
                     </div>
@@ -418,26 +443,65 @@ export default function Accounts() {
                             </div>
 
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Account Number</label>
-                                <input required type="text" className="w-full px-4 py-2 border border-gray-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-900 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 font-mono transition-colors" value={bankForm.account_no} onChange={e => setBankForm({ ...bankForm, account_no: e.target.value })} />
+                                <div className="mb-1 block">
+                                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Account Number</label>
+                                </div>
+                                <TextInput id="bank-acc" required type="text" value={bankForm.account_no} onChange={e => setBankForm({ ...bankForm, account_no: e.target.value })} className="font-mono" />
                             </div>
 
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">IBAN Number</label>
-                                <input required type="text" className="w-full px-4 py-2 border border-gray-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-900 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 font-mono uppercase transition-colors" value={bankForm.iban_no} onChange={e => setBankForm({ ...bankForm, iban_no: e.target.value })} />
+                                <div className="mb-1 block">
+                                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">IBAN Number</label>
+                                </div>
+                                <TextInput id="bank-iban" required type="text" value={bankForm.iban_no} onChange={e => setBankForm({ ...bankForm, iban_no: e.target.value })} className="font-mono uppercase" />
                             </div>
 
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Starting Balance</label>
-                                <input required type="number" step="0.01" className="w-full px-4 py-2 border border-gray-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-900 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 transition-colors" value={bankForm.starting_balance} onChange={e => setBankForm({ ...bankForm, starting_balance: e.target.value })} />
+                                <div className="mb-1 block">
+                                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Starting Balance</label>
+                                </div>
+                                <TextInput id="bank-balance" required type="number" step="0.01" value={bankForm.starting_balance} onChange={e => setBankForm({ ...bankForm, starting_balance: e.target.value })} />
                             </div>
 
                             <div className="pt-4 flex justify-end gap-3">
-                                <button type="button" onClick={() => setShowBankModal(false)} className="px-5 py-2 text-gray-700 dark:text-gray-300 font-medium hover:bg-gray-100 dark:hover:bg-neutral-800 rounded-lg transition-colors">Cancel</button>
-                                <button type="submit" disabled={createBank.isPending || formatInstitutionOptions('bank').length === 0} className="px-6 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
-                                    {createBank.isPending ? 'Connecting...' : 'Link Bank'}
-                                </button>
+                                <Button color="light" onClick={() => setShowBankModal(false)}>Cancel</Button>
+                                <Button type="submit" color="blue" disabled={createBank.isPending || formatInstitutionOptions('bank').length === 0} isProcessing={createBank.isPending}>
+                                    Link Bank
+                                </Button>
                             </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* PIN Verification Modal */}
+            {pinModal.isOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+                    <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-xl w-full max-w-sm animate-in fade-in zoom-in duration-200 transition-colors">
+                        <div className="px-6 py-4 border-b border-gray-100 dark:border-neutral-800 flex justify-between items-center">
+                            <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">Security Check</h2>
+                            <button onClick={() => setPinModal({ isOpen: false, targetId: null, pin: '', loading: false })} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">✕</button>
+                        </div>
+
+                        <form onSubmit={handleVerifyPin} className="p-6">
+                            <div className="mb-6 text-center">
+                                <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Enter your Master PIN to reveal this balance.</p>
+                                <TextInput
+                                    id="pin-entry"
+                                    type="password"
+                                    required
+                                    autoFocus
+                                    maxLength={4}
+                                    className="w-3/4 mx-auto font-mono text-center tracking-[0.5em]"
+                                    sizing="lg"
+                                    value={pinModal.pin}
+                                    onChange={e => setPinModal({ ...pinModal, pin: e.target.value })}
+                                />
+                            </div>
+
+                            <Button type="submit" color="blue" disabled={pinModal.loading} isProcessing={pinModal.loading} className="w-full">
+                                {pinModal.loading ? 'Verifying...' : 'Unlock Balance'}
+                            </Button>
                         </form>
                     </div>
                 </div>

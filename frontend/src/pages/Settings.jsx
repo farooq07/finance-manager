@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../services/api';
 import { TableSkeleton } from '../components/Skeleton';
 import Modal from '../components/Modal';
+import { Button, TextInput, Select } from 'flowbite-react';
 
 export default function Settings() {
     const [activeTab, setActiveTab] = useState('institutions');
@@ -21,6 +22,9 @@ export default function Settings() {
 
     // Feedback Modal for Success/Errors replacing 'alert'
     const [feedbackModal, setFeedbackModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
+
+    // PIN
+    const [newPin, setNewPin] = useState('');
 
     const queryClient = useQueryClient();
 
@@ -83,7 +87,7 @@ export default function Settings() {
             title: "System",
             items: [
                 { id: 'users', label: 'Users & Roles', icon: Users, disabled: true },
-
+                { id: 'security', label: 'Security & PIN', icon: ShieldAlert },
             ]
         }
     ];
@@ -143,13 +147,10 @@ export default function Settings() {
                                 <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Banks & Wallets</h2>
                                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Manage the global list of banks and wallets available across the app.</p>
                             </div>
-                            <button
-                                onClick={() => setIsAddModalOpen(true)}
-                                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm"
-                            >
-                                <Plus className="w-4 h-4" />
+                            <Button color="blue" onClick={() => setIsAddModalOpen(true)}>
+                                <Plus className="w-4 h-4 mr-2" />
                                 Add Record
-                            </button>
+                            </Button>
                         </div>
 
                         {/* Data Table Area */}
@@ -163,13 +164,14 @@ export default function Settings() {
                                     <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 max-w-sm mb-6">
                                         You need to register at least one institution (like a bank or wallet) before you can add accounts in the app.
                                     </p>
-                                    <button
+                                    <Button
+                                        color="light"
                                         onClick={() => seedInst.mutate()}
                                         disabled={seedInst.isPending}
-                                        className="px-4 py-2 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-lg text-sm font-medium hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"
+                                        isProcessing={seedInst.isPending}
                                     >
-                                        {seedInst.isPending ? 'Seeding...' : 'Auto-Seed Defaults'}
-                                    </button>
+                                        Auto-Seed Defaults
+                                    </Button>
                                 </div>
                             ) : (
                                 <table className="min-w-full divide-y divide-gray-200 dark:divide-neutral-800 transition-colors">
@@ -226,11 +228,13 @@ export default function Settings() {
                             </div>
                             <form onSubmit={handleCreate} className="space-y-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Banks Name</label>
-                                    <input
+                                    <div className="mb-1 block">
+                                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Banks Name</label>
+                                    </div>
+                                    <TextInput
+                                        id="bank-name"
                                         type="text"
                                         required
-                                        className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none transition-colors font-medium"
                                         value={formData.name}
                                         onChange={e => setFormData({ ...formData, name: e.target.value })}
                                         placeholder="e.g. Nayapay"
@@ -238,9 +242,11 @@ export default function Settings() {
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Type</label>
-                                        <select
-                                            className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none transition-colors"
+                                        <div className="mb-1 block">
+                                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Type</label>
+                                        </div>
+                                        <Select
+                                            id="bank-type"
                                             value={formData.type}
                                             onChange={e => setFormData({ ...formData, type: e.target.value })}
                                         >
@@ -248,10 +254,12 @@ export default function Settings() {
                                             <option value="wallet">Virtual Wallet</option>
                                             <option value="cash">Cash in Hand</option>
                                             <option value="other">Other</option>
-                                        </select>
+                                        </Select>
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Brand Color Code</label>
+                                        <div className="mb-1 block">
+                                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Brand Color Code</label>
+                                        </div>
                                         <div className="flex items-center gap-3">
                                             <input
                                                 type="color"
@@ -259,9 +267,10 @@ export default function Settings() {
                                                 value={formData.color}
                                                 onChange={e => setFormData({ ...formData, color: e.target.value })}
                                             />
-                                            <input
+                                            <TextInput
+                                                id="bank-color"
                                                 type="text"
-                                                className="flex-1 px-3 py-2 border border-gray-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 rounded-lg focus:ring-2 focus:ring-blue-500 uppercase font-medium text-gray-600 dark:text-gray-400 tabular-nums focus:outline-none transition-colors"
+                                                className="flex-1 uppercase font-medium text-gray-600 dark:text-gray-400 tabular-nums"
                                                 value={formData.color}
                                                 onChange={e => setFormData({ ...formData, color: e.target.value })}
                                                 placeholder="#HEXCODE"
@@ -270,20 +279,17 @@ export default function Settings() {
                                     </div>
                                 </div>
                                 <div className="flex justify-end gap-3 mt-6 pt-2">
-                                    <button
-                                        type="button"
-                                        onClick={() => setIsAddModalOpen(false)}
-                                        className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-neutral-800 hover:bg-gray-200 dark:hover:bg-neutral-700 rounded-lg font-medium transition-colors"
-                                    >
+                                    <Button color="light" onClick={() => setIsAddModalOpen(false)}>
                                         Cancel
-                                    </button>
-                                    <button
+                                    </Button>
+                                    <Button
                                         type="submit"
+                                        color="blue"
                                         disabled={createInst.isPending}
-                                        className="px-4 py-2 text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-lg font-medium transition-colors"
+                                        isProcessing={createInst.isPending}
                                     >
-                                        {createInst.isPending ? 'Saving...' : 'Save Institution'}
-                                    </button>
+                                        Save Institution
+                                    </Button>
                                 </div>
                             </form>
                         </div>
@@ -298,13 +304,10 @@ export default function Settings() {
                                 <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Broker Accounts</h2>
                                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Manage your stock brokerage accounts, CDC mappings, and connection details.</p>
                             </div>
-                            <button
-                                onClick={() => setIsAddBrokerModalOpen(true)}
-                                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm"
-                            >
-                                <Plus className="w-4 h-4" />
+                            <Button color="blue" onClick={() => setIsAddBrokerModalOpen(true)}>
+                                <Plus className="w-4 h-4 mr-2" />
                                 Add Broker
-                            </button>
+                            </Button>
                         </div>
 
                         {/* Data Table Area */}
@@ -362,6 +365,63 @@ export default function Settings() {
                     </div>
                 )}
 
+                {activeTab === 'security' && (
+                    <div className="flex-1 flex flex-col h-full overflow-hidden">
+                        <div className="px-8 py-5 border-b border-gray-200 dark:border-neutral-800 flex justify-between items-center bg-white dark:bg-neutral-900 shrink-0 transition-colors">
+                            <div>
+                                <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Security & PIN</h2>
+                                <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Configure your Master PIN to protect sensitive account balances.</p>
+                            </div>
+                        </div>
+
+                        <div className="flex-1 overflow-auto p-8 bg-gray-50/30 dark:bg-neutral-900/50 transition-colors">
+                            <div className="max-w-md bg-white dark:bg-neutral-900 rounded-xl border border-gray-200 dark:border-neutral-800 p-6 shadow-sm">
+                                <div className="flex items-center gap-3 mb-6">
+                                    <div className="p-3 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-lg">
+                                        <Lock className="w-6 h-6" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">Master PIN Code</h3>
+                                        <p className="text-sm text-gray-500 dark:text-gray-400">Must be at least 4 chars long</p>
+                                    </div>
+                                </div>
+                                <form onSubmit={async (e) => {
+                                    e.preventDefault();
+                                    try {
+                                        const res = await api.put('/auth/pin', { pin: newPin });
+                                        setNewPin('');
+                                        setFeedbackModal({ isOpen: true, title: 'Success', message: res.data.message, type: 'success' });
+                                    } catch (error) {
+                                        setFeedbackModal({ isOpen: true, title: 'Error', message: error.response?.data?.message || 'Failed to update PIN', type: 'danger' });
+                                    }
+                                }}>
+                                    <div className="mb-4">
+                                        <div className="mb-1 block">
+                                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Enter New PIN</label>
+                                        </div>
+                                        <TextInput
+                                            id="new-pin"
+                                            type="password"
+                                            required
+                                            minLength={4}
+                                            value={newPin}
+                                            onChange={(e) => setNewPin(e.target.value)}
+                                            placeholder="••••"
+                                        />
+                                    </div>
+                                    <Button
+                                        type="submit"
+                                        color="blue"
+                                        className="w-full"
+                                    >
+                                        Save PIN
+                                    </Button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {/* Add Broker Accounts Modal */}
                 {isAddBrokerModalOpen && (
                     <div className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center z-50 p-4 transition-colors">
@@ -383,45 +443,52 @@ export default function Settings() {
                             }} className="space-y-4">
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Account Title</label>
-                                        <input type="text" required className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none transition-colors" value={brokerFormData.account_title} onChange={e => setBrokerFormData({ ...brokerFormData, account_title: e.target.value })} placeholder="e.g. Farooq Shad" />
+                                        <div className="mb-1 block">
+                                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Account Title</label>
+                                        </div>
+                                        <TextInput id="broker-title" type="text" required value={brokerFormData.account_title} onChange={e => setBrokerFormData({ ...brokerFormData, account_title: e.target.value })} placeholder="e.g. Farooq Shad" />
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Client Code / User ID</label>
-                                        <input type="text" required className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500 font-mono text-sm focus:outline-none transition-colors" value={brokerFormData.client_code} onChange={e => setBrokerFormData({ ...brokerFormData, client_code: e.target.value })} placeholder="e.g. AB1234" />
+                                        <div className="mb-1 block">
+                                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Client Code / User ID</label>
+                                        </div>
+                                        <TextInput id="broker-code" className="font-mono text-sm" type="text" required value={brokerFormData.client_code} onChange={e => setBrokerFormData({ ...brokerFormData, client_code: e.target.value })} placeholder="e.g. AB1234" />
                                     </div>
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Participant Account No</label>
-                                        <input type="text" className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500 font-mono text-sm focus:outline-none transition-colors" value={brokerFormData.participant_acc_no} onChange={e => setBrokerFormData({ ...brokerFormData, participant_acc_no: e.target.value })} placeholder="Optional" />
+                                        <div className="mb-1 block">
+                                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Participant Account No</label>
+                                        </div>
+                                        <TextInput id="broker-participant" className="font-mono text-sm" type="text" value={brokerFormData.participant_acc_no} onChange={e => setBrokerFormData({ ...brokerFormData, participant_acc_no: e.target.value })} placeholder="Optional" />
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">CDC-Sub Account No</label>
-                                        <input type="text" className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500 font-mono text-sm focus:outline-none transition-colors" value={brokerFormData.cdc_sub_acc_no} onChange={e => setBrokerFormData({ ...brokerFormData, cdc_sub_acc_no: e.target.value })} placeholder="Optional" />
+                                        <div className="mb-1 block">
+                                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">CDC-Sub Account No</label>
+                                        </div>
+                                        <TextInput id="broker-cdc" className="font-mono text-sm" type="text" value={brokerFormData.cdc_sub_acc_no} onChange={e => setBrokerFormData({ ...brokerFormData, cdc_sub_acc_no: e.target.value })} placeholder="Optional" />
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Stock Platform PIN Code</label>
-                                    <input type="text" className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500 font-mono text-sm focus:outline-none transition-colors" value={brokerFormData.stock_pin_code} onChange={e => setBrokerFormData({ ...brokerFormData, stock_pin_code: e.target.value })} placeholder="This is the PIN to log into your brokerage app (Optional)" />
+                                    <div className="mb-1 block">
+                                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Stock Platform PIN Code</label>
+                                    </div>
+                                    <TextInput id="broker-pin" className="font-mono text-sm" type="text" value={brokerFormData.stock_pin_code} onChange={e => setBrokerFormData({ ...brokerFormData, stock_pin_code: e.target.value })} placeholder="This is the PIN to log into your brokerage app (Optional)" />
                                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">This pin will be protected by your global application Security PIN code.</p>
                                 </div>
 
                                 <div className="flex justify-end gap-3 mt-6 pt-2">
-                                    <button
-                                        type="button"
-                                        onClick={() => setIsAddBrokerModalOpen(false)}
-                                        className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-neutral-800 hover:bg-gray-200 dark:hover:bg-neutral-700 rounded-lg font-medium transition-colors"
-                                    >
+                                    <Button color="light" onClick={() => setIsAddBrokerModalOpen(false)}>
                                         Cancel
-                                    </button>
-                                    <button
+                                    </Button>
+                                    <Button
                                         type="submit"
+                                        color="blue"
                                         disabled={createBroker.isPending}
-                                        className="px-4 py-2 text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-lg font-medium transition-colors"
+                                        isProcessing={createBroker.isPending}
                                     >
-                                        {createBroker.isPending ? 'Saving...' : 'Save Broker Account'}
-                                    </button>
+                                        Save Broker Account
+                                    </Button>
                                 </div>
                             </form>
                         </div>

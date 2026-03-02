@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import api from '../services/api';
 import { Plus, Trash2, Pencil, Check, X, Loader2, Building, Calendar, Banknote } from 'lucide-react';
 import DatePickerInput from '../components/DatePickerInput';
+import toast from 'react-hot-toast';
+import { Button } from 'flowbite-react';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
@@ -48,9 +50,10 @@ export default function RentTracker() {
             setForm({ ...emptyForm });
             setShowForm(false);
             fetchEntries();
+            toast.success('Rent entry saved successfully');
         } catch (error) {
             console.error('Error saving rent entry', error);
-            alert(error.response?.data?.message || 'Error saving entry');
+            toast.error(error.response?.data?.message || 'Error saving entry');
         }
     };
 
@@ -114,9 +117,9 @@ export default function RentTracker() {
                     <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Rent Tracker</h1>
                     <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Track monthly rent payments received from properties</p>
                 </div>
-                <button onClick={() => { setShowForm(!showForm); setEditingId(null); setForm({ ...emptyForm }); }} className="flex items-center px-4 py-2.5 bg-gray-900 dark:bg-neutral-800 text-white text-sm font-medium rounded-lg hover:bg-gray-800 dark:hover:bg-neutral-700 shadow-sm transition-colors">
+                <Button color="blue" onClick={() => { setShowForm(!showForm); setEditingId(null); setForm({ ...emptyForm }); }}>
                     <Plus className="w-4 h-4 mr-2" /> Add Payment
-                </button>
+                </Button>
             </div>
 
             {/* Summary Cards */}

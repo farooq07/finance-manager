@@ -3,6 +3,7 @@ import api from '../services/api';
 import { Upload, Plus, ChevronDown, ChevronRight, Loader2, Trash2, Calendar, TrendingUp, TrendingDown } from 'lucide-react';
 import ReactECharts from 'echarts-for-react';
 import { StatSkeleton, ChartSkeleton, TableSkeleton } from '../components/Skeleton';
+import { Button } from 'flowbite-react';
 const COLORS = ['#7c2889', '#a855f7', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#06b6d4'];
 
 export default function MutualFunds() {
@@ -198,10 +199,9 @@ export default function MutualFunds() {
                         {isUploading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
                         Upload File
                     </button>
-                    <button onClick={() => setShowForm(!showForm)}
-                        className="flex items-center px-4 py-2.5 border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-gray-900 dark:text-gray-100 text-sm font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-800 transition-all">
+                    <Button color="blue" onClick={() => setShowForm(!showForm)}>
                         <Plus className="w-4 h-4 mr-2" /> Add Manual
-                    </button>
+                    </Button>
                 </div>
             </div>
 

@@ -170,25 +170,62 @@ export const verifyOtp = async (req, res) => {
             }
         });
 
-        // Generate JWT Token
+        // 5. Generate and send JWT
         const token = jwt.sign(
             { id: user.id, email: user.email },
             process.env.JWT_SECRET || 'fallback_secret',
             { expiresIn: '7d' }
         );
 
-        res.json({
-            message: 'Login successful',
-            user: {
-                id: user.id,
-                name: user.name,
-                email: user.email
-            },
-            token
-        });
-
+        res.json({ message: 'Login successful', token, user: { id: user.id, name: user.name, email: user.email } });
     } catch (error) {
         console.error('Verify OTP Error:', error);
-        res.status(500).json({ message: 'Server error during OTP verification' });
+        res.status(500).json({ message: 'Server error verifying OTP' });
+    }
+};
+
+export const setupPin = async (req, res) => {
+    try {
+        const { pin } = req.body;
+        if (!pin || pin.length < 4) {
+            return res.status(400).json({ message: 'PIN must be at least 4 characters long' });
+        }
+
+        const salt = await bcrypt.genSalt(10);
+        const hashedPin = await bcrypt.hash(pin, salt);
+
+        await prisma.user.update({
+            where: { id: req.user.id },
+            data: { app_pin_code: hashedPin }
+        });
+
+        res.json({ message: 'PIN configured successfully' });
+    } catch (error) {
+        console.error('Setup PIN Error:', error);
+        res.status(500).json({ message: 'Server error configuring PIN' });
+    }
+};
+
+export const verifyPin = async (req, res) => {
+    try {
+        const { pin } = req.body;
+        if (!pin) {
+            return res.status(400).json({ message: 'PIN is required' });
+        }
+
+        const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+        if (!user || !user.app_pin_code) {
+            return res.status(400).json({ message: 'No PIN configured for this account' });
+        }
+
+        const isMatch = await bcrypt.compare(pin, user.app_pin_code);
+        if (!isMatch) {
+            return res.status(401).json({ message: 'Invalid PIN code' });
+        }
+
+        res.json({ message: 'PIN verified successfully', success: true });
+    } catch (error) {
+        console.error('Verify PIN Error:', error);
+        res.status(500).json({ message: 'Server error verifying PIN' });
     }
 };

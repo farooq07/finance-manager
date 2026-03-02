@@ -11,13 +11,17 @@ router.use(verifyToken);
 
 router.get('/', getPeopleWithLedgers);
 router.post('/', createPerson);
+
+// Static paths first
+router.post('/transactions/delete', deleteTransactions);
+router.post('/transactions/bulk-type', bulkUpdateType);
+router.put('/transactions/:txId', updateTransaction);
+
+// Parametric paths second
 router.put('/:id', updatePerson);
 router.post('/:id/reminder', sendReminderEmailHandler);
 router.post('/:id/transactions', validate(duesTransactionSchema), createDuesTransaction);
 router.post('/:id/upload-csv', upload.single('duesCSV'), uploadDuesCSV);
-router.post('/transactions/delete', deleteTransactions);
-router.post('/transactions/bulk-type', bulkUpdateType);
-router.put('/transactions/:txId', updateTransaction);
 router.delete('/:id', deletePerson);
 
 export default router;

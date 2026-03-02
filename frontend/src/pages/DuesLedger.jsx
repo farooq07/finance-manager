@@ -3,6 +3,10 @@ import api from '../services/api';
 import { Plus, Trash2, Upload, ChevronDown, ChevronUp, Loader2, FileSpreadsheet, Pencil, Check, X, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
 import { StatSkeleton, TableSkeleton } from '../components/Skeleton';
 import DatePickerInput from '../components/DatePickerInput';
+import toast from 'react-hot-toast';
+import Modal from '../components/Modal';
+import { Button } from 'flowbite-react';
+
 export default function DuesLedger() {
     const [people, setPeople] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -56,8 +60,9 @@ export default function DuesLedger() {
             setPersonEmail('');
             setShowAddPerson(false);
             fetchPeople();
+            toast.success('Person added successfully');
         } catch (error) {
-            alert(error.response?.data?.message || 'Error adding person');
+            toast.error(error.response?.data?.message || 'Error adding person');
         }
     };
 
@@ -68,14 +73,15 @@ export default function DuesLedger() {
             setActivePerson(null);
             setTxForm({ transaction_type: 'receivable', amount: '', transaction_date: new Date().toISOString().split('T')[0], description: '' });
             fetchPeople();
+            toast.success('Entry added successfully');
         } catch (error) {
             console.error('Error adding transaction', error);
             const errData = error.response?.data;
             if (errData && errData.errors) {
                 const msgs = errData.errors.map(e => `${e.field}: ${e.message}`).join('\n');
-                alert(`Validation Error:\n${msgs}`);
+                toast.error(`Validation Error:\n${msgs}`);
             } else {
-                alert(errData?.message || 'Error adding transaction');
+                toast.error(errData?.message || 'Error adding transaction');
             }
         }
     };
@@ -97,17 +103,18 @@ export default function DuesLedger() {
             await api.put(`/dues/${editingPerson}`, { name: editPersonName, email: editPersonEmail });
             setEditingPerson(null);
             fetchPeople();
+            toast.success('Person updated successfully');
         } catch (error) {
-            alert(error.response?.data?.message || 'Error updating person');
+            toast.error(error.response?.data?.message || 'Error updating person');
         }
     };
 
     const handleSendReminder = async (id) => {
         try {
             const res = await api.post(`/dues/${id}/reminder`);
-            alert(res.data.message);
+            toast.success(res.data.message);
         } catch (error) {
-            alert(error.response?.data?.message || 'Error sending reminder email');
+            toast.error(error.response?.data?.message || 'Error sending reminder email');
         }
     };
 
@@ -243,9 +250,9 @@ export default function DuesLedger() {
                     <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 transition-colors">Dues Ledger</h1>
                     <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Track who owes you and who you owe</p>
                 </div>
-                <button onClick={() => setShowAddPerson(!showAddPerson)} className="flex items-center px-4 py-2.5 bg-gray-900 dark:bg-neutral-800 text-white text-sm font-medium rounded-lg hover:bg-gray-800 dark:hover:bg-neutral-700 shadow-sm transition-colors">
+                <Button color="blue" onClick={() => setShowAddPerson(!showAddPerson)}>
                     <Plus className="w-4 h-4 mr-2" /> Add Person
-                </button>
+                </Button>
             </div>
 
             {/* Summary Cards */}
@@ -314,42 +321,45 @@ export default function DuesLedger() {
                 </form>
             )}
 
-            {/* Add Manual Transaction Form */}
-            {activePerson && (
-                <div className="bg-blue-50/70 dark:bg-neutral-800/50 p-5 rounded-xl border border-blue-200 dark:border-neutral-700 transition-colors">
-                    <h3 className="font-semibold text-blue-800 dark:text-blue-400 mb-4 text-sm">Add Entry for {people.find(p => p.id === activePerson)?.name}</h3>
-                    <form onSubmit={handleAddTx} className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+            {/* Add Manual Transaction Form Modal */}
+            <Modal
+                isOpen={activePerson !== null}
+                onClose={() => setActivePerson(null)}
+                title={`Add Entry for ${people.find(p => p.id === activePerson)?.name}`}
+                size="md"
+            >
+                <form onSubmit={handleAddTx} className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Type</label>
-                            <select value={txForm.transaction_type} onChange={e => setTxForm({ ...txForm, transaction_type: e.target.value })} className="w-full px-3 py-2 border border-gray-200 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-900 text-gray-900 dark:text-gray-100 text-sm transition-colors">
+                            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Type</label>
+                            <select value={txForm.transaction_type} onChange={e => setTxForm({ ...txForm, transaction_type: e.target.value })} className="w-full px-3 py-2 border border-gray-200 dark:border-neutral-600 rounded-lg bg-gray-50 dark:bg-neutral-800 text-gray-900 dark:text-gray-100 text-sm transition-colors focus:ring-2 focus:ring-blue-500 focus:outline-none">
                                 <option value="receivable">They owe me (+)</option>
                                 <option value="payable">I owe them (-)</option>
                             </select>
                         </div>
                         <div>
-                            <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Amount (PKR)</label>
-                            <input required type="number" step="0.01" value={txForm.amount} onChange={e => setTxForm({ ...txForm, amount: e.target.value })} className="w-full px-3 py-2 border border-gray-200 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-900 text-gray-900 dark:text-gray-100 text-sm transition-colors" />
+                            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Amount (PKR)</label>
+                            <input required type="number" step="0.01" value={txForm.amount} onChange={e => setTxForm({ ...txForm, amount: e.target.value })} className="w-full px-3 py-2 border border-gray-200 dark:border-neutral-600 rounded-lg bg-gray-50 dark:bg-neutral-800 text-gray-900 dark:text-gray-100 text-sm transition-colors focus:ring-2 focus:ring-blue-500 focus:outline-none" />
                         </div>
                         <div>
-                            <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Date</label>
+                            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Date</label>
                             <DatePickerInput
                                 selectedDate={txForm.transaction_date}
                                 onChange={(val) => setTxForm({ ...txForm, transaction_date: val })}
-                                required
-                                className="bg-white dark:bg-neutral-900 dark:border-neutral-600 dark:text-gray-100"
+                                className="w-full text-sm"
                             />
                         </div>
                         <div>
-                            <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Detail</label>
-                            <input type="text" value={txForm.description} onChange={e => setTxForm({ ...txForm, description: e.target.value })} className="w-full px-3 py-2 border border-gray-200 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-900 text-gray-900 dark:text-gray-100 text-sm transition-colors" placeholder="Eid shopping" />
+                            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Description (Optional)</label>
+                            <input type="text" value={txForm.description} onChange={e => setTxForm({ ...txForm, description: e.target.value })} className="w-full px-3 py-2 border border-gray-200 dark:border-neutral-600 rounded-lg bg-gray-50 dark:bg-neutral-800 text-gray-900 dark:text-gray-100 text-sm transition-colors focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="e.g. Lunch" />
                         </div>
-                        <div className="flex space-x-2">
-                            <button type="button" onClick={() => setActivePerson(null)} className="px-3 py-2 border border-gray-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-gray-700 dark:text-gray-300 text-sm w-full hover:bg-gray-50 dark:hover:bg-neutral-700 transition-colors">Cancel</button>
-                            <button type="submit" className="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium w-full hover:bg-blue-700 transition-colors">Save</button>
-                        </div>
-                    </form>
-                </div>
-            )}
+                    </div>
+                    <div className="flex justify-end gap-3 mt-6">
+                        <button type="button" onClick={() => setActivePerson(null)} className="px-4 py-2 bg-gray-100 dark:bg-neutral-800 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-lg hover:bg-gray-200 dark:hover:bg-neutral-700 transition-colors">Cancel</button>
+                        <button type="submit" className="px-5 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors">Save Entry</button>
+                    </div>
+                </form>
+            </Modal>
 
             {/* Upload feedback */}
             {uploadMsg && (

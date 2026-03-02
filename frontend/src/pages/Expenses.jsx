@@ -3,6 +3,8 @@ import api from '../services/api';
 import { Plus, Trash2, CalendarDays, X, Receipt, Edit2, TrendingDown } from 'lucide-react';
 import { TableSkeleton } from '../components/Skeleton';
 import DatePickerInput from '../components/DatePickerInput';
+import { Button, TextInput } from 'flowbite-react';
+import toast from 'react-hot-toast';
 
 const DEFAULT_BILLS = [
     { category: 'Gas Bill', amount: '', expense_date: new Date().toISOString().split('T')[0], payment_method: '', notes: '' },
@@ -75,7 +77,7 @@ export default function Expenses() {
         const validRows = batchRows.filter(row => row.amount && parseFloat(row.amount) > 0);
 
         if (validRows.length === 0) {
-            alert("No valid expenses to submit (all amounts are 0 or empty).");
+            toast.error("No valid expenses to submit (all amounts are 0 or empty).");
             return;
         }
 
@@ -85,9 +87,10 @@ export default function Expenses() {
             setShowBatchModal(false);
             setBatchRows([...DEFAULT_BILLS]); // Reset to default state
             fetchExpenses();
+            toast.success('Batch saved successfully');
         } catch (error) {
             console.error('Error submitting batch', error);
-            alert("Failed to save the batch! Please try again.");
+            toast.error("Failed to save the batch! Please try again.");
         } finally {
             setIsSubmittingBatch(false);
         }
@@ -174,27 +177,27 @@ export default function Expenses() {
                 </div>
 
                 <div className="flex gap-3">
-                    <button
+                    <Button
+                        color="light"
                         onClick={() => {
                             setBatchRows([...DEFAULT_BILLS]); // fresh slate
                             setShowBatchModal(true);
                         }}
-                        className="flex items-center px-4 py-2 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400 font-medium rounded-lg hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition"
                     >
                         <Receipt className="w-5 h-5 mr-2" />
                         Log Monthly Bills
-                    </button>
-                    <button
+                    </Button>
+                    <Button
+                        color="blue"
                         onClick={() => {
                             setEditId(null);
                             setFormData({ amount: '', category: '', expense_date: new Date().toISOString().split('T')[0], payment_method: '', notes: '' });
                             setShowForm(!showForm);
                         }}
-                        className="flex items-center px-4 py-2 bg-emerald-600 text-white font-medium rounded-lg hover:bg-emerald-700 transition"
                     >
                         <Plus className="w-5 h-5 mr-2" />
                         Single Expense
-                    </button>
+                    </Button>
                 </div>
             </div>
 
@@ -245,25 +248,24 @@ export default function Expenses() {
                                     <div key={idx} className="grid grid-cols-1 lg:grid-cols-12 gap-3 lg:gap-4 lg:items-center bg-white dark:bg-neutral-800 p-4 lg:p-2 lg:px-4 rounded-xl border border-gray-200 dark:border-neutral-700 shadow-sm hover:border-emerald-300 dark:hover:border-emerald-600 transition-colors">
 
                                         <div className="col-span-3">
-                                            <input
+                                            <TextInput
                                                 type="text"
                                                 required
                                                 value={row.category}
                                                 onChange={(e) => updateBatchRow(idx, 'category', e.target.value)}
                                                 placeholder="Custom Type"
-                                                className="w-full px-3 py-2 border-0 bg-gray-50 lg:bg-transparent lg:border border-gray-300 dark:border-neutral-600 rounded focus:ring-2 ring-emerald-500 font-medium text-gray-900 dark:text-gray-100 placeholder-gray-400"
                                             />
                                         </div>
 
                                         <div className="col-span-2 relative">
-                                            <span className="absolute left-3 top-1/2 -tranneutral-y-1/2 text-gray-400 dark:text-gray-500 text-sm">RS</span>
-                                            <input
+                                            <TextInput
                                                 type="number"
                                                 step="0.01"
+                                                addon="Rs"
                                                 value={row.amount}
                                                 onChange={(e) => updateBatchRow(idx, 'amount', e.target.value)}
-                                                className="w-full pl-9 pr-3 py-2 bg-gray-50 lg:bg-transparent border border-gray-300 dark:border-neutral-600 rounded focus:ring-2 ring-emerald-500 font-semibold dark:text-gray-100"
                                                 placeholder="0.00"
+                                                className="font-semibold"
                                             />
                                         </div>
 
@@ -277,22 +279,20 @@ export default function Expenses() {
                                         </div>
 
                                         <div className="col-span-2">
-                                            <input
+                                            <TextInput
                                                 type="text"
                                                 value={row.payment_method}
                                                 onChange={(e) => updateBatchRow(idx, 'payment_method', e.target.value)}
                                                 placeholder="e.g. Bank Transfer"
-                                                className="w-full px-3 py-2 bg-gray-50 lg:bg-transparent border border-gray-300 dark:border-neutral-600 rounded focus:ring-2 ring-emerald-500 text-sm dark:text-gray-100 placeholder-gray-400"
                                             />
                                         </div>
 
                                         <div className="col-span-2">
-                                            <input
+                                            <TextInput
                                                 type="text"
                                                 value={row.notes}
                                                 onChange={(e) => updateBatchRow(idx, 'notes', e.target.value)}
                                                 placeholder="Optional notes"
-                                                className="w-full px-3 py-2 bg-gray-50 lg:bg-transparent border border-gray-300 dark:border-neutral-600 rounded focus:ring-2 ring-emerald-500 text-sm dark:text-gray-100 placeholder-gray-400"
                                             />
                                         </div>
 
@@ -310,14 +310,15 @@ export default function Expenses() {
                                 ))}
                             </form>
 
-                            <button
+                            <Button
                                 type="button"
+                                color="light"
                                 onClick={addBatchRow}
-                                className="mt-4 flex items-center px-4 py-2 text-sm text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg font-medium transition-colors"
+                                className="mt-4"
                             >
                                 <Plus className="w-4 h-4 mr-1" />
                                 Custom Blank Row
-                            </button>
+                            </Button>
                         </div>
 
                         {/* Footer */}
@@ -326,17 +327,18 @@ export default function Expenses() {
                                 Total Rows Detected: <span className="font-semibold text-gray-900 dark:text-gray-100">{batchRows.filter(r => r.amount && parseFloat(r.amount) > 0).length} valid entries</span>
                             </div>
                             <div className="flex gap-3">
-                                <button type="button" onClick={() => setShowBatchModal(false)} className="px-5 py-2.5 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-neutral-800 hover:bg-gray-200 dark:hover:bg-neutral-700 font-medium rounded-lg transition-colors">
+                                <Button color="light" onClick={() => setShowBatchModal(false)}>
                                     Discard Session
-                                </button>
-                                <button
+                                </Button>
+                                <Button
                                     type="submit"
+                                    color="blue"
                                     form="batch-form"
                                     disabled={isSubmittingBatch}
-                                    className="px-6 py-2.5 bg-emerald-600 text-white font-medium rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50"
+                                    isProcessing={isSubmittingBatch}
                                 >
-                                    {isSubmittingBatch ? 'Saving Ledger...' : 'Commit Batch to Ledger'}
-                                </button>
+                                    Commit Batch to Ledger
+                                </Button>
                             </div>
                         </div>
                     </div>
@@ -347,15 +349,21 @@ export default function Expenses() {
                 <form onSubmit={handleSubmit} className="bg-white dark:bg-neutral-900 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-neutral-800 space-y-4 transition-colors">
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Amount (PKR)</label>
-                            <input required type="number" step="0.01" value={formData.amount} onChange={e => setFormData({ ...formData, amount: e.target.value })} className="w-full px-3 py-2 bg-transparent border border-gray-300 dark:border-neutral-700 rounded focus:ring-emerald-500 focus:border-emerald-500 dark:text-white" />
+                            <div className="mb-1 block">
+                                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Amount (PKR)</label>
+                            </div>
+                            <TextInput id="exp-amount" required type="number" step="0.01" value={formData.amount} onChange={e => setFormData({ ...formData, amount: e.target.value })} />
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Category</label>
-                            <input required type="text" placeholder="Food, Rent, etc." value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })} className="w-full px-3 py-2 bg-transparent border border-gray-300 dark:border-neutral-700 rounded focus:ring-emerald-500 focus:border-emerald-500 dark:text-white" />
+                            <div className="mb-1 block">
+                                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Category</label>
+                            </div>
+                            <TextInput id="exp-category" required type="text" placeholder="Food, Rent, etc." value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })} />
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Date</label>
+                            <div className="mb-1 block">
+                                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Date</label>
+                            </div>
                             <DatePickerInput
                                 required
                                 selectedDate={formData.expense_date}
@@ -364,21 +372,25 @@ export default function Expenses() {
                             />
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Payment Method</label>
-                            <input type="text" placeholder="Card, Cash, etc." value={formData.payment_method} onChange={e => setFormData({ ...formData, payment_method: e.target.value })} className="w-full px-3 py-2 bg-transparent border border-gray-300 dark:border-neutral-700 rounded focus:ring-emerald-500 focus:border-emerald-500 dark:text-white" />
+                            <div className="mb-1 block">
+                                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Payment Method</label>
+                            </div>
+                            <TextInput id="exp-payment" type="text" placeholder="Card, Cash, etc." value={formData.payment_method} onChange={e => setFormData({ ...formData, payment_method: e.target.value })} />
                         </div>
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Notes</label>
-                        <input type="text" value={formData.notes} onChange={e => setFormData({ ...formData, notes: e.target.value })} className="w-full px-3 py-2 bg-transparent border border-gray-300 dark:border-neutral-700 rounded focus:ring-emerald-500 focus:border-emerald-500 dark:text-white" />
+                        <div className="mb-1 block">
+                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Notes</label>
+                        </div>
+                        <TextInput id="exp-notes" type="text" value={formData.notes} onChange={e => setFormData({ ...formData, notes: e.target.value })} />
                     </div>
                     <div className="flex justify-end space-x-3">
-                        <button type="button" onClick={() => {
+                        <Button color="light" onClick={() => {
                             setShowForm(false);
                             setEditId(null);
                             setFormData({ amount: '', category: '', expense_date: new Date().toISOString().split('T')[0], payment_method: '', notes: '' });
-                        }} className="px-4 py-2 border border-gray-300 dark:border-neutral-700 rounded text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-neutral-800">Cancel</button>
-                        <button type="submit" className="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700">{editId ? 'Update Expense' : 'Save Expense'}</button>
+                        }}>Cancel</Button>
+                        <Button type="submit" color="blue">{editId ? 'Update Expense' : 'Save Expense'}</Button>
                     </div>
                 </form>
             )}
