@@ -1,7 +1,10 @@
 import React from 'react';
-import DatePicker from 'react-datepicker';
-import 'react-datepicker/dist/react-datepicker.css';
-import { Calendar } from 'lucide-react';
+import { format } from 'date-fns';
+import { Calendar as CalendarIcon } from 'lucide-react';
+import { cn } from '../lib/utils';
+import { Button } from './ui/button';
+import { Calendar } from './ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 
 export default function DatePickerInput({
     selectedDate,
@@ -13,39 +16,54 @@ export default function DatePickerInput({
     minDate = null,
     maxDate = null,
 }) {
-    // Determine standard styling
-    const baseClasses = "w-full pl-3 pr-10 py-2 border border-gray-300 rounded-lg text-sm focus:ring-emerald-500 focus:border-emerald-500 bg-white transition-colors cursor-pointer outline-none";
-    const disabledClasses = disabled ? "opacity-50 cursor-not-allowed bg-gray-50" : "";
-    const mergedClasses = `${baseClasses} ${disabledClasses} ${className}`.trim();
+    // Treat selectedDate as local standard time so days don't shift by timezone
+    // Because input is YYYY-MM-DD, parsing it directly `new Date('YYYY-MM-DD')` assumes UTC.
+    // Let's ensure it's instantiated as local time or parsed correctly.
+    // A simple robust trick is appending T00:00:00.
+    const date = selectedDate ? new Date(`${selectedDate}T00:00:00`) : null;
+
+    const handleSelect = (newDate) => {
+        if (newDate) {
+            const year = newDate.getFullYear();
+            const month = String(newDate.getMonth() + 1).padStart(2, '0');
+            const day = String(newDate.getDate()).padStart(2, '0');
+            onChange(`${year}-${month}-${day}`);
+        } else {
+            onChange('');
+        }
+    };
 
     return (
-        <div className="relative w-full">
-            <DatePicker
-                selected={selectedDate ? new Date(selectedDate) : null}
-                onChange={(date) => {
-                    // Normalize the date string to YYYY-MM-DD for backend consistency
-                    if (date) {
-                        const year = date.getFullYear();
-                        const month = String(date.getMonth() + 1).padStart(2, '0');
-                        const day = String(date.getDate()).padStart(2, '0');
-                        onChange(`${year}-${month}-${day}`);
-                    } else {
-                        onChange('');
-                    }
-                }}
-                dateFormat="dd/MM/yyyy"
-                placeholderText={placeholderText}
-                className={mergedClasses}
-                required={required}
-                disabled={disabled}
-                minDate={minDate}
-                maxDate={maxDate}
-                showPopperArrow={false}
-                portalId="root"
-            />
-            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-gray-400">
-                <Calendar className="w-4 h-4" />
-            </div>
-        </div>
+        <Popover>
+            <PopoverTrigger asChild>
+                <Button
+                    variant="outline"
+                    className={cn(
+                        "w-full h-10 px-3 justify-start text-left font-normal bg-white dark:bg-neutral-900 border-gray-300 dark:border-neutral-700",
+                        !date && "text-gray-500",
+                        disabled && "opacity-50 cursor-not-allowed bg-gray-50 dark:bg-neutral-800",
+                        className
+                    )}
+                    disabled={disabled}
+                >
+                    {date ? format(date, 'dd/MM/yyyy') : <span>{placeholderText}</span>}
+                    <CalendarIcon className="ml-auto h-4 w-4 text-gray-500" />
+                </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0 z-[100]" align="start">
+                <Calendar
+                    mode="single"
+                    selected={date}
+                    onSelect={handleSelect}
+                    disabled={(calendarDate) => {
+                        if (disabled) return true;
+                        if (minDate && calendarDate < new Date(`${minDate}T00:00:00`)) return true;
+                        if (maxDate && calendarDate > new Date(`${maxDate}T23:59:59`)) return true;
+                        return false;
+                    }}
+                    initialFocus
+                />
+            </PopoverContent>
+        </Popover>
     );
 }

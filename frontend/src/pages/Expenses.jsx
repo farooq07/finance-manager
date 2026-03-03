@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import api from '../services/api';
-import { Plus, Trash2, CalendarDays, X, Receipt, Edit2, TrendingDown } from 'lucide-react';
+import { Plus, Trash2, CalendarDays, X, Receipt, Edit2, TrendingDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { TableSkeleton } from '../components/Skeleton';
 import DatePickerInput from '../components/DatePickerInput';
-import { Button, TextInput } from 'flowbite-react';
-import toast from 'react-hot-toast';
+import MaskedBalance from '../components/MaskedBalance';
+import Button from '../components/Button';
+import TextInput from '../components/TextInput';
+import { toast } from 'sonner';
 
 const DEFAULT_BILLS = [
     { category: 'Gas Bill', amount: '', expense_date: new Date().toISOString().split('T')[0], payment_method: '', notes: '' },
@@ -142,7 +144,9 @@ export default function Expenses() {
         if (!expense.expense_date) return false;
         const d = new Date(expense.expense_date);
         const yyyy = d.getFullYear();
+        // JavaScript getMonth() returns 0-11, so we add 1.
         const mm = String(d.getMonth() + 1).padStart(2, '0');
+        // selectedMonth is in 'YYYY-MM' format natively from the <input type="month">
         return `${yyyy}-${mm}` === selectedMonth;
     });
 
@@ -165,15 +169,45 @@ export default function Expenses() {
                 <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 transition-colors">Expenses</h1>
 
                 {/* Month Picker */}
-                <div className="flex items-center gap-2 bg-white dark:bg-neutral-900 rounded-lg border border-gray-200 dark:border-neutral-800 px-3 py-2 shadow-sm transition-colors">
-                    <CalendarDays className="w-5 h-5 text-gray-500 dark:text-gray-400 block transition-colors" />
-                    <input
-                        type="month"
-                        value={selectedMonth}
-                        onChange={(e) => setSelectedMonth(e.target.value)}
-                        className="bg-transparent border-none focus:ring-0 p-0 text-gray-700 dark:text-gray-200 font-medium sm:text-sm"
-                        style={{ colorScheme: 'dark' }}
-                    />
+                <div className="flex items-center gap-1 bg-white dark:bg-neutral-900 rounded-lg border border-gray-200 dark:border-neutral-800 p-1 shadow-sm transition-colors">
+                    <button
+                        onClick={() => {
+                            const [y, m] = selectedMonth.split('-');
+                            let prevM = parseInt(m) - 1;
+                            let prevY = parseInt(y);
+                            if (prevM === 0) { prevM = 12; prevY -= 1; }
+                            setSelectedMonth(`${prevY}-${String(prevM).padStart(2, '0')}`);
+                        }}
+                        className="p-1.5 hover:bg-gray-100 dark:hover:bg-neutral-800 rounded-md text-gray-500 dark:text-gray-400 transition-colors"
+                        title="Previous Month"
+                    >
+                        <ChevronLeft className="w-5 h-5" />
+                    </button>
+
+                    <div className="flex items-center gap-2 px-2">
+                        <CalendarDays className="w-4 h-4 text-gray-400 block transition-colors" />
+                        <input
+                            type="month"
+                            value={selectedMonth}
+                            onChange={(e) => setSelectedMonth(e.target.value)}
+                            className="bg-transparent border-none focus:ring-0 p-0 text-gray-700 dark:text-gray-200 font-medium sm:text-sm w-[130px] text-center"
+                            style={{ colorScheme: 'dark' }}
+                        />
+                    </div>
+
+                    <button
+                        onClick={() => {
+                            const [y, m] = selectedMonth.split('-');
+                            let nextM = parseInt(m) + 1;
+                            let nextY = parseInt(y);
+                            if (nextM === 13) { nextM = 1; nextY += 1; }
+                            setSelectedMonth(`${nextY}-${String(nextM).padStart(2, '0')}`);
+                        }}
+                        className="p-1.5 hover:bg-gray-100 dark:hover:bg-neutral-800 rounded-md text-gray-500 dark:text-gray-400 transition-colors"
+                        title="Next Month"
+                    >
+                        <ChevronRight className="w-5 h-5" />
+                    </button>
                 </div>
 
                 <div className="flex gap-3">
@@ -208,9 +242,9 @@ export default function Expenses() {
                 </div>
                 <div>
                     <p className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider transition-colors">
-                        Total Expenses for {new Date(selectedMonth + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                        Total Expenses for {selectedMonth}
                     </p>
-                    <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mt-1 transition-colors">PKR {monthlyTotal.toLocaleString()}</h2>
+                    <MaskedBalance value={monthlyTotal} className="text-3xl font-bold text-gray-900 dark:text-gray-100 mt-1 transition-colors multi-line" />
                 </div>
             </div>
 
@@ -335,9 +369,8 @@ export default function Expenses() {
                                     color="blue"
                                     form="batch-form"
                                     disabled={isSubmittingBatch}
-                                    isProcessing={isSubmittingBatch}
                                 >
-                                    Commit Batch to Ledger
+                                    {isSubmittingBatch ? 'Committing...' : 'Commit Batch to Ledger'}
                                 </Button>
                             </div>
                         </div>
@@ -429,7 +462,7 @@ export default function Expenses() {
                             <tr>
                                 <td colSpan="6" className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
                                     <p className="text-lg font-medium text-gray-900 dark:text-gray-100">No expenses recorded</p>
-                                    <p className="mt-1">You have no tracking data for {new Date(selectedMonth + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}.</p>
+                                    <p className="mt-1">You have no tracking data for {selectedMonth}.</p>
                                 </td>
                             </tr>
                         )}

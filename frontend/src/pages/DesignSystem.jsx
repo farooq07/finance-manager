@@ -2,8 +2,11 @@ import React, { useState } from 'react';
 import { Palette, Type, CheckSquare, Layers, MessageSquare, Calendar as CalendarIcon, LayoutTemplate, CheckCircle, AlertTriangle, Info, Bell, Plus, Trash2 } from 'lucide-react';
 import DatePickerInput from '../components/DatePickerInput';
 import Modal from '../components/Modal';
-import toast from 'react-hot-toast';
-import { Button, TextInput, Select, Card } from 'flowbite-react';
+import { toast } from 'sonner';
+import Button from '../components/Button';
+import TextInput from '../components/TextInput';
+import Card from '../components/Card';
+import Select from '../components/Select';
 
 export default function DesignSystem() {
     const [activeTab, setActiveTab] = useState('colors');
@@ -232,10 +235,16 @@ export default function DesignSystem() {
                                     </div>
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Select Dropdown</label>
-                                        <Select id="demoselect" required>
-                                            <option>Option 1</option>
-                                            <option>Option 2</option>
-                                        </Select>
+                                        <Select
+                                            id="demoselect"
+                                            required
+                                            options={[
+                                                { label: 'Option 1', value: '1' },
+                                                { label: 'Option 2', value: '2' }
+                                            ]}
+                                            value="1"
+                                            onChange={() => { }}
+                                        />
                                     </div>
                                 </div>
                             </div>

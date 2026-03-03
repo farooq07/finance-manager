@@ -1,6 +1,8 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { Toaster } from 'react-hot-toast';
+import { Toaster } from './components/ui/sonner';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { PinProvider } from './context/PinContext';
+import PinGate from './components/PinGate';
 import Layout from './components/Layout';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -33,41 +35,32 @@ const PublicRoute = ({ children }) => {
 function App() {
   return (
     <AuthProvider>
-      <Router>
-        <Toaster position="bottom-center" toastOptions={{
-          style: {
-            background: '#333',
-            color: '#fff',
-            borderRadius: '10px',
-          },
-          success: {
-            iconTheme: {
-              primary: '#10b981',
-              secondary: '#fff',
-            },
-          },
-        }} />
-        <Routes>
-          <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
-          <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
-          <Route path="/verify-otp" element={<PublicRoute><OTPVerification /></PublicRoute>} />
+      <PinProvider>
+        <Router>
+          <Toaster position="bottom-center" richColors theme="system" />
+          <PinGate />
+          <Routes>
+            <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
+            <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
+            <Route path="/verify-otp" element={<PublicRoute><OTPVerification /></PublicRoute>} />
 
-          <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
-            <Route index element={<Dashboard />} />
-            <Route path="expenses" element={<Expenses />} />
-            <Route path="mutual-funds" element={<MutualFunds />} />
-            <Route path="stocks" element={<Stocks />} />
-            <Route path="dues" element={<DuesLedger />} />
-            <Route path="rents" element={<RentTracker />} />
-            <Route path="psx-engine" element={<Stocks />} />
-            <Route path="accounts" element={<Accounts />} />
-            <Route path="banks/:id" element={<BankDetail />} />
-            <Route path="settings" element={<Settings />} />
-            <Route path="reports" element={<Reports />} />
-            <Route path="design-system" element={<DesignSystem />} />
-          </Route>
-        </Routes>
-      </Router>
+            <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+              <Route index element={<Dashboard />} />
+              <Route path="expenses" element={<Expenses />} />
+              <Route path="mutual-funds" element={<MutualFunds />} />
+              <Route path="stocks" element={<Stocks />} />
+              <Route path="dues" element={<DuesLedger />} />
+              <Route path="rents" element={<RentTracker />} />
+              <Route path="psx-engine" element={<Stocks />} />
+              <Route path="accounts" element={<Accounts />} />
+              <Route path="banks/:id" element={<BankDetail />} />
+              <Route path="settings" element={<Settings />} />
+              <Route path="reports" element={<Reports />} />
+              <Route path="design-system" element={<DesignSystem />} />
+            </Route>
+          </Routes>
+        </Router>
+      </PinProvider>
     </AuthProvider>
   );
 }

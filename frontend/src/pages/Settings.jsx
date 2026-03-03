@@ -1,12 +1,15 @@
-import React, { useState } from 'react';
-import { Settings as SettingsIcon, Building, CreditCard, Banknote, Plus, Trash2, ShieldAlert, Users, Tags, FileText, ChevronRight, Lock, Briefcase } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Settings as SettingsIcon, Building, CreditCard, Banknote, Plus, Trash2, ShieldAlert, Users, Tags, FileText, ChevronRight, Lock, Briefcase, Loader2, ArrowRight } from 'lucide-react';
 import { useInstitutions, useCreateInstitution, useDeleteInstitution, useSeedInstitutions } from '../hooks/useInstitutions';
 import { useBrokerAccounts, useCreateBrokerAccount, useDeleteBrokerAccount } from '../hooks/useBrokerAccounts';
+import { usePin } from '../context/PinContext';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../services/api';
 import { TableSkeleton } from '../components/Skeleton';
 import Modal from '../components/Modal';
-import { Button, TextInput, Select } from 'flowbite-react';
+import Button from '../components/Button';
+import TextInput from '../components/TextInput';
+
 
 export default function Settings() {
     const [activeTab, setActiveTab] = useState('institutions');
@@ -168,9 +171,8 @@ export default function Settings() {
                                         color="light"
                                         onClick={() => seedInst.mutate()}
                                         disabled={seedInst.isPending}
-                                        isProcessing={seedInst.isPending}
                                     >
-                                        Auto-Seed Defaults
+                                        {seedInst.isPending ? 'Seeding...' : 'Auto-Seed Defaults'}
                                     </Button>
                                 </div>
                             ) : (
@@ -286,9 +288,8 @@ export default function Settings() {
                                         type="submit"
                                         color="blue"
                                         disabled={createInst.isPending}
-                                        isProcessing={createInst.isPending}
                                     >
-                                        Save Institution
+                                        {createInst.isPending ? 'Saving...' : 'Save Institution'}
                                     </Button>
                                 </div>
                             </form>
@@ -375,49 +376,7 @@ export default function Settings() {
                         </div>
 
                         <div className="flex-1 overflow-auto p-8 bg-gray-50/30 dark:bg-neutral-900/50 transition-colors">
-                            <div className="max-w-md bg-white dark:bg-neutral-900 rounded-xl border border-gray-200 dark:border-neutral-800 p-6 shadow-sm">
-                                <div className="flex items-center gap-3 mb-6">
-                                    <div className="p-3 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-lg">
-                                        <Lock className="w-6 h-6" />
-                                    </div>
-                                    <div>
-                                        <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">Master PIN Code</h3>
-                                        <p className="text-sm text-gray-500 dark:text-gray-400">Must be at least 4 chars long</p>
-                                    </div>
-                                </div>
-                                <form onSubmit={async (e) => {
-                                    e.preventDefault();
-                                    try {
-                                        const res = await api.put('/auth/pin', { pin: newPin });
-                                        setNewPin('');
-                                        setFeedbackModal({ isOpen: true, title: 'Success', message: res.data.message, type: 'success' });
-                                    } catch (error) {
-                                        setFeedbackModal({ isOpen: true, title: 'Error', message: error.response?.data?.message || 'Failed to update PIN', type: 'danger' });
-                                    }
-                                }}>
-                                    <div className="mb-4">
-                                        <div className="mb-1 block">
-                                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Enter New PIN</label>
-                                        </div>
-                                        <TextInput
-                                            id="new-pin"
-                                            type="password"
-                                            required
-                                            minLength={4}
-                                            value={newPin}
-                                            onChange={(e) => setNewPin(e.target.value)}
-                                            placeholder="••••"
-                                        />
-                                    </div>
-                                    <Button
-                                        type="submit"
-                                        color="blue"
-                                        className="w-full"
-                                    >
-                                        Save PIN
-                                    </Button>
-                                </form>
-                            </div>
+                            <PinSettingsView setFeedbackModal={setFeedbackModal} />
                         </div>
                     </div>
                 )}
@@ -485,9 +444,8 @@ export default function Settings() {
                                         type="submit"
                                         color="blue"
                                         disabled={createBroker.isPending}
-                                        isProcessing={createBroker.isPending}
                                     >
-                                        Save Broker Account
+                                        {createBroker.isPending ? 'Saving...' : 'Save Broker Account'}
                                     </Button>
                                 </div>
                             </form>
@@ -557,6 +515,181 @@ export default function Settings() {
                     }}
                 />
             </div>
+        </div>
+    );
+}
+
+function PinSettingsView({ setFeedbackModal }) {
+    const { hasPin, updateHasPin } = usePin();
+
+    // States: 'idle', 'create_enter', 'create_confirm', 'change_verify', 'change_new', 'change_confirm'
+    const [mode, setMode] = useState('idle');
+    const [pinSequence, setPinSequence] = useState({ current: '', next: '', confirm: '' });
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
+
+    // For the 6-digit input UI
+    const [digits, setDigits] = useState(['', '', '', '', '', '']);
+    const inputRefs = useRef([]);
+
+    // Clear input utility
+    const clearDigits = () => {
+        setDigits(['', '', '', '', '', '']);
+        setTimeout(() => inputRefs.current[0]?.focus(), 100);
+    };
+
+    // Auto-advance logic wrapper
+    const handleDigitsChange = (index, value) => {
+        if (value && !/^\d+$/.test(value)) return;
+        const newDigits = [...digits];
+        if (value.length > 1) { // Paste handler
+            const pastedData = value.slice(0, 6).split('');
+            for (let i = 0; i < pastedData.length; i++) {
+                if (index + i < 6) newDigits[index + i] = pastedData[i];
+            }
+            setDigits(newDigits);
+            if (newDigits.join('').length === 6) processStep(newDigits.join(''));
+            else inputRefs.current[Math.min(index + pastedData.length, 5)]?.focus();
+            return;
+        }
+
+        newDigits[index] = value;
+        setDigits(newDigits);
+        setError('');
+
+        if (value && index < 5) {
+            inputRefs.current[index + 1]?.focus();
+        } else if (newDigits.join('').length === 6) {
+            processStep(newDigits.join(''));
+        }
+    };
+
+    const handleKeyDown = (index, e) => {
+        if (e.key === 'Backspace' && !digits[index] && index > 0) {
+            inputRefs.current[index - 1]?.focus();
+        }
+    };
+
+    const processStep = async (fullPin) => {
+        setLoading(true);
+        setError('');
+
+        try {
+            if (mode === 'create_enter') {
+                setPinSequence(prev => ({ ...prev, next: fullPin }));
+                setMode('create_confirm');
+                clearDigits();
+            } else if (mode === 'create_confirm') {
+                if (fullPin !== pinSequence.next) {
+                    setError('PINs do not match. Try again.');
+                    clearDigits();
+                    setLoading(false);
+                    return;
+                }
+                // Save New PIN
+                const res = await api.put('/auth/pin', { pin: fullPin });
+                updateHasPin(true);
+                setMode('idle');
+                setFeedbackModal({ isOpen: true, title: 'Success', message: 'Master PIN successfully created.', type: 'success' });
+            } else if (mode === 'change_verify') {
+                // Verify Current PIN
+                await api.post('/auth/verify-pin', { pin: fullPin }); // Will throw if invalid
+                setPinSequence(prev => ({ ...prev, current: fullPin }));
+                setMode('change_new');
+                clearDigits();
+            } else if (mode === 'change_new') {
+                setPinSequence(prev => ({ ...prev, next: fullPin }));
+                setMode('change_confirm');
+                clearDigits();
+            } else if (mode === 'change_confirm') {
+                if (fullPin !== pinSequence.next) {
+                    setError('PINs do not match. Try again.');
+                    clearDigits();
+                    setLoading(false);
+                    return;
+                }
+                // Save Change PIN
+                const res = await api.put('/auth/pin/change', { currentPin: pinSequence.current, newPin: fullPin });
+                setMode('idle');
+                setFeedbackModal({ isOpen: true, title: 'Success', message: 'Master PIN changed successfully.', type: 'success' });
+            }
+        } catch (err) {
+            setError(err.response?.data?.message || 'Verification failed. Try again.');
+            clearDigits();
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    if (mode === 'idle') {
+        return (
+            <div className="max-w-md bg-white dark:bg-neutral-900 rounded-xl border border-gray-200 dark:border-neutral-800 p-6 shadow-sm">
+                <div className="flex items-center gap-3 mb-6">
+                    <div className="p-3 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-lg">
+                        <Lock className="w-6 h-6" />
+                    </div>
+                    <div>
+                        <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">Master PIN Settings</h3>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">Status: {hasPin ? <span className="text-emerald-600 font-medium tracking-wide">ENABLED</span> : <span className="text-gray-500 tracking-wide font-medium">NOT SET</span>}</p>
+                    </div>
+                </div>
+
+                {!hasPin ? (
+                    <Button color="blue" onClick={() => { setMode('create_enter'); clearDigits(); }} className="w-full">
+                        Create Master PIN
+                    </Button>
+                ) : (
+                    <Button color="blue" onClick={() => { setMode('change_verify'); clearDigits(); }} className="w-full">
+                        Change Master PIN
+                    </Button>
+                )}
+                <p className="mt-4 text-xs text-center text-gray-400">This 6-digit PIN securely masks your overall net worth and account balances until unlocked.</p>
+            </div>
+        );
+    }
+
+    const stepTitles = {
+        'create_enter': 'Enter a new 6-digit PIN',
+        'create_confirm': 'Confirm your new PIN',
+        'change_verify': 'Enter your current PIN',
+        'change_new': 'Enter your new 6-digit PIN',
+        'change_confirm': 'Confirm your new PIN',
+    };
+
+    return (
+        <div className="max-w-md bg-white dark:bg-neutral-900 rounded-xl border border-gray-200 dark:border-neutral-800 p-8 shadow-sm">
+            <div className="text-center mb-6">
+                <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">{stepTitles[mode]}</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                    Use a strong 6-digit code.
+                </p>
+            </div>
+
+            <div className="flex gap-2 justify-center mb-6">
+                {digits.map((digit, index) => (
+                    <input
+                        key={index}
+                        ref={el => inputRefs.current[index] = el}
+                        type="password"
+                        inputMode="numeric"
+                        maxLength={6}
+                        value={digit}
+                        onChange={e => handleDigitsChange(index, e.target.value)}
+                        onKeyDown={e => handleKeyDown(index, e)}
+                        disabled={loading}
+                        className="w-12 h-14 text-center text-2xl font-bold bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-gray-900 dark:text-white mb-2"
+                    />
+                ))}
+            </div>
+
+            <div className="h-6 mb-4 text-center">
+                {error && <p className="text-sm font-medium text-red-600 dark:text-red-400 animate-pulse">{error}</p>}
+                {loading && <div className="flex justify-center"><Loader2 className="w-5 h-5 animate-spin text-blue-600" /></div>}
+            </div>
+
+            <Button color="light" onClick={() => { setMode('idle'); setPinSequence({ current: '', next: '', confirm: '' }); }} className="w-full">
+                Cancel
+            </Button>
         </div>
     );
 }

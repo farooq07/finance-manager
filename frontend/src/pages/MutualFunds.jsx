@@ -3,7 +3,7 @@ import api from '../services/api';
 import { Upload, Plus, ChevronDown, ChevronRight, Loader2, Trash2, Calendar, TrendingUp, TrendingDown } from 'lucide-react';
 import ReactECharts from 'echarts-for-react';
 import { StatSkeleton, ChartSkeleton, TableSkeleton } from '../components/Skeleton';
-import { Button } from 'flowbite-react';
+import Button from '../components/Button';
 const COLORS = ['#7c2889', '#a855f7', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#06b6d4'];
 
 export default function MutualFunds() {

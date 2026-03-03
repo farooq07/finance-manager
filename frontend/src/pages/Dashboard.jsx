@@ -4,6 +4,7 @@ import ReactECharts from 'echarts-for-react';
 import { TrendingUp, PieChart as PieIcon, Activity, FileText, ArrowUpCircle, ArrowDownCircle, Wallet, Landmark } from 'lucide-react';
 import { fmtPKR } from '../utils/currency';
 import { StatSkeleton, ChartSkeleton } from '../components/Skeleton';
+import MaskedBalance from '../components/MaskedBalance';
 
 export default function Dashboard() {
     const [data, setData] = useState(null);
@@ -114,16 +115,20 @@ export default function Dashboard() {
                 <div className="absolute top-0 right-0 -mt-10 -mr-10 w-40 h-40 bg-white/10 rounded-full blur-3xl"></div>
                 <div className="relative z-10">
                     <p className="text-blue-200 font-medium mb-1">Total Comprehensive Net Worth</p>
-                    <h2 className="text-4xl md:text-5xl font-bold tracking-tight"> {fmtPKR(metrics.netWorth)}</h2>
+                    <MaskedBalance
+                        value={metrics.netWorth}
+                        className="text-4xl md:text-5xl font-bold tracking-tight inline-block mr-2"
+                        iconClassName="text-white hover:text-white bg-white/10 hover:bg-white/20 p-2"
+                    />
                     <div className="flex items-center gap-4 mt-6">
                         <div>
                             <p className="text-sm text-blue-300">Liquid Cash</p>
-                            <p className="text-lg font-semibold"> {fmtPKR(metrics.totalBankBalance)}</p>
+                            <MaskedBalance value={metrics.totalBankBalance} className="text-lg font-semibold inline-block mr-1" iconClassName="text-white/60 hover:text-white hover:bg-white/10" />
                         </div>
                         <div className="h-8 w-px bg-blue-700/50"></div>
                         <div>
                             <p className="text-sm text-blue-300">Total Invested Assets</p>
-                            <p className="text-lg font-semibold"> {fmtPKR(metrics.totalInvestments)}</p>
+                            <MaskedBalance value={metrics.totalInvestments} className="text-lg font-semibold inline-block mr-1" iconClassName="text-white/60 hover:text-white hover:bg-white/10" />
                         </div>
                     </div>
                 </div>
@@ -185,7 +190,7 @@ export default function Dashboard() {
                 </div>
                 <div>
                     <p className="text-sm font-medium text-gray-500 dark:text-gray-400 transition-colors">{title}</p>
-                    <p className="text-2xl font-bold text-gray-900 dark:text-gray-100 transition-colors"> {fmtPKR(value)}</p>
+                    <MaskedBalance value={value} className="text-2xl font-bold text-gray-900 dark:text-gray-100 transition-colors inline-block mr-1" />
                 </div>
             </div>
         );

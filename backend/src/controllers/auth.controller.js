@@ -118,7 +118,7 @@ export const getMe = async (req, res) => {
     try {
         const user = await prisma.user.findUnique({
             where: { id: req.user.id },
-            select: { id: true, name: true, email: true }
+            select: { id: true, name: true, email: true, app_pin_code: true }
         });
 
         if (!user) {
@@ -128,7 +128,8 @@ export const getMe = async (req, res) => {
         res.json({
             id: user.id,
             name: user.name,
-            email: user.email
+            email: user.email,
+            hasPin: !!user.app_pin_code
         });
     } catch (error) {
         console.error('GetMe Error:', error);
@@ -227,5 +228,40 @@ export const verifyPin = async (req, res) => {
     } catch (error) {
         console.error('Verify PIN Error:', error);
         res.status(500).json({ message: 'Server error verifying PIN' });
+    }
+};
+
+export const changePin = async (req, res) => {
+    try {
+        const { currentPin, newPin } = req.body;
+        if (!currentPin || !newPin) {
+            return res.status(400).json({ message: 'Current PIN and new PIN are required' });
+        }
+        if (newPin.length < 4) {
+            return res.status(400).json({ message: 'New PIN must be at least 4 digits' });
+        }
+
+        const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+        if (!user || !user.app_pin_code) {
+            return res.status(400).json({ message: 'No PIN configured for this account' });
+        }
+
+        const isMatch = await bcrypt.compare(currentPin, user.app_pin_code);
+        if (!isMatch) {
+            return res.status(401).json({ message: 'Current PIN is incorrect' });
+        }
+
+        const salt = await bcrypt.genSalt(10);
+        const hashedPin = await bcrypt.hash(newPin, salt);
+
+        await prisma.user.update({
+            where: { id: req.user.id },
+            data: { app_pin_code: hashedPin }
+        });
+
+        res.json({ message: 'PIN changed successfully' });
+    } catch (error) {
+        console.error('Change PIN Error:', error);
+        res.status(500).json({ message: 'Server error changing PIN' });
     }
 };

@@ -4,11 +4,14 @@ import { Link } from 'react-router-dom';
 import { useWallets, useCreateWallet, useUpdateWalletBalance, useDeleteWallet } from '../hooks/useWallets';
 import { useBanks, useCreateBank, useDeleteBank } from '../hooks/useBanks';
 import { useInstitutions } from '../hooks/useInstitutions';
-import { Button, TextInput } from 'flowbite-react';
+import Button from '../components/Button';
+import TextInput from '../components/TextInput';
 import { fmtPKR } from '../utils/currency';
 import { CardSkeleton } from '../components/Skeleton';
 import Select from '../components/Select';
-import toast from 'react-hot-toast';
+import { toast } from 'sonner';
+import MaskedBalance from '../components/MaskedBalance';
+import api from '../services/api';
 
 // Mapping color themes to Tailwind gradients for the Credit Card UI
 const CARD_THEMES = {
@@ -43,36 +46,6 @@ export default function Accounts() {
     // Form states
     const [walletForm, setWalletForm] = useState({ name: '', institution_id: '', balance: '', color_theme: 'blue', account_num: '' });
     const [bankForm, setBankForm] = useState({ name: '', institution_id: '', account_no: '', iban_no: '', starting_balance: '' });
-
-    // Security States
-    const [revealedBankIds, setRevealedBankIds] = useState([]);
-    const [pinModal, setPinModal] = useState({ isOpen: false, targetId: null, pin: '', loading: false });
-
-    const toggleBalanceReveal = (e, bankId) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (revealedBankIds.includes(bankId)) {
-            // Instantly lock
-            setRevealedBankIds(prev => prev.filter(id => id !== bankId));
-        } else {
-            // Prompt for PIN to unlock
-            setPinModal({ isOpen: true, targetId: bankId, pin: '', loading: false });
-        }
-    };
-
-    const handleVerifyPin = async (e) => {
-        e.preventDefault();
-        setPinModal(prev => ({ ...prev, loading: true }));
-        try {
-            await api.post('/auth/verify-pin', { pin: pinModal.pin });
-            setRevealedBankIds(prev => [...prev, pinModal.targetId]);
-            setPinModal({ isOpen: false, targetId: null, pin: '', loading: false });
-            toast.success("Balance Unlocked");
-        } catch (error) {
-            toast.error(error.response?.data?.message || 'Invalid PIN');
-            setPinModal(prev => ({ ...prev, loading: false }));
-        }
-    };
 
     if (loadingWallets || loadingBanks) return (
         <div className="space-y-6">
@@ -178,7 +151,7 @@ export default function Accounts() {
                     <p className="text-gray-500 dark:text-gray-400 mt-1">Aggregated balance across all your banks and mapped wallets.</p>
                 </div>
                 <div className="text-right">
-                    <p className="text-3xl font-bold text-gray-900 dark:text-gray-100 tracking-tight"> {fmtPKR(totalLiquidity)}</p>
+                    <MaskedBalance value={totalLiquidity} className="text-3xl font-bold text-gray-900 dark:text-gray-100 tracking-tight" />
                 </div>
             </div>
 
@@ -231,15 +204,7 @@ export default function Accounts() {
                                         <div>
                                             <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Current Balance</p>
                                             <div className="flex items-center gap-2">
-                                                <p className="text-xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
-                                                    {revealedBankIds.includes(bank.id) ? fmtPKR(bank.current_balance) : '******'}
-                                                </p>
-                                                <button
-                                                    onClick={(e) => toggleBalanceReveal(e, bank.id)}
-                                                    className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
-                                                >
-                                                    {revealedBankIds.includes(bank.id) ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                                                </button>
+                                                <MaskedBalance value={bank.current_balance} className="text-xl font-bold tracking-tight text-gray-900 dark:text-gray-100" />
                                             </div>
                                         </div>
                                         <ArrowRight className="w-5 h-5 text-gray-300 group-hover:text-blue-500 transition-colors" />
@@ -306,7 +271,7 @@ export default function Accounts() {
                                         ) : (
                                             <>
                                                 <p className="text-sm text-white/70 mb-1">Available Balance</p>
-                                                <p className="text-3xl font-bold tracking-tight">Rs {fmtPKR(wallet.balance)}</p>
+                                                <MaskedBalance value={wallet.balance} className="text-3xl font-bold tracking-tight" iconClassName="text-white hover:text-white bg-white/20 p-1.5 ml-2 hover:bg-white/30" />
                                             </>
                                         )}
                                     </div>
@@ -412,8 +377,8 @@ export default function Accounts() {
 
                             <div className="pt-4 flex justify-end gap-3">
                                 <Button color="light" onClick={() => setShowWalletModal(false)}>Cancel</Button>
-                                <Button type="submit" color="blue" disabled={createWallet.isPending || institutions.length === 0} isProcessing={createWallet.isPending}>
-                                    Add Wallet
+                                <Button type="submit" color="blue" disabled={createWallet.isPending || institutions.length === 0}>
+                                    {createWallet.isPending ? 'Adding Wallet...' : 'Add Wallet'}
                                 </Button>
                             </div>
                         </form>
@@ -465,43 +430,10 @@ export default function Accounts() {
 
                             <div className="pt-4 flex justify-end gap-3">
                                 <Button color="light" onClick={() => setShowBankModal(false)}>Cancel</Button>
-                                <Button type="submit" color="blue" disabled={createBank.isPending || formatInstitutionOptions('bank').length === 0} isProcessing={createBank.isPending}>
-                                    Link Bank
+                                <Button type="submit" color="blue" disabled={createBank.isPending || formatInstitutionOptions('bank').length === 0}>
+                                    {createBank.isPending ? 'Linking Bank...' : 'Link Bank'}
                                 </Button>
                             </div>
-                        </form>
-                    </div>
-                </div>
-            )}
-
-            {/* PIN Verification Modal */}
-            {pinModal.isOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-                    <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-xl w-full max-w-sm animate-in fade-in zoom-in duration-200 transition-colors">
-                        <div className="px-6 py-4 border-b border-gray-100 dark:border-neutral-800 flex justify-between items-center">
-                            <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">Security Check</h2>
-                            <button onClick={() => setPinModal({ isOpen: false, targetId: null, pin: '', loading: false })} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">✕</button>
-                        </div>
-
-                        <form onSubmit={handleVerifyPin} className="p-6">
-                            <div className="mb-6 text-center">
-                                <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Enter your Master PIN to reveal this balance.</p>
-                                <TextInput
-                                    id="pin-entry"
-                                    type="password"
-                                    required
-                                    autoFocus
-                                    maxLength={4}
-                                    className="w-3/4 mx-auto font-mono text-center tracking-[0.5em]"
-                                    sizing="lg"
-                                    value={pinModal.pin}
-                                    onChange={e => setPinModal({ ...pinModal, pin: e.target.value })}
-                                />
-                            </div>
-
-                            <Button type="submit" color="blue" disabled={pinModal.loading} isProcessing={pinModal.loading} className="w-full">
-                                {pinModal.loading ? 'Verifying...' : 'Unlock Balance'}
-                            </Button>
                         </form>
                     </div>
                 </div>

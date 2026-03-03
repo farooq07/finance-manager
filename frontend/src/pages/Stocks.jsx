@@ -9,7 +9,7 @@ import { fmtDate, fmtDateLong } from '../utils/dates';
 import { StatSkeleton, TableSkeleton } from '../components/Skeleton';
 import DatePickerInput from '../components/DatePickerInput';
 import DatePicker from 'react-datepicker';
-import toast from 'react-hot-toast';
+import { toast } from 'sonner';
 
 export default function Stocks() {
     // ---- Server State ----

@@ -35,12 +35,7 @@ export default function Sidebar() {
             isExpanded ? "w-[240px] items-start px-4" : "w-[64px] items-center"
         )}>
             {/* Expand Toggle */}
-            <button
-                onClick={() => setIsExpanded(!isExpanded)}
-                className="absolute -right-3 top-6 bg-white dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 text-gray-400 dark:text-gray-500 rounded-full p-1 shadow-sm hover:text-emerald-500 transition-colors z-10"
-            >
-                {isExpanded ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-            </button>
+
 
             {/* Logo mark */}
             <div className={clsx("flex items-center mb-6 h-9 overflow-hidden", isExpanded ? "w-full justify-start px-2" : "justify-center")}>
@@ -81,6 +76,12 @@ export default function Sidebar() {
                     );
                 })}
             </nav>
+            <button
+                onClick={() => setIsExpanded(!isExpanded)}
+                className=" bg-white dark:bg-neutral-800 border rounded-sm border-gray-200 dark:border-neutral-700 text-gray-400 dark:text-gray-500  p-2  hover:text-emerald-500 transition-colors z-10"
+            >
+                {isExpanded ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+            </button>
 
 
         </aside>
