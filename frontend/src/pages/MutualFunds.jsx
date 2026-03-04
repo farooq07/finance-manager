@@ -4,6 +4,7 @@ import { Upload, Plus, ChevronDown, ChevronRight, Loader2, Trash2, Calendar, Tre
 import ReactECharts from 'echarts-for-react';
 import { StatSkeleton, ChartSkeleton, TableSkeleton } from '../components/Skeleton';
 import Button from '../components/Button';
+import MaskedBalance from '../components/MaskedBalance';
 const COLORS = ['#7c2889', '#a855f7', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#06b6d4'];
 
 export default function MutualFunds() {
@@ -20,6 +21,10 @@ export default function MutualFunds() {
     const [formData, setFormData] = useState({
         fund_name: '', fund_symbol: '', units: '', current_nav: '', invested_amount: ''
     });
+
+    const [showHtmlModal, setShowHtmlModal] = useState(false);
+    const [htmlContent, setHtmlContent] = useState('');
+    const [isSyncing, setIsSyncing] = useState(false);
 
     const fetchFunds = async () => {
         try {
@@ -39,7 +44,12 @@ export default function MutualFunds() {
     const fetchSnapshots = async () => {
         try {
             const res = await api.get('/mutual-funds/snapshots');
-            setSnapshots(res.data || []);
+            const snaps = res.data || [];
+            setSnapshots(snaps);
+            // Auto-expand latest snapshot if none expanded
+            if (snaps.length > 0 && expandedSnap === null) {
+                setExpandedSnap(snaps[0].id);
+            }
         } catch (error) {
             console.error('Error fetching snapshots', error);
         }
@@ -82,6 +92,67 @@ export default function MutualFunds() {
         }
     };
 
+    const handleHtmlSync = async () => {
+        if (!htmlContent.trim()) return;
+        setIsSyncing(true);
+        try {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(htmlContent, 'text/html');
+
+            // Try to find any row that looks like a header (contains common keywords)
+            const allRows = Array.from(doc.querySelectorAll('tr'));
+            if (allRows.length === 0) {
+                alert('No table rows (<tr>) found in the pasted content.');
+                return;
+            }
+
+            let headerRowIndex = allRows.findIndex(row => {
+                const text = row.textContent.toLowerCase();
+                return text.includes('fund') || text.includes('units') || text.includes('nav');
+            });
+
+            if (headerRowIndex === -1) {
+                alert('Could not identify a header row. Ensure your table contains column names like "Funds", "Units", or "NAV".');
+                return;
+            }
+
+            const headerCells = Array.from(allRows[headerRowIndex].querySelectorAll('th, td'));
+            const headers = headerCells.map(el => el.textContent.trim());
+
+            // Data rows are everything after the header row
+            const dataRows = allRows.slice(headerRowIndex + 1).map(row => {
+                const cells = Array.from(row.querySelectorAll('td'));
+                if (cells.length === 0) return null;
+
+                const rowData = {};
+                // Map based on headers found
+                headers.forEach((header, i) => {
+                    if (cells[i]) {
+                        rowData[header] = cells[i].textContent.trim();
+                    }
+                });
+                return rowData;
+            }).filter(r => r !== null && Object.keys(r).length > 2); // At least 2 columns of data
+
+            if (dataRows.length === 0) {
+                alert(`Found headers: [${headers.join(', ')}], but no valid data rows below them. Check if the table content is properly formatted.`);
+                return;
+            }
+
+            const res = await api.post('/mutual-funds/sync-data', { rows: dataRows });
+            setUploadMessage(res.data.message);
+            setShowHtmlModal(false);
+            setHtmlContent('');
+            fetchFunds();
+            fetchSnapshots();
+        } catch (error) {
+            console.error('Sync error', error);
+            alert('Error syncing data: ' + (error.response?.data?.message || error.message));
+        } finally {
+            setIsSyncing(false);
+        }
+    };
+
     const handleDelete = async (id, name) => {
         if (!window.confirm(`Delete "${name}" from your portfolio?`)) return;
         try {
@@ -114,9 +185,12 @@ export default function MutualFunds() {
 
     // Computed
     const funds = data?.funds || [];
-    const totalValue = funds.reduce((s, f) => s + Number(f.current_value), 0);
-    const totalToDate = funds.reduce((s, f) => s + Number(f.gain_loss_since_inception), 0);
-    const totalInvested = funds.reduce((s, f) => s + Number(f.invested_amount), 0);
+    const latestSnap = snapshots[0] || null;
+
+    // Prioritize snapshot data for summary cards, fallback to calculated funds totals
+    const totalValue = latestSnap ? Number(latestSnap.total_value) : funds.reduce((s, f) => s + Number(f.current_value), 0);
+    const totalToDate = latestSnap ? Number(latestSnap.total_gain) : funds.reduce((s, f) => s + Number(f.gain_loss_since_inception), 0);
+    const totalInvested = latestSnap ? Number(latestSnap.total_invested) : funds.reduce((s, f) => s + Number(f.invested_amount), 0);
 
     const theme = { primary: "bg-[#7c2889] dark:bg-[#a855f7]", textPrimary: "text-[#7c2889] dark:text-[#a855f7]" };
     const fmtPKR = (v) => Number(v).toLocaleString('en-PK', { maximumFractionDigits: 0 });
@@ -185,7 +259,7 @@ export default function MutualFunds() {
     );
 
     return (
-        <div className="space-y-6">
+        <div className="">
             {/* Header */}
             <div className="flex justify-between items-center">
                 <div>
@@ -198,6 +272,10 @@ export default function MutualFunds() {
                         className="flex items-center px-4 py-2.5 bg-gray-900 dark:bg-neutral-800 text-white text-sm font-medium rounded-lg hover:bg-gray-800 dark:hover:bg-neutral-700 disabled:opacity-70 transition-all shadow-sm">
                         {isUploading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
                         Upload File
+                    </button>
+                    <button onClick={() => setShowHtmlModal(true)}
+                        className="flex items-center px-4 py-2.5 bg-gray-100 dark:bg-neutral-800 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-lg hover:bg-gray-200 dark:hover:bg-neutral-700 transition-all shadow-sm">
+                        <Plus className="w-4 h-4 mr-2" /> Paste HTML
                     </button>
                     <Button color="blue" onClick={() => setShowForm(!showForm)}>
                         <Plus className="w-4 h-4 mr-2" /> Add Manual
@@ -213,19 +291,26 @@ export default function MutualFunds() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="bg-white dark:bg-neutral-900 rounded-xl border border-gray-100 dark:border-neutral-800 shadow-sm p-5 transition-colors">
                     <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Portfolio Value</span>
-                    <div className={`text-2xl font-bold mt-1 ${theme.textPrimary}`}>PKR {fmtPKR(totalValue)}</div>
+                    <div className={`mt-1`}>
+                        <MaskedBalance value={totalValue} className={`text-2xl font-bold ${theme.textPrimary}`} />
+                    </div>
                     <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{funds.length} active funds</p>
                 </div>
                 <div className="bg-white dark:bg-neutral-900 rounded-xl border border-gray-100 dark:border-neutral-800 shadow-sm p-5 transition-colors">
                     <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Gain/Loss (To Date)</span>
-                    <div className={`text-2xl font-bold mt-1 ${totalToDate >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'}`}>
-                        {totalToDate >= 0 ? '+' : ''}PKR {fmtPKR(totalToDate)}
+                    <div className="mt-1">
+                        <MaskedBalance
+                            value={totalToDate}
+                            className={`text-2xl font-bold ${totalToDate >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'}`}
+                        />
                     </div>
                     <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{totalInvested > 0 ? `${pctChange(totalValue, totalInvested)}% return` : 'Since inception'}</p>
                 </div>
                 <div className="bg-white dark:bg-neutral-900 rounded-xl border border-gray-100 dark:border-neutral-800 shadow-sm p-5 transition-colors">
                     <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Total Invested</span>
-                    <div className="text-2xl font-bold mt-1 text-gray-900 dark:text-gray-100">PKR {fmtPKR(totalInvested)}</div>
+                    <div className="mt-1">
+                        <MaskedBalance value={totalInvested} className="text-2xl font-bold text-gray-900 dark:text-gray-100" />
+                    </div>
                     <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{snapshots.length} upload(s) recorded</p>
                 </div>
             </div>
@@ -285,100 +370,49 @@ export default function MutualFunds() {
                 </form>
             )}
 
-            {/* Current Holdings Table */}
-            <div className="bg-white dark:bg-neutral-900 rounded-xl shadow-sm border border-gray-100 dark:border-neutral-800 overflow-hidden transition-colors">
-                <div className="bg-gray-50 dark:bg-neutral-800/50 px-5 py-3 flex justify-between items-center border-b border-gray-100 dark:border-neutral-800 transition-colors">
-                    <div className="flex items-center gap-3">
-                        <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Current Holdings</span>
-                        {selectedIds.size > 0 && (
-                            <button onClick={handleBulkDelete}
-                                className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500 text-white text-xs font-medium rounded-lg hover:bg-red-600 transition-colors">
-                                <Trash2 className="w-3 h-3" /> Delete {selectedIds.size} selected
-                            </button>
-                        )}
+            {/* Paste HTML Modal */}
+            {showHtmlModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+                    <div className="bg-white dark:bg-neutral-900 rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden animate-in zoom-in duration-200">
+                        <div className="px-6 py-4 border-b border-gray-100 dark:border-neutral-800 flex justify-between items-center">
+                            <h3 className="font-bold text-gray-900 dark:text-gray-100">Paste Table HTML</h3>
+                            <button onClick={() => setShowHtmlModal(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors">&times;</button>
+                        </div>
+                        <div className="p-6">
+                            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Paste the HTML code of the portfolio table from your statement. It will be parsed and synced with your records.</p>
+                            <textarea
+                                value={htmlContent}
+                                onChange={(e) => setHtmlContent(e.target.value)}
+                                placeholder="<table>...</table>"
+                                className="w-full h-64 px-4 py-3 bg-gray-50 dark:bg-neutral-950 border border-gray-200 dark:border-neutral-800 rounded-xl text-gray-900 dark:text-gray-100 text-sm font-mono focus:ring-2 focus:ring-[#7c2889] outline-none transition-all resize-none"
+                            />
+                            <div className="flex gap-3 mt-6">
+                                <button
+                                    onClick={() => setShowHtmlModal(false)}
+                                    className="flex-1 px-4 py-2.5 bg-gray-100 dark:bg-neutral-800 text-gray-700 dark:text-gray-300 font-semibold rounded-xl hover:bg-gray-200 dark:hover:bg-neutral-700 transition-all"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleHtmlSync}
+                                    disabled={isSyncing || !htmlContent.trim()}
+                                    className={`flex-1 flex items-center justify-center px-4 py-2.5 ${theme.primary} text-white font-semibold rounded-xl hover:opacity-90 disabled:opacity-50 transition-all`}
+                                >
+                                    {isSyncing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <TrendingUp className="w-4 h-4 mr-2" />}
+                                    Sync Portfolio
+                                </button>
+                            </div>
+                        </div>
                     </div>
-                    <span className="text-xs text-gray-400 dark:text-gray-500">{fmtDate(new Date())}</span>
                 </div>
-                <div className="overflow-x-auto">
-                    <table className="w-full text-sm text-left whitespace-nowrap">
-                        <thead>
-                            <tr className={`border-b border-gray-100 dark:border-neutral-800 ${theme.textPrimary} font-medium transition-colors`}>
-                                <th className="px-5 py-3 w-10">
-                                    <input type="checkbox" checked={funds.length > 0 && selectedIds.size === funds.length} onChange={toggleSelectAll}
-                                        className="w-4 h-4 rounded border-gray-300 dark:border-neutral-600 text-purple-600 dark:bg-neutral-900 focus:ring-purple-500 cursor-pointer" />
-                                </th>
-                                <th className="px-5 py-3 font-medium">Funds</th>
-                                <th className="px-5 py-3 font-medium">Type</th>
-                                <th className="px-5 py-3 font-medium">Units</th>
-                                <th className="px-5 py-3 font-medium">NAV</th>
-                                <th className="px-5 py-3 font-medium text-right">Investment Value</th>
-                                <th className="px-5 py-3 font-medium text-right">Gain/Loss (To Date)</th>
-                                <th className="px-5 py-3 w-14"></th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-50 dark:divide-neutral-800/50">
-                            {funds.map((fund) => {
-                                const isSelected = selectedIds.has(fund.id);
-                                const gl = Number(fund.gain_loss_since_inception);
-                                const inv = Number(fund.invested_amount);
-                                const glPct = inv > 0 ? ((gl / inv) * 100).toFixed(1) : '0.0';
-                                return (
-                                    <tr key={fund.id} className={`hover:bg-gray-50 dark:hover:bg-neutral-800/50 transition-colors group ${isSelected ? 'bg-purple-50/40 dark:bg-purple-900/20' : ''}`}>
-                                        <td className="px-5 py-3">
-                                            <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(fund.id)}
-                                                className="w-4 h-4 rounded border-gray-300 dark:border-neutral-600 text-purple-600 dark:bg-neutral-900 focus:ring-purple-500 cursor-pointer" />
-                                        </td>
-                                        <td className="px-5 py-3">
-                                            <div className={`${theme.primary} text-white px-3 py-1 rounded-md inline-flex items-center text-xs font-medium min-w-[4.5rem] justify-between`}>
-                                                {fund.fund_symbol}
-                                                <ChevronDown className="w-3 h-3 -rotate-90 opacity-70 ml-1" />
-                                            </div>
-                                            <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 truncate max-w-[140px]">{fund.fund_name}</p>
-                                        </td>
-                                        <td className="px-5 py-3 text-gray-500 dark:text-gray-400 text-xs">
-                                            {fund.fund_name?.includes(',') ? fund.fund_name.split(',')[1]?.trim() : '—'}
-                                        </td>
-                                        <td className="px-5 py-3 text-gray-600 dark:text-gray-300 font-medium">{Number(fund.units).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</td>
-                                        <td className="px-5 py-3 text-gray-600 dark:text-gray-300 font-medium">{Number(fund.current_nav).toFixed(4)}</td>
-                                        <td className="px-5 py-3 text-right text-gray-700 dark:text-gray-200 font-semibold">{Number(fund.current_value).toLocaleString()}</td>
-                                        <td className="px-5 py-3 text-right font-medium">
-                                            <span className={gl >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'}>
-                                                {gl >= 0 ? '+' : ''}{gl.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                                            </span>
-                                            <span className="text-[10px] text-gray-400 dark:text-gray-500 ml-1">({glPct}%)</span>
-                                        </td>
-                                        <td className="px-5 py-3 text-center">
-                                            <button onClick={() => handleDelete(fund.id, fund.fund_symbol)}
-                                                className="p-1.5 text-gray-300 dark:text-gray-600 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors opacity-0 group-hover:opacity-100" title="Delete">
-                                                <Trash2 className="w-3.5 h-3.5" />
-                                            </button>
-                                        </td>
-                                    </tr>
-                                );
-                            })}
-                            {funds.length === 0 && (
-                                <tr><td colSpan="8" className="px-5 py-12 text-center text-gray-400 dark:text-gray-500">No portfolio data. Upload a file to get started.</td></tr>
-                            )}
-                        </tbody>
-                        {funds.length > 0 && (
-                            <tfoot>
-                                <tr className="border-t-2 border-gray-200 dark:border-neutral-700 bg-gray-50 dark:bg-neutral-800/80 transition-colors">
-                                    <td></td>
-                                    <td colSpan="4" className="px-5 py-3 text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Portfolio Total</td>
-                                    <td className="px-5 py-3 text-right font-bold text-gray-900 dark:text-gray-100">{totalValue.toLocaleString()}</td>
-                                    <td className="px-5 py-3 text-right font-bold">
-                                        <span className={totalToDate >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'}>
-                                            {totalToDate >= 0 ? '+' : ''}{totalToDate.toLocaleString()}
-                                        </span>
-                                        <span className="text-[10px] text-gray-400 dark:text-gray-500 ml-1">({pctChange(totalValue, totalInvested)}%)</span>
-                                    </td>
-                                    <td></td>
-                                </tr>
-                            </tfoot>
-                        )}
-                    </table>
-                </div>
+            )}
+
+            {/* Current Holdings Table - Hidden as requested */}
+            {/* 
+            <div className="bg-white dark:bg-neutral-900 rounded-xl shadow-sm border border-gray-100 dark:border-neutral-800 overflow-hidden transition-colors">
+                ...
             </div>
+            */}
 
             {/* Date-wise Snapshot History */}
             {snapshots.length > 0 && (

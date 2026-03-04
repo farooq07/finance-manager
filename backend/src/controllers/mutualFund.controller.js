@@ -98,7 +98,164 @@ const parseFile = (filePath) => {
     });
 };
 
-// Process CSV/Excel Uploads – supports Meezan Fund formats and legacy
+// Helper: process an array of fund rows into the database and create a snapshot
+const processPortfolioRows = async (userId, results) => {
+    let processedCount = 0;
+    let createdCount = 0;
+
+    for (const row of results) {
+        // --- Detect format by checking header keys (case-insensitive where possible) ---
+        const keys = Object.keys(row);
+        const findKey = (k) => keys.find(rk => rk.toLowerCase().trim() === k.toLowerCase());
+
+        // Check for specific headers to determine format
+        const hasFunds = findKey('Funds') || findKey('FUNDS');
+        const hasType = findKey('Type');
+        const hasValue = findKey('Value') || findKey('Investment Value') || findKey('Value (PKR)');
+        const hasGainToDate = findKey('Gain/Loss To Date') || findKey('Gain/Loss (To Date)') || findKey('Gain/Loss ToDate (PKR)');
+
+        const isMeezan = hasFunds && hasValue && hasGainToDate;
+
+        let fundName, fundSymbol, fundType, units, nav, value, gainLossFYTD, gainLossToDate;
+
+        if (isMeezan) {
+            // Meezan Table Format (New or Spreadsheet)
+            const rawFund = (row[findKey('Funds')] || '').trim();
+
+            // Skip summary rows ("Total", "Portfolio Total", or empty)
+            if (!rawFund || rawFund.toLowerCase().includes('total') || rawFund.toLowerCase() === 'portfolio total') continue;
+
+            // Handle combined "Symbol, Type" or just "Symbol" in FUNDS column
+            if (rawFund.includes(',')) {
+                const parts = rawFund.split(',');
+                fundSymbol = parts[0].trim().toUpperCase();
+                fundType = parts[1]?.trim() || '';
+                fundName = rawFund; // Keep original combined name for matching
+            } else {
+                fundSymbol = rawFund.toUpperCase();
+                fundType = (row[findKey('Type')] || '').trim();
+                fundName = fundType ? `${fundSymbol}, ${fundType}` : fundSymbol;
+            }
+
+            units = parseFloat((row[findKey('Units')] || '0').toString().replace(/,/g, ''));
+            nav = parseFloat((row[findKey('NAV')] || row[findKey('NAV (PKR)')] || '0').toString().replace(/,/g, ''));
+            value = parseFloat((row[findKey('Value')] || row[findKey('Investment Value')] || row[findKey('Value (PKR)')] || '0').toString().replace(/,/g, ''));
+            gainLossFYTD = parseFloat((row[findKey('Gain/Loss FYTD')] || row[findKey('Gain/Loss FYTD (PKR)')] || '0').toString().replace(/,/g, ''));
+            gainLossToDate = parseFloat((row[findKey('Gain/Loss To Date')] || row[findKey('Gain/Loss (To Date)')] || row[findKey('Gain/Loss ToDate (PKR)')] || '0').toString().replace(/,/g, ''));
+        } else {
+            // Legacy format: symbol, units, nav
+            fundSymbol = (row.symbol || row.Symbol || '').trim();
+            if (!fundSymbol) continue;
+
+            units = parseFloat(row.units || row.Units || '0');
+            nav = parseFloat(row.nav || row.NAV || '0');
+            value = units * nav;
+            gainLossFYTD = 0;
+            gainLossToDate = 0;
+            fundName = fundSymbol;
+            fundType = '';
+        }
+
+        if (!fundSymbol && !fundName) continue; // Skip empty rows
+
+        // Try to find existing fund — match by fund_name (unique composite)
+        let existingFund = await prisma.mutualFund.findFirst({
+            where: {
+                user_id: userId,
+                fund_name: fundName
+            }
+        });
+
+        if (existingFund) {
+            // UPDATE existing fund
+            await prisma.mutualFund.update({
+                where: { id: existingFund.id },
+                data: {
+                    current_nav: nav,
+                    units: units,
+                    current_value: value,
+                    gain_loss_fytd: gainLossFYTD,
+                    gain_loss_since_inception: gainLossToDate
+                }
+            });
+
+            // Log history snapshot
+            await prisma.mutualFundHistory.create({
+                data: {
+                    mutual_fund_id: existingFund.id,
+                    nav: nav,
+                    value: value
+                }
+            });
+
+            processedCount++;
+        } else if (isMeezan) {
+            // CREATE new fund from Meezan CSV
+            const investedAmount = value - gainLossToDate; // Derive invested from value minus total gain/loss
+
+            const fund = await prisma.mutualFund.create({
+                data: {
+                    user_id: userId,
+                    fund_name: fundName,
+                    fund_symbol: fundSymbol,
+                    units: units,
+                    current_nav: nav,
+                    current_value: value,
+                    invested_amount: investedAmount,
+                    gain_loss_fytd: gainLossFYTD,
+                    gain_loss_since_inception: gainLossToDate
+                }
+            });
+
+            await prisma.mutualFundHistory.create({
+                data: {
+                    mutual_fund_id: fund.id,
+                    nav: nav,
+                    value: value
+                }
+            });
+
+            createdCount++;
+            processedCount++;
+        }
+    }
+
+    // --- Save Portfolio Snapshot ---
+    if (processedCount > 0) {
+        const allFunds = await prisma.mutualFund.findMany({
+            where: { user_id: userId },
+            orderBy: { fund_symbol: 'asc' }
+        });
+
+        const snapTotalValue = allFunds.reduce((s, f) => s + Number(f.current_value), 0);
+        const snapTotalGain = allFunds.reduce((s, f) => s + Number(f.gain_loss_since_inception || 0), 0);
+        const snapTotalInvested = allFunds.reduce((s, f) => s + Number(f.invested_amount), 0);
+
+        const fundsSnapshot = allFunds.map(f => ({
+            fund_symbol: f.fund_symbol,
+            fund_name: f.fund_name,
+            units: Number(f.units),
+            nav: Number(f.current_nav),
+            value: Number(f.current_value),
+            invested: Number(f.invested_amount),
+            gain_loss: Number(f.gain_loss_since_inception || 0)
+        }));
+
+        await prisma.portfolioSnapshot.create({
+            data: {
+                user_id: userId,
+                total_value: snapTotalValue,
+                total_gain: snapTotalGain,
+                total_invested: snapTotalInvested,
+                funds_data: fundsSnapshot
+            }
+        });
+    }
+
+    return { processedCount, createdCount };
+};
+
+// Process CSV/Excel Uploads
 export const uploadPortfolioCSV = async (req, res) => {
     try {
         if (!req.file) {
@@ -106,162 +263,7 @@ export const uploadPortfolioCSV = async (req, res) => {
         }
 
         const results = await parseFile(req.file.path);
-
-        let processedCount = 0;
-        let createdCount = 0;
-
-        for (const row of results) {
-            // --- Detect format by checking header keys ---
-            const isMeezanOld = row['Fund Name'] !== undefined;
-            const isMeezanNew = row['Funds'] !== undefined;
-            const isMeezan = isMeezanOld || isMeezanNew;
-
-            let fundName, fundSymbol, fundType, units, nav, value, gainLossFYTD, gainLossToDate;
-
-            if (isMeezanNew) {
-                // New Meezan CSV: Funds, Type, Units, NAV, Investment Value, Gain/Loss (To Date)
-                const rawFund = (row['Funds'] || '').trim();
-                fundType = (row['Type'] || '').trim();
-
-                // Skip summary rows ("Total", "Portfolio Total", empty)
-                if (!rawFund || rawFund.toLowerCase() === 'total' || rawFund.toLowerCase() === 'portfolio total') continue;
-
-                // In new format, Funds column IS the symbol (AMMF, MSF, etc.)
-                fundSymbol = rawFund.toUpperCase();
-                // Combine symbol + type for unique fund_name (handles duplicate symbols like MSF)
-                fundName = fundType ? `${fundSymbol}, ${fundType}` : fundSymbol;
-
-                units = parseFloat((row['Units'] || '0').toString().replace(/,/g, ''));
-                nav = parseFloat((row['NAV'] || '0').toString().replace(/,/g, ''));
-                value = parseFloat((row['Investment Value'] || '0').toString().replace(/,/g, ''));
-                gainLossFYTD = 0;
-                gainLossToDate = parseFloat((row['Gain/Loss (To Date)'] || row['Gain/Loss(To Date)'] || '0').toString().replace(/,/g, ''));
-            } else if (isMeezanOld) {
-                // Old Meezan CSV: Portfolio ID, Fund Name, Units, NAV (PKR), Value (PKR), Gain/Loss FYTD (PKR), Gain/Loss ToDate (PKR)
-                fundName = (row['Fund Name'] || '').trim();
-                fundType = '';
-
-                if (fundName.toLowerCase() === 'portfolio total' || fundName === '') continue;
-
-                const commaIdx = fundName.indexOf(',');
-                fundSymbol = commaIdx > 0 ? fundName.substring(0, commaIdx).trim().toUpperCase() : fundName.split(' ').map(w => w[0]).join('').toUpperCase();
-
-                units = parseFloat((row['Units'] || '0').toString().replace(/,/g, ''));
-                nav = parseFloat((row['NAV (PKR)'] || '0').toString().replace(/,/g, ''));
-                value = parseFloat((row['Value (PKR)'] || '0').toString().replace(/,/g, ''));
-                gainLossFYTD = parseFloat((row['Gain/Loss FYTD (PKR)'] || '0').toString().replace(/,/g, ''));
-                gainLossToDate = parseFloat((row['Gain/Loss ToDate (PKR)'] || row['Gain/Loss ToDate(PKR)'] || '0').toString().replace(/,/g, ''));
-            } else {
-                // Legacy format: symbol, units, nav
-                fundSymbol = (row.symbol || '').trim();
-                units = parseFloat(row.units || '0');
-                nav = parseFloat(row.nav || '0');
-                value = units * nav;
-                gainLossFYTD = 0;
-                gainLossToDate = 0;
-                fundName = fundSymbol;
-                fundType = '';
-            }
-
-            if (!fundSymbol && !fundName) continue; // Skip empty rows
-
-            // Try to find existing fund — match by fund_name (unique composite)
-            let existingFund = await prisma.mutualFund.findFirst({
-                where: {
-                    user_id: req.user.id,
-                    fund_name: fundName
-                }
-            });
-
-            if (existingFund) {
-                // UPDATE existing fund
-                const investedAmount = Number(existingFund.invested_amount);
-                await prisma.mutualFund.update({
-                    where: { id: existingFund.id },
-                    data: {
-                        current_nav: nav,
-                        units: units,
-                        current_value: value,
-                        gain_loss_fytd: gainLossFYTD,
-                        gain_loss_since_inception: gainLossToDate
-                    }
-                });
-
-                // Log history snapshot
-                await prisma.mutualFundHistory.create({
-                    data: {
-                        mutual_fund_id: existingFund.id,
-                        nav: nav,
-                        value: value
-                    }
-                });
-
-                processedCount++;
-            } else if (isMeezan) {
-                // CREATE new fund from Meezan CSV
-                const investedAmount = value - gainLossToDate; // Derive invested from value minus total gain/loss
-
-                const fund = await prisma.mutualFund.create({
-                    data: {
-                        user_id: req.user.id,
-                        fund_name: fundName,
-                        fund_symbol: fundSymbol,
-                        units: units,
-                        current_nav: nav,
-                        current_value: value,
-                        invested_amount: investedAmount,
-                        gain_loss_fytd: gainLossFYTD,
-                        gain_loss_since_inception: gainLossToDate
-                    }
-                });
-
-                await prisma.mutualFundHistory.create({
-                    data: {
-                        mutual_fund_id: fund.id,
-                        nav: nav,
-                        value: value
-                    }
-                });
-
-                createdCount++;
-                processedCount++;
-            }
-        }
-
-        // Clean up file
-        fs.unlinkSync(req.file.path);
-
-        // --- Save Portfolio Snapshot ---
-        if (processedCount > 0) {
-            const allFunds = await prisma.mutualFund.findMany({
-                where: { user_id: req.user.id },
-                orderBy: { fund_symbol: 'asc' }
-            });
-
-            const snapTotalValue = allFunds.reduce((s, f) => s + Number(f.current_value), 0);
-            const snapTotalGain = allFunds.reduce((s, f) => s + Number(f.gain_loss_since_inception || 0), 0);
-            const snapTotalInvested = allFunds.reduce((s, f) => s + Number(f.invested_amount), 0);
-
-            const fundsSnapshot = allFunds.map(f => ({
-                fund_symbol: f.fund_symbol,
-                fund_name: f.fund_name,
-                units: Number(f.units),
-                nav: Number(f.current_nav),
-                value: Number(f.current_value),
-                invested: Number(f.invested_amount),
-                gain_loss: Number(f.gain_loss_since_inception || 0)
-            }));
-
-            await prisma.portfolioSnapshot.create({
-                data: {
-                    user_id: req.user.id,
-                    total_value: snapTotalValue,
-                    total_gain: snapTotalGain,
-                    total_invested: snapTotalInvested,
-                    funds_data: fundsSnapshot
-                }
-            });
-        }
+        const { processedCount, createdCount } = await processPortfolioRows(req.user.id, results);
 
         const parts = [];
         if (createdCount > 0) parts.push(`${createdCount} new funds created`);
@@ -279,6 +281,31 @@ export const uploadPortfolioCSV = async (req, res) => {
         // Clean up file on error too
         if (req.file?.path) try { fs.unlinkSync(req.file.path); } catch (e) { }
         res.status(500).json({ message: 'Error processing portfolio file' });
+    }
+};
+
+export const syncPortfolioData = async (req, res) => {
+    try {
+        const { rows } = req.body;
+        if (!rows || !Array.isArray(rows)) {
+            return res.status(400).json({ message: 'No rows provided' });
+        }
+
+        const { processedCount, createdCount } = await processPortfolioRows(req.user.id, rows);
+
+        const parts = [];
+        if (createdCount > 0) parts.push(`${createdCount} new funds created`);
+        if (processedCount - createdCount > 0) parts.push(`${processedCount - createdCount} funds updated`);
+        const msg = parts.length > 0 ? parts.join(', ') : 'No matching funds found';
+
+        res.status(200).json({
+            message: `${msg} synced successfully`,
+            processed: processedCount,
+            created: createdCount
+        });
+    } catch (error) {
+        console.error("Error syncing portfolio data:", error);
+        res.status(500).json({ message: 'Error syncing portfolio data' });
     }
 };
 

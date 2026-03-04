@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import Papa from 'papaparse';
 import ReactECharts from 'echarts-for-react';
-import { Upload, Plus, Trash2, TrendingUp, DollarSign, Calendar, Clock, Database, ChevronDown, ChevronRight, Activity, Percent, Eye, EyeOff, Briefcase } from 'lucide-react';
+import { Upload, Plus, Trash2, TrendingUp, DollarSign, Calendar, Clock, Database, ChevronDown, ChevronRight, Activity, Percent, Eye, EyeOff, Briefcase, Loader2 } from 'lucide-react';
 import { usePsxSnapshots, useUploadPsxSnapshot, useBankInvestments, useAddBankInvestment, useDeleteBankInvestment, useUpdatePsxSummary } from '../hooks/usePsx';
 import { useBrokerAccounts } from '../hooks/useBrokerAccounts';
 import { fmtPKR, pctChange, glColor, fmtGL } from '../utils/currency';
@@ -10,6 +10,7 @@ import { StatSkeleton, TableSkeleton } from '../components/Skeleton';
 import DatePickerInput from '../components/DatePickerInput';
 import DatePicker from 'react-datepicker';
 import { toast } from 'sonner';
+import MaskedBalance from '../components/MaskedBalance';
 
 export default function Stocks() {
     // ---- Server State ----
@@ -86,15 +87,35 @@ export default function Stocks() {
                 let totalCSVValue = 0;
 
                 data.forEach(row => {
-                    // Adapt strictly to the user's provided CSV keys if needed
-                    // User prompt had: symbol, holding, market_rate, custody_val
-                    const sym = row.symbol || row.Symbol;
-                    const hld = parseFloat(row.holding || row.Holding) || 0;
-                    const rate = parseFloat(row.market_rate || row['Market Rate'] || row.marketRate) || 0;
-                    const val = parseFloat(row.custody_val || row['Custody Val'] || row.custodyVal) || (hld * rate);
+                    // Normalize keys to support multiple formats
+                    const findValue = (...keys) => {
+                        const matchedKey = Object.keys(row).find(k => keys.some(search => k.toLowerCase().trim() === search.toLowerCase()));
+                        return row[matchedKey];
+                    };
+
+                    const sym = findValue('security', 'symbol');
+                    const hld = parseFloat((findValue('Quantity', 'holding') || '0').toString().replace(/,/g, '')) || 0;
+                    const rate = parseFloat((findValue('Current Price', 'market_rate', 'marketRate') || '0').toString().replace(/,/g, '')) || 0;
+                    const val = parseFloat((findValue('Current Value', 'custody_val', 'custodyVal') || (hld * rate)).toString().replace(/,/g, '')) || (hld * rate);
+
+                    // New detailed fields
+                    const costPerUnit = parseFloat((findValue('Cost/Unit', 'cost_per_unit') || '0').toString().replace(/,/g, ''));
+                    const totalCost = parseFloat((findValue('Total Cost', 'total_cost') || '0').toString().replace(/,/g, ''));
+                    const roiPct = parseFloat((findValue('Return of Investment %', 'roi_pct') || '0').toString().replace(/,/g, '').replace('%', ''));
+                    const unrealizedGL = parseFloat((findValue('Unrealized Gain / Loss', 'unrealized_gl') || '0').toString().replace(/,/g, ''));
 
                     if (sym && hld > 0) {
-                        holdings.push({ symbol: sym.toUpperCase(), holding: hld, market_rate: rate, custody_val: val });
+                        holdings.push({
+                            symbol: sym.toUpperCase(),
+                            holding: hld,
+                            market_rate: rate,
+                            custody_val: val,
+                            // Store new fields in the JSON blob
+                            cost_per_unit: costPerUnit,
+                            total_cost: totalCost,
+                            roi_pct: roiPct,
+                            unrealized_gl: unrealizedGL
+                        });
                         totalCSVValue += val;
                     }
                 });
@@ -330,7 +351,12 @@ export default function Stocks() {
                             <Activity className="w-5 h-5 text-emerald-600 dark:text-emerald-500" />
                         </div>
                     </div>
-                    <p className="mt-2 text-3xl font-bold text-gray-900 dark:text-gray-100">PKR {fmtPKR(currentCustody)}</p>
+                    <div className="mt-2">
+                        <MaskedBalance
+                            value={currentCustody}
+                            className="text-3xl font-bold text-gray-900 dark:text-gray-100"
+                        />
+                    </div>
                     {latestSnapshot && (
                         <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">As of {fmtDateLong(latestSnapshot.snapshot_date)}</p>
                     )}
@@ -400,7 +426,7 @@ export default function Stocks() {
 
             {/* Current Holdings Data Table */}
             {latestSnapshot && (
-                <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-sm border border-gray-100 dark:border-neutral-800 overflow-hidden text-sm transition-colors">
+                <div className="bg-white mb-4 dark:bg-neutral-900 rounded-2xl shadow-sm border border-gray-100 dark:border-neutral-800 overflow-hidden text-sm transition-colors">
                     <div className="px-6 py-5 border-b border-gray-100 dark:border-neutral-800 flex justify-between items-center bg-gray-50 dark:bg-neutral-800/50 transition-colors">
                         <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">Latest Holdings</h3>
                         <span className="px-3 py-1 bg-white dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 text-gray-600 dark:text-gray-300 rounded-full text-xs font-medium shadow-sm flex items-center transition-colors">
@@ -414,9 +440,13 @@ export default function Stocks() {
                             <thead className="bg-white dark:bg-neutral-900 tracking-wider text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase text-left transition-colors">
                                 <tr>
                                     <th className="px-6 py-4">Symbol</th>
-                                    <th className="px-6 py-4 text-right">Holding Qty</th>
-                                    <th className="px-6 py-4 text-right">Market Rate (PKR)</th>
-                                    <th className="px-6 py-4 text-right">Custody Value (PKR)</th>
+                                    <th className="px-6 py-4 text-right">Quantity</th>
+                                    <th className="px-6 py-4 text-right">Cost/Unit</th>
+                                    <th className="px-6 py-4 text-right">Total Cost</th>
+                                    <th className="px-6 py-4 text-right">Market Price</th>
+                                    <th className="px-6 py-4 text-right">Current Value</th>
+                                    <th className="px-6 py-4 text-right">ROI %</th>
+                                    <th className="px-6 py-4 text-right">Unrealized G/L</th>
                                     <th className="px-6 py-4 text-right">Weight</th>
                                 </tr>
                             </thead>
@@ -425,19 +455,35 @@ export default function Stocks() {
                                     const weight = ((stock.custody_val / latestSnapshot.total_custody) * 100).toFixed(1);
                                     return (
                                         <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-neutral-800/50 transition-colors">
-                                            <td className="px-6 py-4 whitespace-nowrap font-bold text-gray-900 dark:text-gray-100">
+                                            <td className="px-6 py-2 whitespace-nowrap font-bold text-gray-900 dark:text-gray-100">
                                                 {stock.symbol}
                                             </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-right text-gray-600 dark:text-gray-300 font-medium">
+                                            <td className="px-6 py-2 whitespace-nowrap text-right text-gray-600 dark:text-gray-300 font-medium">
                                                 {Number(stock.holding).toLocaleString()}
                                             </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-right text-gray-600 dark:text-gray-300">
+                                            <td className="px-6 py-2 whitespace-nowrap text-right text-gray-500 dark:text-gray-400">
+                                                {stock.cost_per_unit ? fmtPKR(stock.cost_per_unit) : '—'}
+                                            </td>
+                                            <td className="px-6 py-2 whitespace-nowrap text-right text-gray-600 dark:text-gray-300">
+                                                {stock.total_cost ? fmtPKR(stock.total_cost) : '—'}
+                                            </td>
+                                            <td className="px-6 py-2 whitespace-nowrap text-right text-gray-600 dark:text-gray-300">
                                                 {fmtPKR(stock.market_rate)}
                                             </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-right font-semibold text-emerald-700 dark:text-emerald-400">
+                                            <td className="px-6 py-2 whitespace-nowrap text-right font-semibold text-emerald-700 dark:text-emerald-400">
                                                 {fmtPKR(stock.custody_val)}
                                             </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-right">
+                                            <td className="px-6 py-2 whitespace-nowrap text-right">
+                                                <span className={`font-medium ${glColor(stock.roi_pct || 0)}`}>
+                                                    {stock.roi_pct !== undefined ? `${stock.roi_pct.toFixed(2)}%` : '—'}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-2 whitespace-nowrap text-right font-medium">
+                                                <span className={glColor(stock.unrealized_gl || 0)}>
+                                                    {stock.unrealized_gl !== undefined ? fmtPKR(stock.unrealized_gl) : '—'}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-2 whitespace-nowrap text-right">
                                                 <span className="inline-block bg-gray-100 dark:bg-neutral-800 text-gray-600 dark:text-gray-300 px-2 py-1 rounded text-xs font-medium transition-colors">
                                                     {weight}%
                                                 </span>
@@ -453,7 +499,7 @@ export default function Stocks() {
 
             {/* Snapshot History List (Collapsible) */}
             {snapshots.length > 1 && (
-                <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-sm border border-gray-100 dark:border-neutral-800 overflow-hidden transition-colors">
+                <div className="bg-white mb-4 dark:bg-neutral-900 rounded-2xl shadow-sm border border-gray-100 dark:border-neutral-800 overflow-hidden transition-colors">
                     <button
                         onClick={() => setShowHistory(!showHistory)}
                         className="w-full px-6 py-4 flex items-center justify-between text-left hover:bg-gray-50 dark:hover:bg-neutral-800/50 transition-colors focus:outline-none focus:ring-2 focus:ring-inset focus:ring-emerald-500"
