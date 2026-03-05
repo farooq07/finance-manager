@@ -11,6 +11,7 @@ import DatePickerInput from '../components/DatePickerInput';
 import DatePicker from 'react-datepicker';
 import { toast } from 'sonner';
 import MaskedBalance from '../components/MaskedBalance';
+import Button from '../components/Button';
 
 export default function Stocks() {
     // ---- Server State ----
@@ -225,7 +226,8 @@ export default function Stocks() {
 
                 <div className="flex flex-col sm:flex-row flex-wrap items-center gap-3 w-full md:w-auto">
                     {/* Secondary Outlined Button */}
-                    <button
+                    <Button
+                        variant="outline"
                         onClick={() => {
                             if (latestSnapshot?.summary_data) {
                                 setSummaryForm(latestSnapshot.summary_data);
@@ -233,19 +235,20 @@ export default function Stocks() {
                             setShowSummaryModal(true);
                         }}
                         disabled={!latestSnapshot}
-                        className="flex items-center justify-center h-10 px-4 bg-white dark:bg-neutral-900 justify-center text-sm font-medium text-neutral-700 dark:text-neutral-300 border border-neutral-200 dark:border-neutral-700 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer w-full sm:w-auto"
+                        className="h-10 px-4 bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300 border-neutral-200 dark:border-neutral-700 shadow-sm w-full sm:w-auto"
                         title={!latestSnapshot ? "Upload a PSX CSV first" : "Log Daily Summary numbers from Broker"}
                     >
                         <Eye className="w-4 h-4 mr-2 text-neutral-500" /> Daily Summary
-                    </button>
+                    </Button>
 
                     {/* Soft Themed Button */}
-                    <button
+                    <Button
+                        variant="secondary"
                         onClick={() => setShowBankModal(true)}
-                        className="flex items-center justify-center h-10 px-4 bg-blue-50 dark:bg-blue-900/20 text-sm font-medium text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-900/50 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-all shadow-sm cursor-pointer w-full sm:w-auto opacity-90 hover:opacity-100"
+                        className="h-10 px-4 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-900/50 hover:bg-blue-100 dark:hover:bg-blue-900/40 shadow-sm w-full sm:w-auto"
                     >
                         <DollarSign className="w-4 h-4 mr-2" /> Bank Transfers
-                    </button>
+                    </Button>
 
                     {/* Primary Split Button */}
                     <div className="relative flex shadow-sm rounded-lg overflow-hidden h-10 w-full sm:w-auto">
@@ -266,10 +269,15 @@ export default function Stocks() {
                                 popperPlacement="bottom-end"
                                 showPopperArrow={false}
                                 customInput={
-                                    <button type="button" className="cursor-pointer h-10 px-3 bg-black/15 hover:bg-black/25 border-r border-black/10 flex items-center transition-colors outline-none text-sm font-medium focus:ring-0" title="Upload Date">
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        className="h-10 px-3 bg-black/15 hover:bg-black/25 border-r border-black/10 flex items-center transition-colors outline-none text-sm font-medium focus:ring-0 rounded-none"
+                                        title="Upload Date"
+                                    >
                                         <Calendar className="w-4 h-4 mr-1.5 opacity-90" />
                                         {fmtDateShort(csvDate)}
-                                    </button>
+                                    </Button>
                                 }
                             />
                             <input
@@ -312,9 +320,14 @@ export default function Stocks() {
                                         <p className="font-mono text-blue-700 dark:text-blue-400 font-bold bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded">
                                             {revealedSecrets.includes(`client_${broker.id}`) ? broker.client_code : '••••••••'}
                                         </p>
-                                        <button onClick={(e) => toggleSecretReveal(e, `client_${broker.id}`)} className="text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            onClick={(e) => toggleSecretReveal(e, `client_${broker.id}`)}
+                                            className="h-8 w-8 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"
+                                        >
                                             {revealedSecrets.includes(`client_${broker.id}`) ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                                        </button>
+                                        </Button>
                                     </div>
                                 </div>
                                 <div>
@@ -331,9 +344,14 @@ export default function Stocks() {
                                         <p className="font-mono text-red-700 dark:text-red-400 font-bold bg-red-50 dark:bg-red-900/20 px-2 py-0.5 rounded">
                                             {revealedSecrets.includes(`pin_${broker.id}`) ? (broker.stock_pin_code || 'Not Set') : '••••••••'}
                                         </p>
-                                        <button onClick={(e) => toggleSecretReveal(e, `pin_${broker.id}`)} className="text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors">
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            onClick={(e) => toggleSecretReveal(e, `pin_${broker.id}`)}
+                                            className="h-8 w-8 text-gray-400 hover:text-red-600 dark:hover:text-red-400"
+                                        >
                                             {revealedSecrets.includes(`pin_${broker.id}`) ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                                        </button>
+                                        </Button>
                                     </div>
                                 </div>
                             </div>
@@ -500,16 +518,17 @@ export default function Stocks() {
             {/* Snapshot History List (Collapsible) */}
             {snapshots.length > 1 && (
                 <div className="bg-white mb-4 dark:bg-neutral-900 rounded-2xl shadow-sm border border-gray-100 dark:border-neutral-800 overflow-hidden transition-colors">
-                    <button
+                    <Button
+                        variant="ghost"
                         onClick={() => setShowHistory(!showHistory)}
-                        className="w-full px-6 py-4 flex items-center justify-between text-left hover:bg-gray-50 dark:hover:bg-neutral-800/50 transition-colors focus:outline-none focus:ring-2 focus:ring-inset focus:ring-emerald-500"
+                        className="w-full px-6 py-4 flex items-center justify-between text-left hover:bg-gray-50 dark:hover:bg-neutral-800/50 rounded-none"
                     >
                         <div className="flex items-center">
                             <Clock className="w-5 h-5 text-gray-400 dark:text-gray-500 mr-2" />
                             <h3 className="text-md font-bold text-gray-900 dark:text-gray-100">Snapshot History Log</h3>
                         </div>
                         {showHistory ? <ChevronDown className="w-5 h-5 text-gray-400 dark:text-gray-500" /> : <ChevronRight className="w-5 h-5 text-gray-400 dark:text-gray-500" />}
-                    </button>
+                    </Button>
 
                     {showHistory && (
                         <div className="border-t border-gray-100 dark:border-neutral-800 p-2 bg-gray-50 dark:bg-neutral-800/50 transition-colors">
@@ -537,7 +556,14 @@ export default function Stocks() {
                                 <DollarSign className="w-5 h-5 text-blue-600 dark:text-blue-500 mr-2" />
                                 Manage Bank Transfers
                             </h2>
-                            <button onClick={() => setShowBankModal(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-2 border border-transparent">✕</button>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => setShowBankModal(false)}
+                                className="h-8 w-8 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-full"
+                            >
+                                ✕
+                            </Button>
                         </div>
 
                         <div className="p-6 overflow-y-auto flex-1 bg-white dark:bg-neutral-900 transition-colors">
@@ -571,13 +597,13 @@ export default function Stocks() {
                                             value={bankForm.description}
                                             onChange={e => setBankForm({ ...bankForm, description: e.target.value })}
                                         />
-                                        <button
+                                        <Button
                                             type="submit"
-                                            disabled={addBankTx.isPending}
-                                            className="px-6 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
+                                            processing={addBankTx.isPending}
+                                            className="px-6 py-2"
                                         >
                                             Save
-                                        </button>
+                                        </Button>
                                     </div>
                                 </form>
                             </div>
@@ -594,12 +620,14 @@ export default function Stocks() {
                                             <p className={`font-bold ${Number(tx.amount) >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'}`}>
                                                 {Number(tx.amount) >= 0 ? '+' : ''}PKR {fmtPKR(tx.amount)}
                                             </p>
-                                            <button
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
                                                 onClick={() => handleDeleteBankTx(tx.id)}
-                                                className="text-gray-400 hover:text-red-600 dark:hover:text-red-400 bg-white dark:bg-neutral-800 hover:bg-red-50 dark:hover:bg-neutral-700 p-2 rounded-lg transition-colors border border-transparent shadow-sm"
+                                                className="h-9 w-9 text-gray-400 hover:text-red-600 dark:hover:text-red-400 bg-white dark:bg-neutral-800 hover:bg-red-50 dark:hover:bg-neutral-700 shadow-sm"
                                             >
                                                 <Trash2 className="w-4 h-4" />
-                                            </button>
+                                            </Button>
                                         </div>
                                     </div>
                                 ))}
@@ -635,7 +663,14 @@ export default function Stocks() {
                                 <Activity className="w-5 h-5 mr-2" />
                                 Log Daily Summary for {fmtDateShort(latestSnapshot?.snapshot_date)}
                             </h2>
-                            <button onClick={() => setShowSummaryModal(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-2">✕</button>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => setShowSummaryModal(false)}
+                                className="h-8 w-8 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-full"
+                            >
+                                ✕
+                            </Button>
                         </div>
 
                         <form onSubmit={handleUpdateSummary} className="p-6">
@@ -655,10 +690,18 @@ export default function Stocks() {
                             </div>
 
                             <div className="mt-6 flex justify-end">
-                                <button type="button" onClick={() => setShowSummaryModal(false)} className="px-4 py-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 mr-2 border border-transparent">Cancel</button>
-                                <button type="submit" disabled={updateSummary.isPending} className="px-6 py-2 bg-neutral-900 dark:bg-neutral-700 text-white font-medium rounded-lg hover:bg-neutral-800 dark:hover:bg-neutral-600 disabled:opacity-50 transition-colors">
-                                    {updateSummary.isPending ? 'Saving...' : 'Save Summary'}
-                                </button>
+                                <Button
+                                    variant="outline"
+                                    onClick={() => setShowSummaryModal(false)}
+                                >
+                                    Cancel
+                                </Button>
+                                <Button
+                                    type="submit"
+                                    processing={updateSummary.isPending}
+                                >
+                                    Save Summary
+                                </Button>
                             </div>
                         </form>
                     </div>

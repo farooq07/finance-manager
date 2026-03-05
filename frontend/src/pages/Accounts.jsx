@@ -186,12 +186,14 @@ export default function Accounts() {
                                         </h3>
                                         <p className="text-sm text-gray-500 dark:text-gray-400 font-mono mt-1">{bank.account_no}</p>
                                     </div>
-                                    <button
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
                                         onClick={(e) => handleBankDelete(e, bank.id)}
-                                        className="text-gray-400 hover:text-red-500 transition-colors p-1"
+                                        className="text-gray-400 hover:text-red-500 p-1 h-8 w-8"
                                     >
                                         <Trash2 className="w-4 h-4" />
-                                    </button>
+                                    </Button>
                                 </div>
                                 <div className="mt-auto space-y-4">
                                     <div>
@@ -222,12 +224,14 @@ export default function Accounts() {
                     <h2 className="text-xl font-bold text-gray-800 dark:text-gray-200 flex items-center gap-2">
                         <WalletIcon className="w-5 h-5 text-emerald-600 dark:text-emerald-500" /> Wallets & Cash
                     </h2>
-                    <button
+                    <Button
+                        variant="secondary"
+                        size="sm"
                         onClick={() => setShowWalletModal(true)}
-                        className="flex items-center px-4 py-2 bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400 rounded-lg hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors text-sm font-semibold"
+                        className="bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/40"
                     >
                         <Plus className="w-4 h-4 mr-1.5" /> Add Wallet
-                    </button>
+                    </Button>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -266,7 +270,13 @@ export default function Accounts() {
                                                         if (e.key === 'Escape') setEditWalletId(null);
                                                     }}
                                                 />
-                                                <button onClick={() => handleUpdateWalletBalance(wallet.id)} className="bg-white text-gray-900 text-xs px-3 py-1.5 rounded font-bold hover:bg-gray-100">Save</button>
+                                                <Button
+                                                    size="sm"
+                                                    onClick={() => handleUpdateWalletBalance(wallet.id)}
+                                                    className="bg-white text-gray-900 text-xs px-3 py-1.5 font-bold hover:bg-gray-100 h-8"
+                                                >
+                                                    Save
+                                                </Button>
                                             </div>
                                         ) : (
                                             <>
@@ -283,23 +293,27 @@ export default function Accounts() {
 
                                         {/* Action Buttons (visible on hover) */}
                                         <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <button
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
                                                 onClick={() => {
                                                     setEditWalletId(wallet.id);
                                                     setBalanceInput(wallet.balance.toString());
                                                 }}
-                                                className="p-1.5 bg-white/20 rounded hover:bg-white/30 backdrop-blur-sm"
+                                                className="p-1.5 bg-white/20 rounded hover:bg-white/30 backdrop-blur-sm h-8 w-8 text-white"
                                                 title="Update Balance"
                                             >
                                                 <Edit2 className="w-4 h-4" />
-                                            </button>
-                                            <button
+                                            </Button>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
                                                 onClick={() => handleWalletDelete(wallet.id)}
-                                                className="p-1.5 bg-red-500/80 rounded hover:bg-red-500 backdrop-blur-sm"
+                                                className="p-1.5 bg-red-500/80 rounded hover:bg-red-500 backdrop-blur-sm h-8 w-8 text-white"
                                                 title="Delete Account"
                                             >
                                                 <Trash2 className="w-4 h-4" />
-                                            </button>
+                                            </Button>
                                         </div>
                                     </div>
                                 </div>
@@ -308,13 +322,14 @@ export default function Accounts() {
                     })}
 
                     {/* Blank Add Card Slot */}
-                    <button
+                    <Button
+                        variant="outline"
                         onClick={() => setShowWalletModal(true)}
-                        className="h-48 rounded-2xl border-2 border-dashed border-gray-300 dark:border-neutral-700 flex flex-col items-center justify-center text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:border-gray-400 dark:hover:border-neutral-500 hover:bg-gray-50 dark:hover:bg-neutral-800/50 transition-all"
+                        className="h-48 rounded-2xl border-2 border-dashed border-gray-300 dark:border-neutral-700 flex flex-col items-center justify-center text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:border-gray-400 dark:hover:border-neutral-500 hover:bg-gray-50 dark:hover:bg-neutral-800/50 bg-transparent"
                     >
                         <Plus className="w-8 h-8 mb-2 text-gray-400 dark:text-gray-500" />
                         <span className="font-medium">Link New Wallet</span>
-                    </button>
+                    </Button>
                 </div>
             </section>
 
@@ -324,7 +339,14 @@ export default function Accounts() {
                     <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-xl w-full max-w-md animate-in fade-in zoom-in duration-200 transition-colors">
                         <div className="px-6 py-4 border-b border-gray-100 dark:border-neutral-800 flex justify-between items-center">
                             <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Add Wallet or Cash</h2>
-                            <button onClick={() => setShowWalletModal(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">✕</button>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => setShowWalletModal(false)}
+                                className="h-8 w-8 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-full"
+                            >
+                                ✕
+                            </Button>
                         </div>
 
                         <form onSubmit={handleWalletCreate} className="p-6 space-y-4">
@@ -392,7 +414,14 @@ export default function Accounts() {
                     <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-xl w-full max-w-md animate-in fade-in zoom-in duration-200 transition-colors">
                         <div className="px-6 py-4 border-b border-gray-100 dark:border-neutral-800 flex justify-between items-center">
                             <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Add Formal Bank Account</h2>
-                            <button onClick={() => setShowBankModal(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">✕</button>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => setShowBankModal(false)}
+                                className="h-8 w-8 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-full"
+                            >
+                                ✕
+                            </Button>
                         </div>
 
                         <form onSubmit={handleBankCreate} className="p-6 space-y-4">

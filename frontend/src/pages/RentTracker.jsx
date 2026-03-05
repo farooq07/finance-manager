@@ -4,6 +4,7 @@ import { Plus, Trash2, Pencil, Check, X, Loader2, Building, Calendar, Banknote }
 import DatePickerInput from '../components/DatePickerInput';
 import { toast } from 'sonner';
 import Button from '../components/Button';
+import { TableSkeleton } from '../components/Skeleton';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
@@ -103,9 +104,15 @@ export default function RentTracker() {
     const yearTotal = yearEntries.reduce((sum, e) => sum + Number(e.amount), 0);
 
     if (loading) return (
-        <div className="flex justify-center items-center h-64 space-x-2 text-gray-500 dark:text-gray-400">
-            <Loader2 className="w-6 h-6 animate-spin" />
-            <span className="font-medium">Loading rent data...</span>
+        <div className="space-y-6">
+            <div className="flex justify-between items-center mb-6">
+                <div>
+                    <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Rent Tracker</h1>
+                    <div className="h-4 w-48 bg-gray-200 dark:bg-neutral-800 animate-pulse rounded mt-2" />
+                </div>
+                <div className="h-10 w-32 bg-gray-200 dark:bg-neutral-800 animate-pulse rounded-lg" />
+            </div>
+            <TableSkeleton rows={5} />
         </div>
     );
 
@@ -200,8 +207,8 @@ export default function RentTracker() {
                             <input type="text" value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} className="w-full px-3 py-2 border border-gray-200 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-900 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors" placeholder="Any notes" />
                         </div>
                         <div className="flex space-x-2">
-                            <button type="button" onClick={cancelEdit} className="px-3 py-2 border border-gray-200 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 text-gray-700 dark:text-gray-300 text-sm w-full hover:bg-gray-50 dark:hover:bg-neutral-700 transition-colors">Cancel</button>
-                            <button type="submit" className="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium w-full hover:bg-blue-700 transition-colors">{editingId ? 'Update' : 'Save'}</button>
+                            <Button type="button" variant="outline" onClick={cancelEdit} className="w-full">Cancel</Button>
+                            <Button type="submit" className="w-full">{editingId ? 'Update' : 'Save'}</Button>
                         </div>
                     </form>
                 </div>
@@ -210,9 +217,14 @@ export default function RentTracker() {
             {/* Year Tabs */}
             <div className="flex items-center space-x-2">
                 {years.map(y => (
-                    <button key={y} onClick={() => setSelectedYear(y)} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${selectedYear === y ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900' : 'bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-neutral-800'}`}>
+                    <Button
+                        key={y}
+                        variant={selectedYear === y ? 'default' : 'outline'}
+                        onClick={() => setSelectedYear(y)}
+                        className="px-4 py-2"
+                    >
                         {y}
-                    </button>
+                    </Button>
                 ))}
             </div>
 
@@ -275,12 +287,24 @@ export default function RentTracker() {
                                         <td className="px-5 py-3 text-gray-400 dark:text-gray-500 text-xs">{entry.notes || '—'}</td>
                                         <td className="px-5 py-3 text-center">
                                             <div className="flex items-center justify-center space-x-1">
-                                                <button onClick={() => handleEdit(entry)} className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors" title="Edit">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={() => handleEdit(entry)}
+                                                    className="h-8 w-8 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"
+                                                    title="Edit"
+                                                >
                                                     <Pencil className="w-3.5 h-3.5" />
-                                                </button>
-                                                <button onClick={() => handleDelete(entry.id)} className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors" title="Delete">
+                                                </Button>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={() => handleDelete(entry.id)}
+                                                    className="h-8 w-8 text-gray-400 hover:text-red-600 dark:hover:text-red-400"
+                                                    title="Delete"
+                                                >
                                                     <Trash2 className="w-3.5 h-3.5" />
-                                                </button>
+                                                </Button>
                                             </div>
                                         </td>
                                     </tr>

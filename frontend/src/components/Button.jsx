@@ -5,36 +5,47 @@ import { clsx } from 'clsx';
 
 export default function Button({
     children,
+    variant,
+    size,
     color = 'primary',
-    size = 'md',
     processing = false,
     outline = false,
     disabled,
     className,
     ...props
 }) {
-    // Map Flowbite colors to Shadcn variants
-    let variant = 'default';
-    if (color === 'failure' || color === 'red' || color === 'danger') {
-        variant = 'destructive';
-    } else if (color === 'light' || color === 'alternative' || outline) {
-        variant = 'outline';
-    } else if (color === 'gray' || color === 'secondary') {
-        variant = 'secondary';
-    } else if (color === 'ghost') {
-        variant = 'ghost';
+    // If explicit variant/size are provided (Shadcn style), use them.
+    // Otherwise, map legacy Flowbite props.
+    let finalVariant = variant;
+    if (!finalVariant) {
+        if (color === 'failure' || color === 'red' || color === 'danger') {
+            finalVariant = 'destructive';
+        } else if (color === 'light' || color === 'alternative' || outline) {
+            finalVariant = 'outline';
+        } else if (color === 'gray' || color === 'secondary') {
+            finalVariant = 'secondary';
+        } else if (color === 'ghost') {
+            finalVariant = 'ghost';
+        } else if (color === 'link') {
+            finalVariant = 'link';
+        } else {
+            finalVariant = 'default';
+        }
     }
 
-    // Map Flowbite sizes to Shadcn sizes
-    let buttonSize = 'default';
-    if (size === 'sm') buttonSize = 'sm';
-    if (size === 'lg') buttonSize = 'lg';
-    if (size === 'icon') buttonSize = 'icon';
+    let finalSize = size;
+    if (!finalSize) {
+        // Map legacy 'md' to default, others accordingly
+        if (props.size === 'sm') finalSize = 'sm';
+        else if (props.size === 'lg') finalSize = 'lg';
+        else if (props.size === 'icon') finalSize = 'icon';
+        else finalSize = 'default';
+    }
 
     return (
         <ShadcnButton
-            variant={variant}
-            size={buttonSize}
+            variant={finalVariant}
+            size={finalSize}
             disabled={disabled || processing}
             className={clsx(className, "relative inline-flex items-center justify-center")}
             {...props}

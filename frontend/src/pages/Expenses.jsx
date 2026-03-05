@@ -7,6 +7,8 @@ import MaskedBalance from '../components/MaskedBalance';
 import Button from '../components/Button';
 import TextInput from '../components/TextInput';
 import { toast } from 'sonner';
+import { useBanks } from '../hooks/useBanks';
+import { useWallets } from '../hooks/useWallets';
 
 const DEFAULT_BILLS = [
     { category: 'Gas Bill', amount: '', expense_date: new Date().toISOString().split('T')[0], payment_method: '', notes: '' },
@@ -31,6 +33,16 @@ export default function Expenses() {
     // Batch State
     const [batchRows, setBatchRows] = useState([...DEFAULT_BILLS]);
     const [isSubmittingBatch, setIsSubmittingBatch] = useState(false);
+
+    // Dynamic Payment Methods
+    const { data: banks = [] } = useBanks();
+    const { data: wallets = [] } = useWallets();
+
+    const paymentMethods = [
+        ...banks.map(b => b.name),
+        ...wallets.map(w => w.institution),
+        'Cash'
+    ];
 
     const [formData, setFormData] = useState({
         amount: '',
@@ -168,49 +180,54 @@ export default function Expenses() {
             <div className="flex justify-between items-center flex-wrap gap-4">
                 <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 transition-colors">Expenses</h1>
 
-                {/* Month Picker */}
-                <div className="flex items-center gap-1 bg-white dark:bg-neutral-900 rounded-lg border border-gray-200 dark:border-neutral-800 p-1 shadow-sm transition-colors">
-                    <button
-                        onClick={() => {
-                            const [y, m] = selectedMonth.split('-');
-                            let prevM = parseInt(m) - 1;
-                            let prevY = parseInt(y);
-                            if (prevM === 0) { prevM = 12; prevY -= 1; }
-                            setSelectedMonth(`${prevY}-${String(prevM).padStart(2, '0')}`);
-                        }}
-                        className="p-1.5 hover:bg-gray-100 dark:hover:bg-neutral-800 rounded-md text-gray-500 dark:text-gray-400 transition-colors"
-                        title="Previous Month"
-                    >
-                        <ChevronLeft className="w-5 h-5" />
-                    </button>
 
-                    <div className="flex items-center gap-2 px-2">
-                        <CalendarDays className="w-4 h-4 text-gray-400 block transition-colors" />
-                        <input
-                            type="month"
-                            value={selectedMonth}
-                            onChange={(e) => setSelectedMonth(e.target.value)}
-                            className="bg-transparent border-none focus:ring-0 p-0 text-gray-700 dark:text-gray-200 font-medium sm:text-sm w-[130px] text-center"
-                            style={{ colorScheme: 'dark' }}
-                        />
-                    </div>
-
-                    <button
-                        onClick={() => {
-                            const [y, m] = selectedMonth.split('-');
-                            let nextM = parseInt(m) + 1;
-                            let nextY = parseInt(y);
-                            if (nextM === 13) { nextM = 1; nextY += 1; }
-                            setSelectedMonth(`${nextY}-${String(nextM).padStart(2, '0')}`);
-                        }}
-                        className="p-1.5 hover:bg-gray-100 dark:hover:bg-neutral-800 rounded-md text-gray-500 dark:text-gray-400 transition-colors"
-                        title="Next Month"
-                    >
-                        <ChevronRight className="w-5 h-5" />
-                    </button>
-                </div>
 
                 <div className="flex gap-3">
+                    {/* Month Picker */}
+                    <div className="flex items-center gap-1 bg-white dark:bg-neutral-900 rounded-lg border border-gray-200 dark:border-neutral-800 p-1 shadow-sm transition-colors">
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                                const [y, m] = selectedMonth.split('-');
+                                let prevM = parseInt(m) - 1;
+                                let prevY = parseInt(y);
+                                if (prevM === 0) { prevM = 12; prevY -= 1; }
+                                setSelectedMonth(`${prevY}-${String(prevM).padStart(2, '0')}`);
+                            }}
+                            className="h-8 w-8 text-gray-500 dark:text-gray-400"
+                            title="Previous Month"
+                        >
+                            <ChevronLeft className="w-5 h-5" />
+                        </Button>
+
+                        <div className="flex items-center gap-2 px-2">
+                            <CalendarDays className="w-4 h-4 text-gray-400 block transition-colors" />
+                            <input
+                                type="month"
+                                value={selectedMonth}
+                                onChange={(e) => setSelectedMonth(e.target.value)}
+                                className="bg-transparent border-none focus:ring-0 p-0 text-gray-700 dark:text-gray-200 font-medium sm:text-sm w-[130px] text-center"
+                                style={{ colorScheme: 'dark' }}
+                            />
+                        </div>
+
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                                const [y, m] = selectedMonth.split('-');
+                                let nextM = parseInt(m) + 1;
+                                let nextY = parseInt(y);
+                                if (nextM === 13) { nextM = 1; nextY += 1; }
+                                setSelectedMonth(`${nextY}-${String(nextM).padStart(2, '0')}`);
+                            }}
+                            className="h-8 w-8 text-gray-500 dark:text-gray-400"
+                            title="Next Month"
+                        >
+                            <ChevronRight className="w-5 h-5" />
+                        </Button>
+                    </div>
                     <Button
                         color="light"
                         onClick={() => {
@@ -261,9 +278,14 @@ export default function Expenses() {
                                 </h2>
                                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Review standard tracking lines. Enter values for bills to process; blank fields are skipped.</p>
                             </div>
-                            <button onClick={() => setShowBatchModal(false)} className="text-gray-400 hover:bg-gray-200 dark:hover:bg-neutral-700 p-2 rounded-full transition-colors">
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => setShowBatchModal(false)}
+                                className="h-8 w-8 text-gray-400 hover:bg-gray-200 dark:hover:bg-neutral-700 rounded-full"
+                            >
                                 <X className="w-5 h-5" />
-                            </button>
+                            </Button>
                         </div>
 
                         {/* Scrolling Body */}
@@ -313,12 +335,16 @@ export default function Expenses() {
                                         </div>
 
                                         <div className="col-span-2">
-                                            <TextInput
-                                                type="text"
+                                            <select
                                                 value={row.payment_method}
                                                 onChange={(e) => updateBatchRow(idx, 'payment_method', e.target.value)}
-                                                placeholder="e.g. Bank Transfer"
-                                            />
+                                                className="w-full px-3 py-2 bg-gray-50 dark:bg-neutral-800 border border-gray-300 dark:border-neutral-700 rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm dark:text-gray-100 outline-none transition-all"
+                                            >
+                                                <option value="">Select Method</option>
+                                                {[...new Set(paymentMethods)].map(method => (
+                                                    <option key={method} value={method}>{method}</option>
+                                                ))}
+                                            </select>
                                         </div>
 
                                         <div className="col-span-2">
@@ -331,14 +357,15 @@ export default function Expenses() {
                                         </div>
 
                                         <div className="col-span-1 flex justify-end lg:justify-center">
-                                            <button
-                                                type="button"
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
                                                 onClick={() => removeBatchRow(idx)}
-                                                className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                                className="h-9 w-9 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
                                                 title="Remove Row"
                                             >
                                                 <Trash2 className="w-5 h-5" />
-                                            </button>
+                                            </Button>
                                         </div>
                                     </div>
                                 ))}
@@ -408,7 +435,17 @@ export default function Expenses() {
                             <div className="mb-1 block">
                                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Payment Method</label>
                             </div>
-                            <TextInput id="exp-payment" type="text" placeholder="Card, Cash, etc." value={formData.payment_method} onChange={e => setFormData({ ...formData, payment_method: e.target.value })} />
+                            <select
+                                id="exp-payment"
+                                value={formData.payment_method}
+                                onChange={e => setFormData({ ...formData, payment_method: e.target.value })}
+                                className="w-full px-3 py-2 bg-gray-50 dark:bg-neutral-800 border border-gray-300 dark:border-neutral-700 rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm dark:text-gray-100 outline-none transition-all h-10"
+                            >
+                                <option value="">Select Method</option>
+                                {[...new Set(paymentMethods)].map(method => (
+                                    <option key={method} value={method}>{method}</option>
+                                ))}
+                            </select>
                         </div>
                     </div>
                     <div>
@@ -449,12 +486,22 @@ export default function Expenses() {
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{expense.payment_method || '-'}</td>
                                 <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400 max-w-xs truncate">{expense.notes || '-'}</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-right flex justify-end gap-2">
-                                    <button onClick={() => handleEdit(expense)} className="text-emerald-600 hover:text-emerald-800 dark:text-emerald-400 dark:hover:text-emerald-300 transition-colors">
-                                        <Edit2 className="w-5 h-5 inline" />
-                                    </button>
-                                    <button onClick={() => handleDelete(expense.id)} className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 transition-colors">
-                                        <Trash2 className="w-5 h-5 inline" />
-                                    </button>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => handleEdit(expense)}
+                                        className="h-8 w-8 text-emerald-600 hover:text-emerald-800 dark:text-emerald-400 dark:hover:text-emerald-300"
+                                    >
+                                        <Edit2 className="w-5 h-5" />
+                                    </Button>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => handleDelete(expense.id)}
+                                        className="h-8 w-8 text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                                    >
+                                        <Trash2 className="w-5 h-5" />
+                                    </Button>
                                 </td>
                             </tr>
                         ))}
@@ -466,6 +513,7 @@ export default function Expenses() {
                                 </td>
                             </tr>
                         )}
+
                     </tbody>
                 </table>
             </div>

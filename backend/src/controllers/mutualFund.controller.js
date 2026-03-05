@@ -358,3 +358,80 @@ export const getPortfolioSnapshots = async (req, res) => {
         res.status(500).json({ message: 'Error fetching portfolio snapshots' });
     }
 };
+
+export const deletePortfolioSnapshot = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const existing = await prisma.portfolioSnapshot.findUnique({ where: { id } });
+
+        if (!existing || existing.user_id !== req.user.id) {
+            return res.status(404).json({ message: 'Snapshot not found' });
+        }
+
+        await prisma.portfolioSnapshot.delete({ where: { id } });
+        res.json({ message: 'Snapshot deleted successfully' });
+    } catch (error) {
+        console.error("Error deleting snapshot:", error);
+        res.status(500).json({ message: 'Error deleting snapshot' });
+    }
+};
+
+export const bulkDeletePortfolioSnapshots = async (req, res) => {
+    try {
+        const { ids } = req.body;
+        if (!ids || !Array.isArray(ids) || ids.length === 0) {
+            return res.status(400).json({ message: 'No snapshot IDs provided' });
+        }
+
+        await prisma.portfolioSnapshot.deleteMany({
+            where: {
+                id: { in: ids },
+                user_id: req.user.id
+            }
+        });
+
+        res.json({ message: `${ids.length} snapshots deleted successfully` });
+    } catch (error) {
+        console.error("Error bulk deleting snapshots:", error);
+        res.status(500).json({ message: 'Error deleting snapshots' });
+    }
+};
+
+export const deleteFundFromSnapshot = async (req, res) => {
+    try {
+        const { id, symbol } = req.params;
+        const snapshot = await prisma.portfolioSnapshot.findUnique({ where: { id } });
+
+        if (!snapshot || snapshot.user_id !== req.user.id) {
+            return res.status(404).json({ message: 'Snapshot not found' });
+        }
+
+        let funds = Array.isArray(snapshot.funds_data) ? snapshot.funds_data : [];
+        const initialCount = funds.length;
+        funds = funds.filter(f => f.fund_symbol !== symbol);
+
+        if (funds.length === initialCount) {
+            return res.status(404).json({ message: 'Fund not found in this snapshot' });
+        }
+
+        // Recalculate totals
+        const totalValue = funds.reduce((sum, f) => sum + (Number(f.value) || 0), 0);
+        const totalInvested = funds.reduce((sum, f) => sum + (Number(f.invested_amount) || 0), 0);
+        const totalGain = funds.reduce((sum, f) => sum + (Number(f.gain_loss) || 0), 0);
+
+        await prisma.portfolioSnapshot.update({
+            where: { id },
+            data: {
+                funds_data: funds,
+                total_value: totalValue,
+                total_invested: totalInvested,
+                total_gain: totalGain
+            }
+        });
+
+        res.json({ message: `Fund ${symbol} removed from snapshot.` });
+    } catch (error) {
+        console.error("Error deleting fund from snapshot:", error);
+        res.status(500).json({ message: 'Error updating snapshot' });
+    }
+};

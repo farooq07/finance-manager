@@ -3,7 +3,8 @@ import { Palette, Type, CheckSquare, Layers, MessageSquare, Calendar as Calendar
 import DatePickerInput from '../components/DatePickerInput';
 import Modal from '../components/Modal';
 import { toast } from 'sonner';
-import Button from '../components/Button';
+import LegacyButton from '../components/Button';
+import { Button } from '../components/ui/button';
 import TextInput from '../components/TextInput';
 import Card from '../components/Card';
 import Select from '../components/Select';
@@ -208,43 +209,108 @@ export default function DesignSystem() {
                             </div>
 
                             <div className="space-y-6">
-                                <h3 className="text-lg font-semibold border-b dark:border-neutral-800 pb-2">Buttons</h3>
-                                <div className="flex flex-wrap gap-4 items-center">
-                                    <Button color="blue">
-                                        Primary Action
-                                    </Button>
-                                    <Button color="light">
-                                        Secondary Action
-                                    </Button>
-                                    <Button color="failure">
-                                        <Trash2 className="w-4 h-4 mr-2" /> Danger Action
-                                    </Button>
-                                    <Button disabled>
-                                        Disabled State
-                                    </Button>
-                                    <Button color="success" outline pill size="sm" className="w-10 h-10 flex items-center justify-center p-0">
-                                        <Plus className="w-5 h-5 m-0" />
-                                    </Button>
-                                </div>
+                                <div className="space-y-8">
+                                    <section className="space-y-4">
+                                        <h3 className="text-lg font-semibold border-b dark:border-neutral-800 pb-2">Variants</h3>
+                                        <div className="flex flex-wrap gap-4 items-center">
+                                            <div className="flex flex-col gap-2 items-center">
+                                                <Button variant="default">Default</Button>
+                                                <span className="text-[10px] text-gray-500 font-mono">default</span>
+                                            </div>
+                                            <div className="flex flex-col gap-2 items-center">
+                                                <Button variant="destructive">Destructive</Button>
+                                                <span className="text-[10px] text-gray-500 font-mono">destructive</span>
+                                            </div>
+                                            <div className="flex flex-col gap-2 items-center">
+                                                <Button variant="outline">Outline</Button>
+                                                <span className="text-[10px] text-gray-500 font-mono">outline</span>
+                                            </div>
+                                            <div className="flex flex-col gap-2 items-center">
+                                                <Button variant="secondary">Secondary</Button>
+                                                <span className="text-[10px] text-gray-500 font-mono">secondary</span>
+                                            </div>
+                                            <div className="flex flex-col gap-2 items-center">
+                                                <Button variant="ghost">Ghost</Button>
+                                                <span className="text-[10px] text-gray-500 font-mono">ghost</span>
+                                            </div>
+                                            <div className="flex flex-col gap-2 items-center">
+                                                <Button variant="link">Link Variant</Button>
+                                                <span className="text-[10px] text-gray-500 font-mono">link</span>
+                                            </div>
+                                        </div>
+                                    </section>
 
-                                <h3 className="text-lg font-semibold border-b dark:border-neutral-800 pb-2 mt-8">Form Controls</h3>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Standard Text Input</label>
-                                        <TextInput id="demoinput" type="text" placeholder="e.g. Placeholder..." required />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Select Dropdown</label>
-                                        <Select
-                                            id="demoselect"
-                                            required
-                                            options={[
-                                                { label: 'Option 1', value: '1' },
-                                                { label: 'Option 2', value: '2' }
-                                            ]}
-                                            value="1"
-                                            onChange={() => { }}
-                                        />
+                                    <section className="space-y-4">
+                                        <h3 className="text-lg font-semibold border-b dark:border-neutral-800 pb-2">Sizes</h3>
+                                        <div className="flex flex-wrap gap-4 items-end">
+                                            <div className="flex flex-col gap-2 items-center">
+                                                <Button size="sm">Small</Button>
+                                                <span className="text-[10px] text-gray-500 font-mono">sm</span>
+                                            </div>
+                                            <div className="flex flex-col gap-2 items-center">
+                                                <Button size="default">Default</Button>
+                                                <span className="text-[10px] text-gray-500 font-mono">default</span>
+                                            </div>
+                                            <div className="flex flex-col gap-2 items-center">
+                                                <Button size="lg">Large</Button>
+                                                <span className="text-[10px] text-gray-500 font-mono">lg</span>
+                                            </div>
+                                            <div className="flex flex-col gap-2 items-center">
+                                                <Button size="icon"><Plus className="h-4 w-4" /></Button>
+                                                <span className="text-[10px] text-gray-500 font-mono">icon</span>
+                                            </div>
+                                        </div>
+                                    </section>
+
+                                    <section className="space-y-4">
+                                        <h3 className="text-lg font-semibold border-b dark:border-neutral-800 pb-2">Icon Combinations</h3>
+                                        <div className="flex flex-wrap gap-4 items-center">
+                                            <Button>
+                                                <Plus className="mr-2 h-4 w-4" /> Add Item
+                                            </Button>
+                                            <Button variant="outline">
+                                                <CalendarIcon className="mr-2 h-4 w-4" /> Pick Date
+                                            </Button>
+                                            <Button variant="secondary" size="sm">
+                                                <Trash2 className="mr-2 h-3.5 w-3.5" /> Delete
+                                            </Button>
+                                            <Button variant="ghost" size="icon">
+                                                <Bell className="h-4 w-4" />
+                                            </Button>
+                                        </div>
+                                    </section>
+
+                                    <section className="space-y-4">
+                                        <h3 className="text-lg font-semibold border-b dark:border-neutral-800 pb-2">Legacy Controls (Reference)</h3>
+                                        <div className="flex flex-wrap gap-4 items-center">
+                                            <LegacyButton color="blue">
+                                                Legacy Primary
+                                            </LegacyButton>
+                                            <LegacyButton color="failure">
+                                                Legacy Failure
+                                            </LegacyButton>
+                                        </div>
+                                    </section>
+
+                                    <h3 className="text-lg font-semibold border-b dark:border-neutral-800 pb-2 mt-8">Form Controls</h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Standard Text Input</label>
+                                            <TextInput id="demoinput" type="text" placeholder="e.g. Placeholder..." required />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Select Dropdown</label>
+                                            <Select
+                                                id="demoselect"
+                                                required
+                                                options={[
+                                                    { label: 'Option 1', value: '1' },
+                                                    { label: 'Option 2', value: '2' }
+                                                ]}
+                                                value="1"
+                                                onChange={() => { }}
+                                            />
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -300,23 +366,23 @@ export default function DesignSystem() {
                             <div className="space-y-6">
                                 <h3 className="text-lg font-semibold border-b dark:border-neutral-800 pb-2">Toaster Notifications</h3>
                                 <div className="flex flex-wrap gap-4">
-                                    <Button color="success" onClick={() => triggerToast('success')}>
+                                    <Button variant="default" className="bg-emerald-600 dark:bg-emerald-500" onClick={() => triggerToast('success')}>
                                         Trigger Success Toast
                                     </Button>
-                                    <Button color="failure" onClick={() => triggerToast('error')}>
+                                    <Button variant="destructive" onClick={() => triggerToast('error')}>
                                         Trigger Error Toast
                                     </Button>
-                                    <Button color="info" onClick={() => triggerToast('loading')}>
+                                    <Button variant="secondary" onClick={() => triggerToast('loading')}>
                                         Trigger Loading &gt; Success
                                     </Button>
                                 </div>
 
                                 <h3 className="text-lg font-semibold border-b dark:border-neutral-800 pb-2 mt-8">Dialog Modals</h3>
                                 <div className="flex flex-wrap gap-4">
-                                    <Button color="failure" onClick={() => openModal('danger')}>
+                                    <Button variant="destructive" onClick={() => openModal('danger')}>
                                         Open Danger Modal (Delete)
                                     </Button>
-                                    <Button color="info" onClick={() => openModal('info')}>
+                                    <Button variant="secondary" onClick={() => openModal('info')}>
                                         Open Info Modal
                                     </Button>
                                 </div>
