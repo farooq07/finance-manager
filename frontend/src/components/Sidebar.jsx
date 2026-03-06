@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Home, Receipt, TrendingUp, BarChart2, Users, FileText, Building, Wallet, Settings, ChevronLeft, ChevronRight, Layers } from 'lucide-react';
+import { Home, Receipt, TrendingUp, BarChart2, Users, FileText, Building, Wallet, Settings, ChevronLeft, ChevronRight, Layers, HeartHandshake, Box } from 'lucide-react';
 import clsx from 'clsx';
 import logo from '../assets/logo.svg';
 import logosm from '../assets/logosm.svg';
@@ -9,11 +9,13 @@ import { useAuth } from '../context/AuthContext';
 const navItems = [
     { name: 'Dashboard', path: '/', icon: Home },
     { name: 'Accounts', path: '/accounts', icon: Wallet },
+    { name: 'Physical Assets', path: '/assets', icon: Box },
     { name: 'Expenses', path: '/expenses', icon: Receipt },
     { name: 'Mutual Funds', path: '/mutual-funds', icon: TrendingUp },
     { name: 'Stocks', path: '/stocks', icon: BarChart2 },
     { name: 'Dues Ledger', path: '/dues', icon: Users },
     { name: 'Rent Tracker', path: '/rents', icon: Building },
+    { name: 'Zakat', path: '/zakat', icon: HeartHandshake },
     { name: 'Reports', path: '/reports', icon: FileText },
     { name: 'Settings', path: '/settings', icon: Settings },
     { name: 'Design System', path: '/design-system', icon: Layers },

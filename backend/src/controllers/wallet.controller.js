@@ -15,7 +15,7 @@ export const getWallets = async (req, res) => {
 
 export const createWallet = async (req, res) => {
     try {
-        const { name, institution, balance, color_theme, account_num } = req.body;
+        const { name, institution, balance, color_theme, account_num, currency, exchange_rate } = req.body;
 
         const wallet = await prisma.wallet.create({
             data: {
@@ -23,6 +23,8 @@ export const createWallet = async (req, res) => {
                 name,
                 institution,
                 balance,
+                currency: currency || 'PKR',
+                exchange_rate: exchange_rate != null ? Number(exchange_rate) : 1.00,
                 color_theme: color_theme || 'blue',
                 account_num
             }

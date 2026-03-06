@@ -13,6 +13,8 @@ import walletRoutes from './src/routes/wallet.routes.js';
 import bankRoutes from './src/routes/bank.routes.js';
 import institutionRoutes from './src/routes/institution.routes.js';
 import brokerRoutes from './src/routes/broker.routes.js';
+import zakatRoutes from './src/routes/zakat.routes.js';
+import assetRoutes from './src/routes/asset.routes.js';
 
 dotenv.config();
 
@@ -34,6 +36,8 @@ app.use('/api/wallets', walletRoutes);
 app.use('/api/banks', bankRoutes);
 app.use('/api/institutions', institutionRoutes);
 app.use('/api/broker-accounts', brokerRoutes);
+app.use('/api/zakat', zakatRoutes);
+app.use('/api/assets', assetRoutes);
 
 const PORT = process.env.PORT || 5000;
 

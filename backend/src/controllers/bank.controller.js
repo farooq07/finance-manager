@@ -57,7 +57,7 @@ export const getBankById = async (req, res) => {
 export const updateBank = async (req, res) => {
     try {
         const { id } = req.params;
-        const { name, account_no, iban_no, starting_balance } = req.body;
+        const { name, account_no, iban_no, starting_balance, currency, exchange_rate } = req.body;
 
         const bank = await prisma.bank.findUnique({
             where: { id, user_id: req.user.id }
@@ -67,7 +67,14 @@ export const updateBank = async (req, res) => {
 
         const updatedBank = await prisma.bank.update({
             where: { id },
-            data: { name, account_no, iban_no, starting_balance }
+            data: {
+                name,
+                account_no,
+                iban_no,
+                currency: currency || bank.currency,
+                exchange_rate: exchange_rate != null ? Number(exchange_rate) : bank.exchange_rate,
+                starting_balance
+            }
         });
 
         res.json(updatedBank);

@@ -18,6 +18,8 @@ import BankDetail from './pages/BankDetail';
 import Settings from './pages/Settings';
 import Reports from './pages/Reports';
 import DesignSystem from './pages/DesignSystem';
+import Zakat from './pages/Zakat';
+import Assets from './pages/Assets';
 
 
 const ProtectedRoute = ({ children }) => {
@@ -56,6 +58,8 @@ function App() {
               <Route path="banks/:id" element={<BankDetail />} />
               <Route path="settings" element={<Settings />} />
               <Route path="reports" element={<Reports />} />
+              <Route path="zakat" element={<Zakat />} />
+              <Route path="assets" element={<Assets />} />
               <Route path="design-system" element={<DesignSystem />} />
             </Route>
           </Routes>

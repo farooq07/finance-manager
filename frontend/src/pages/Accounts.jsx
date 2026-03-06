@@ -47,8 +47,8 @@ export default function Accounts() {
     const [bankBalanceInput, setBankBalanceInput] = useState('');
 
     // Form states
-    const [walletForm, setWalletForm] = useState({ name: '', institution_id: '', balance: '', color_theme: 'blue', account_num: '' });
-    const [bankForm, setBankForm] = useState({ name: '', institution_id: '', account_no: '', iban_no: '', starting_balance: '' });
+    const [walletForm, setWalletForm] = useState({ name: '', institution_id: '', balance: '', color_theme: 'blue', account_num: '', currency: 'PKR', exchange_rate: '1' });
+    const [bankForm, setBankForm] = useState({ name: '', institution_id: '', account_no: '', iban_no: '', starting_balance: '', currency: 'PKR', exchange_rate: '1' });
 
     if (loadingWallets || loadingBanks) return (
         <div className="space-y-6">
@@ -79,10 +79,12 @@ export default function Accounts() {
             await createWallet.mutateAsync({
                 ...walletForm,
                 institution: selectedInst.name,
-                balance: Number(walletForm.balance || 0)
+                balance: Number(walletForm.balance || 0),
+                currency: walletForm.currency,
+                exchange_rate: Number(walletForm.exchange_rate || 1)
             });
             setShowWalletModal(false);
-            setWalletForm({ name: '', institution_id: '', balance: '', color_theme: 'blue', account_num: '' });
+            setWalletForm({ name: '', institution_id: '', balance: '', color_theme: 'blue', account_num: '', currency: 'PKR', exchange_rate: '1' });
             toast.success('Wallet created successfully');
         } catch (error) {
             toast.error(error.response?.data?.message || 'Failed to create wallet');
@@ -117,10 +119,12 @@ export default function Accounts() {
                 name: selectedInst.name,
                 account_no: bankForm.account_no,
                 iban_no: bankForm.iban_no,
-                starting_balance: Number(bankForm.starting_balance)
+                starting_balance: Number(bankForm.starting_balance),
+                currency: bankForm.currency,
+                exchange_rate: Number(bankForm.exchange_rate || 1)
             });
             setShowBankModal(false);
-            setBankForm({ name: '', institution_id: '', account_no: '', iban_no: '', starting_balance: '' });
+            setBankForm({ name: '', institution_id: '', account_no: '', iban_no: '', starting_balance: '', currency: 'PKR', exchange_rate: '1' });
             toast.success('Bank created successfully');
         } catch (error) {
             toast.error(error.response?.data?.message || 'Failed to create bank');
@@ -263,8 +267,14 @@ export default function Accounts() {
                                                         </Button>
                                                     </div>
                                                 ) : (
-                                                    <div className="flex items-center gap-2">
-                                                        <MaskedBalance value={bank.current_balance} className="text-xl font-bold tracking-tight text-gray-900 dark:text-gray-100" />
+                                                    <div className="flex flex-col">
+                                                        <div className="flex items-baseline gap-1">
+                                                            <span className="text-gray-500 font-semibold">{bank.currency || 'PKR'}</span>
+                                                            <MaskedBalance value={bank.current_balance} className="text-xl font-bold tracking-tight text-gray-900 dark:text-gray-100" showSymbol={false} />
+                                                        </div>
+                                                        {bank.currency && bank.currency !== 'PKR' && (
+                                                            <span className="text-xs text-gray-400">≈ {fmtPKR(bank.current_balance * (bank.exchange_rate || 1))}</span>
+                                                        )}
                                                     </div>
                                                 )}
                                             </div>
@@ -345,7 +355,15 @@ export default function Accounts() {
                                         ) : (
                                             <>
                                                 <p className="text-sm text-white/70 mb-1">Available Balance</p>
-                                                <MaskedBalance value={wallet.balance} className="text-3xl font-bold tracking-tight" iconClassName="text-white hover:text-white bg-white/20 p-1.5 ml-2 hover:bg-white/30" />
+                                                <div className="flex flex-col">
+                                                    <div className="flex items-center">
+                                                        <span className="text-white/70 font-semibold mr-1">{wallet.currency || 'PKR'}</span>
+                                                        <MaskedBalance value={wallet.balance} className="text-3xl font-bold tracking-tight" iconClassName="text-white hover:text-white bg-white/20 p-1.5 ml-2 hover:bg-white/30" showSymbol={false} />
+                                                    </div>
+                                                    {wallet.currency && wallet.currency !== 'PKR' && (
+                                                        <span className="text-xs text-white/60 mt-1">≈ {fmtPKR(wallet.balance * (wallet.exchange_rate || 1))}</span>
+                                                    )}
+                                                </div>
                                             </>
                                         )}
                                     </div>
@@ -447,7 +465,42 @@ export default function Accounts() {
                                 </div>
                             </div>
 
-                            <div>
+                            <div className="grid grid-cols-2 gap-4 border-t border-gray-100 dark:border-neutral-800 pt-4">
+                                <div>
+                                    <div className="mb-1 block">
+                                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Currency</label>
+                                    </div>
+                                    <Select
+                                        options={[
+                                            { value: 'PKR', label: 'PKR - Pakistan Rupee' },
+                                            { value: 'USD', label: 'USD - US Dollar' },
+                                            { value: 'SAR', label: 'SAR - Saudi Riyal' },
+                                            { value: 'GBP', label: 'GBP - British Pound' },
+                                            { value: 'EUR', label: 'EUR - Euro' },
+                                            { value: 'AED', label: 'AED - UAE Dirham' }
+                                        ]}
+                                        value={walletForm.currency}
+                                        onChange={(val) => setWalletForm({ ...walletForm, currency: val, exchange_rate: val === 'PKR' ? '1' : '' })}
+                                    />
+                                </div>
+                                <div>
+                                    <div className="mb-1 block">
+                                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Exchange Rate <span className="text-xs text-gray-400">(to PKR)</span></label>
+                                    </div>
+                                    <TextInput
+                                        id="wallet-rate"
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        required
+                                        disabled={walletForm.currency === 'PKR'}
+                                        value={walletForm.exchange_rate}
+                                        onChange={e => setWalletForm({ ...walletForm, exchange_rate: e.target.value })}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="pt-2">
                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Card Color Theme</label>
                                 <div className="flex gap-3">
                                     {Object.keys(CARD_THEMES).map(color => (
@@ -519,6 +572,41 @@ export default function Accounts() {
                                     <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Starting Balance</label>
                                 </div>
                                 <TextInput id="bank-balance" required type="number" step="0.01" value={bankForm.starting_balance} onChange={e => setBankForm({ ...bankForm, starting_balance: e.target.value })} />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4 border-t border-gray-100 dark:border-neutral-800 pt-4">
+                                <div>
+                                    <div className="mb-1 block">
+                                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Currency</label>
+                                    </div>
+                                    <Select
+                                        options={[
+                                            { value: 'PKR', label: 'PKR - Pakistan Rupee' },
+                                            { value: 'USD', label: 'USD - US Dollar' },
+                                            { value: 'SAR', label: 'SAR - Saudi Riyal' },
+                                            { value: 'GBP', label: 'GBP - British Pound' },
+                                            { value: 'EUR', label: 'EUR - Euro' },
+                                            { value: 'AED', label: 'AED - UAE Dirham' }
+                                        ]}
+                                        value={bankForm.currency}
+                                        onChange={(val) => setBankForm({ ...bankForm, currency: val, exchange_rate: val === 'PKR' ? '1' : '' })}
+                                    />
+                                </div>
+                                <div>
+                                    <div className="mb-1 block">
+                                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Exchange Rate <span className="text-xs text-gray-400">(to PKR)</span></label>
+                                    </div>
+                                    <TextInput
+                                        id="bank-rate"
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        required
+                                        disabled={bankForm.currency === 'PKR'}
+                                        value={bankForm.exchange_rate}
+                                        onChange={e => setBankForm({ ...bankForm, exchange_rate: e.target.value })}
+                                    />
+                                </div>
                             </div>
 
                             <div className="pt-4 flex justify-end gap-3">

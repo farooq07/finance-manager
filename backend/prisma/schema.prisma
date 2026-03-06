@@ -31,6 +31,8 @@ model User {
   banks               Bank[]
   institutions        Institution[]
   broker_accounts     BrokerAccount[]
+  zakat               Zakat[]
+  assets              Asset[]
 
   @@map("users")
 }
@@ -191,15 +193,17 @@ model BankInvestment {
 }
 
 model Wallet {
-  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_id     String   @db.Uuid
-  name        String   @db.VarChar(100)
-  institution String   @db.VarChar(100)
-  balance     Decimal  @default(0.00) @db.Decimal(15, 2)
-  color_theme String   @default("blue") @db.VarChar(50)
-  account_num String?  @db.VarChar(50)
-  created_at  DateTime @default(now()) @db.Timestamptz(6)
-  user        User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id       String   @db.Uuid
+  name          String   @db.VarChar(100)
+  institution   String   @db.VarChar(100)
+  balance       Decimal  @default(0.00) @db.Decimal(15, 2)
+  currency      String   @default("PKR") @db.VarChar(10)
+  exchange_rate Decimal  @default(1.00) @db.Decimal(15, 4)
+  color_theme   String   @default("blue") @db.VarChar(50)
+  account_num   String?  @db.VarChar(50)
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
+  user          User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@map("wallets")
 }
@@ -210,6 +214,8 @@ model Bank {
   name             String            @db.VarChar(255)
   account_no       String            @db.VarChar(100)
   iban_no          String            @db.VarChar(100)
+  currency         String            @default("PKR") @db.VarChar(10)
+  exchange_rate    Decimal           @default(1.00) @db.Decimal(15, 4)
   starting_balance Decimal           @db.Decimal(15, 2)
   current_balance  Decimal           @default(0.00) @db.Decimal(15, 2)
   created_at       DateTime          @default(now()) @db.Timestamptz(6)
@@ -258,4 +264,30 @@ model BrokerAccount {
   user               User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@map("broker_accounts")
+}
+
+model Zakat {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id     String   @db.Uuid
+  amount      Decimal  @db.Decimal(15, 2)
+  description String?
+  date        DateTime @default(now()) @db.Date // When it was paid
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  user        User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("zakat")
+}
+
+model Asset {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id       String   @db.Uuid
+  name          String   @db.VarChar(255)
+  type          String   @db.VarChar(100)
+  value         Decimal  @default(0.00) @db.Decimal(15, 2)
+  purchase_date DateTime? @db.Date
+  description   String?
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
+  user          User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("assets")
 }

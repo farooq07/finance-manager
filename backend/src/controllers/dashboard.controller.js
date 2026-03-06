@@ -6,13 +6,14 @@ export const getDashboardSummary = async (req, res) => {
 
         // 1. Bank Balance (Wallets and Banks)
         const wallets = await prisma.wallet.findMany({ where: { user_id: userId } });
-        const totalWalletBalance = wallets.reduce((sum, w) => sum + Number(w.balance), 0);
+        const totalWalletBalance = wallets.reduce((sum, w) => sum + (Number(w.balance) * Number(w.exchange_rate || 1)), 0);
 
         const banks = await prisma.bank.findMany({ where: { user_id: userId } });
-        const totalBankBalance = banks.reduce((sum, b) => sum + Number(b.current_balance), 0);
+        const totalBankBalance = banks.reduce((sum, b) => sum + (Number(b.current_balance) * Number(b.exchange_rate || 1)), 0);
 
         // 2. PSX Stock Value (from snapshots + trading cash fallback)
         let stockCurrentValue = 0;
+        let stockCost = 0;
         let psxTradingCash = 0;
 
         const latestPsx = await prisma.psxSnapshot.findFirst({
@@ -22,6 +23,17 @@ export const getDashboardSummary = async (req, res) => {
 
         if (latestPsx) {
             stockCurrentValue = Number(latestPsx.total_custody);
+
+            // Calculate total cost from holdings
+            if (latestPsx.holdings_data && Array.isArray(latestPsx.holdings_data)) {
+                stockCost = latestPsx.holdings_data.reduce((sum, h) => {
+                    const hld = Number(h.holding || 0);
+                    const costPerUnit = Number(h.cost_per_unit || 0);
+                    const tCost = Number(h.total_cost || (hld * costPerUnit));
+                    return sum + tCost;
+                }, 0);
+            }
+
             // Include trading cash from the new summary feature if available
             if (latestPsx.summary_data && latestPsx.summary_data.trading_cash) {
                 psxTradingCash = Number(latestPsx.summary_data.trading_cash);
@@ -41,6 +53,7 @@ export const getDashboardSummary = async (req, res) => {
 
         // 3. Mutual Fund Value (from snapshots or fallback)
         let mfCurrentValue = 0;
+        let mfCost = 0;
         const latestMfSnapshot = await prisma.portfolioSnapshot.findFirst({
             where: { user_id: userId },
             orderBy: { upload_date: 'desc' }
@@ -48,20 +61,54 @@ export const getDashboardSummary = async (req, res) => {
 
         if (latestMfSnapshot) {
             mfCurrentValue = Number(latestMfSnapshot.total_value);
+            // Best effort to get MF cost if available in holding data
+            if (latestMfSnapshot.holdings_data && Array.isArray(latestMfSnapshot.holdings_data)) {
+                mfCost = latestMfSnapshot.holdings_data.reduce((sum, h) => {
+                    const price = Number(h.price || 0);
+                    const units = Number(h.units || 0);
+                    return sum + (price * units); // assuming total cost isn't explicitly stored, but this is a rough estimate or we can look for total_cost. Usually it's in original investments
+                }, 0);
+
+                // If it's 0 (meaning maybe we didn't have price info), let's fall back to total_invested if that column existed, but it doesn't.
+                // We will rely on mutualFund original investments.
+            }
         } else {
             const mutualFunds = await prisma.mutualFund.findMany({ where: { user_id: userId } });
             mutualFunds.forEach(fund => mfCurrentValue += Number(fund.current_value || 0));
         }
 
+        // Let's get actual invested amount for MF to be accurate:
+        const mfInvested = await prisma.mutualFund.findMany({ where: { user_id: userId } });
+        let actualMfCost = 0;
+        mfInvested.forEach(fund => actualMfCost += Number(fund.total_invested || 0));
+        if (actualMfCost > 0) mfCost = actualMfCost;
+
         const totalInvestments = mfCurrentValue + stockCurrentValue + psxTradingCash;
 
-        // 4. Ledger Dues
-        const dues = await prisma.duesTransaction.findMany({ where: { user_id: userId } });
+        // 4. Ledger Dues (Net balance per person)
+        const people = await prisma.person.findMany({
+            where: { user_id: userId },
+            include: { transactions: true }
+        });
+
         let totalReceivable = 0;
         let totalPayable = 0;
-        dues.forEach(due => {
-            if (due.transaction_type === 'receivable') totalReceivable += Number(due.amount);
-            if (due.transaction_type === 'payable') totalPayable += Number(due.amount);
+
+        people.forEach(person => {
+            let netBalance = 0;
+            person.transactions.forEach(t => {
+                if (t.transaction_type === 'receivable') {
+                    netBalance += Number(t.amount);
+                } else if (t.transaction_type === 'payable') {
+                    netBalance -= Number(t.amount);
+                }
+            });
+
+            if (netBalance > 0) {
+                totalReceivable += netBalance;
+            } else if (netBalance < 0) {
+                totalPayable += Math.abs(netBalance);
+            }
         });
 
         // 5. Monthly Expenses (Current Year)
@@ -89,7 +136,11 @@ export const getDashboardSummary = async (req, res) => {
             amount
         }));
 
-        // Net Worth formula = Liquid Cash + Assets + Receivables - Payables
+        // 6. Assets
+        const assets = await prisma.asset.findMany({ where: { user_id: userId } });
+        const totalAssetValue = assets.reduce((sum, asset) => sum + Number(asset.value), 0);
+
+        // Net Worth formula = Liquid Cash + Assets/Investments + Receivables - Payables (Physical Assets excluded from Comprehensive Net Worth)
         const netWorth = totalBankBalance + totalWalletBalance + totalInvestments + totalReceivable - totalPayable;
 
         res.json({
@@ -99,11 +150,14 @@ export const getDashboardSummary = async (req, res) => {
                 totalWalletBalance,
                 totalInvestments,
                 mutualFundValue: mfCurrentValue,
+                mutualFundCost: mfCost,
                 stockValue: stockCurrentValue,
+                stockCost,
                 totalReceivable,
                 totalPayable,
                 totalExpenses,
-                currentMonthExpenses
+                currentMonthExpenses,
+                totalAssetValue
             },
             charts: {
                 monthlyExpenses: chartData,
@@ -116,6 +170,7 @@ export const getDashboardSummary = async (req, res) => {
                     { name: 'Wallets', value: totalWalletBalance },
                     { name: 'Mutual Funds', value: mfCurrentValue },
                     { name: 'Stocks', value: stockCurrentValue },
+                    { name: 'Physical Assets', value: totalAssetValue },
                     { name: 'Ledger Dues', value: totalReceivable } // Only positive assets
                 ].filter(i => i.value > 0)
             }

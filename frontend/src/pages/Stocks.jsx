@@ -113,6 +113,12 @@ export default function Stocks() {
                     const roiPct = parseFloat((findValue('Return of Investment %', 'roi_pct') || '0').toString().replace(/,/g, '').replace('%', ''));
                     const unrealizedGL = parseFloat((findValue('Unrealized Gain / Loss', 'unrealized_gl') || '0').toString().replace(/,/g, ''));
 
+                    const changeStr = (findValue('Change', 'change') || '').toString().trim();
+                    const change = changeStr && changeStr !== '-' ? (parseFloat(changeStr.replace(/,/g, '')) || 0) : (val - totalCost);
+
+                    const todayGlStr = (findValue('Today gain/loss', 'today gain loss', 'today_gl') || '').toString().trim();
+                    const todayGl = todayGlStr && todayGlStr !== '-' ? (parseFloat(todayGlStr.replace(/,/g, '')) || 0) : 0;
+
                     if (sym && hld > 0) {
                         holdings.push({
                             symbol: sym.toUpperCase(),
@@ -123,7 +129,9 @@ export default function Stocks() {
                             cost_per_unit: costPerUnit,
                             total_cost: totalCost,
                             roi_pct: roiPct,
-                            unrealized_gl: unrealizedGL
+                            unrealized_gl: unrealizedGL,
+                            change: change,
+                            today_gl: todayGl
                         });
                         totalCSVValue += val;
                     }
@@ -253,6 +261,12 @@ export default function Stocks() {
                 const glStr = (rowData['unrealized gain / loss'] || rowData['unrealized_gl'] || '0').replace(/,/g, '');
                 const unrealizedGL = parseFloat(glStr) || 0;
 
+                const changeStr = (rowData['change'] || '').trim();
+                const change = changeStr && changeStr !== '-' ? (parseFloat(changeStr.replace(/,/g, '')) || 0) : (val - totalCost);
+
+                const todayGlStr = (rowData['today gain/loss'] || rowData['today_gl'] || rowData['today gain loss'] || '').trim();
+                const todayGl = todayGlStr && todayGlStr !== '-' ? (parseFloat(todayGlStr.replace(/,/g, '')) || 0) : 0;
+
                 if (sym && hld > 0) {
                     holdings.push({
                         symbol: sym.toUpperCase(),
@@ -262,7 +276,9 @@ export default function Stocks() {
                         cost_per_unit: costPerUnit,
                         total_cost: totalCost,
                         roi_pct: roiPct,
-                        unrealized_gl: unrealizedGL
+                        unrealized_gl: unrealizedGL,
+                        change: change,
+                        today_gl: todayGl
                     });
                     totalVal += val;
                 }
@@ -347,22 +363,6 @@ export default function Stocks() {
                 <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 transition-colors">PSX Portfolio Tracking</h1>
 
                 <div className="flex flex-col sm:flex-row flex-wrap items-center gap-3 w-full md:w-auto">
-                    {/* Secondary Outlined Button */}
-                    <Button
-                        variant="outline"
-                        onClick={() => {
-                            if (latestSnapshot?.summary_data) {
-                                setSummaryForm(latestSnapshot.summary_data);
-                            }
-                            setShowSummaryModal(true);
-                        }}
-                        disabled={!latestSnapshot}
-                        className="h-10 px-4 bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300 border-neutral-200 dark:border-neutral-700 shadow-sm w-full sm:w-auto"
-                        title={!latestSnapshot ? "Upload a PSX CSV first" : "Log Daily Summary numbers from Broker"}
-                    >
-                        <Eye className="w-4 h-4 mr-2 text-neutral-500" /> Daily Summary
-                    </Button>
-
                     {/* Soft Themed Button */}
                     <Button
                         variant="secondary"
@@ -382,54 +382,6 @@ export default function Stocks() {
                     >
                         <Database className="w-4 h-4 mr-2 text-neutral-500" /> Paste HTML
                     </Button>
-
-                    {/* Primary Split Button */}
-                    <div className="relative flex shadow-sm rounded-lg overflow-hidden h-10 w-full sm:w-auto">
-                        <div className="flex w-full bg-emerald-600 dark:bg-emerald-500 text-white hover:bg-emerald-700 dark:hover:bg-emerald-600 transition-colors focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-emerald-500 dark:focus-within:ring-offset-neutral-900">
-                            <DatePicker
-                                selected={csvDate ? new Date(csvDate) : null}
-                                onChange={(date) => {
-                                    if (date) {
-                                        const y = date.getFullYear();
-                                        const m = String(date.getMonth() + 1).padStart(2, '0');
-                                        const d = String(date.getDate()).padStart(2, '0');
-                                        setCsvDate(`${y}-${m}-${d}`);
-                                    } else {
-                                        setCsvDate('');
-                                    }
-                                }}
-                                dateFormat="dd/MM/yyyy"
-                                popperPlacement="bottom-end"
-                                showPopperArrow={false}
-                                customInput={
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        className="h-10 px-3 bg-black/15 hover:bg-black/25 border-r border-black/10 flex items-center transition-colors outline-none text-sm font-medium focus:ring-0 rounded-none"
-                                        title="Upload Date"
-                                    >
-                                        <Calendar className="w-4 h-4 mr-1.5 opacity-90" />
-                                        {fmtDateShort(csvDate)}
-                                    </Button>
-                                }
-                            />
-                            <input
-                                type="file"
-                                accept=".csv"
-                                className="hidden"
-                                id="csvUpload"
-                                onChange={handleFileUpload}
-                                disabled={uploadSnapshot.isPending}
-                            />
-                            <label htmlFor="csvUpload" className={`flex-1 flex justify-center items-center h-10 px-4 text-sm font-medium cursor-pointer transition-colors flex-nowrap whitespace-nowrap ${uploadSnapshot.isPending ? 'opacity-70 cursor-not-allowed' : ''}`}>
-                                {uploadSnapshot.isPending ? (
-                                    <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> Parsing...</>
-                                ) : (
-                                    <><Upload className="w-4 h-4 mr-1.5" /> Upload CSV</>
-                                )}
-                            </label>
-                        </div>
-                    </div>
                 </div>
             </div>
 
@@ -495,85 +447,66 @@ export default function Stocks() {
 
             {/* Top Stat Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4">
-                <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-sm border border-gray-100 dark:border-neutral-800 p-6 transition-colors">
-                    <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Current Portfolio Value</p>
-                        <div className="p-2 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg">
-                            <Activity className="w-5 h-5 text-emerald-600 dark:text-emerald-500" />
-                        </div>
-                    </div>
-                    <div className="mt-2">
-                        <MaskedBalance
-                            value={currentCustody}
-                            className="text-3xl font-bold text-gray-900 dark:text-gray-100"
-                        />
-                    </div>
-                    {latestSnapshot && (
-                        <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">As of {fmtDateLong(latestSnapshot.snapshot_date)}</p>
-                    )}
-                </div>
+                {(() => {
+                    const computedTotalCost = latestSnapshot?.holdings_data?.reduce((sum, h) => sum + (h.total_cost || (h.holding * (h.cost_per_unit || 0))), 0) || 0;
+                    const totalMarketValue = currentCustody;
+                    const totalGL = totalMarketValue - computedTotalCost;
+                    const totalGLPct = computedTotalCost > 0 ? (totalGL / computedTotalCost) * 100 : 0;
 
-                <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-sm border border-gray-100 dark:border-neutral-800 p-6 transition-colors">
-                    <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Net Invested (Bank)</p>
-                        <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                            <Database className="w-5 h-5 text-blue-600 dark:text-blue-500" />
-                        </div>
-                    </div>
-                    <p className="mt-2 text-3xl font-bold text-gray-900 dark:text-gray-100">PKR {fmtPKR(totalInvested)}</p>
-                    <p className="mt-1 text-xs text-blue-500 dark:text-blue-400 font-medium">Cash to Brokerage</p>
-                </div>
+                    return (
+                        <>
+                            <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-sm border border-gray-100 dark:border-neutral-800 p-6 transition-colors">
+                                <div className="flex items-center justify-between">
+                                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Cost</p>
+                                    <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                                        <Database className="w-5 h-5 text-blue-600 dark:text-blue-500" />
+                                    </div>
+                                </div>
+                                <div className="mt-2">
+                                    <MaskedBalance
+                                        value={computedTotalCost}
+                                        className="text-3xl font-bold text-gray-900 dark:text-gray-100"
+                                    />
+                                </div>
+                            </div>
 
-                <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-sm border border-gray-100 dark:border-neutral-800 p-6 relative overflow-hidden transition-colors">
-                    <div className="flex items-center justify-between relative z-10">
-                        <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Lifetime Return</p>
-                        <div className={`p-2 rounded-lg ${lifetimeGL >= 0 ? 'bg-emerald-50 dark:bg-emerald-900/20' : 'bg-red-50 dark:bg-red-900/20'}`}>
-                            <TrendingUp className={`w-5 h-5 ${lifetimeGL >= 0 ? 'text-emerald-600 dark:text-emerald-500' : 'text-red-500 dark:text-red-400'}`} />
-                        </div>
-                    </div>
-                    <p className={`mt-2 text-3xl font-bold relative z-10 ${glColor(lifetimeGL)}`}>
-                        {fmtGL(lifetimeGL)}
-                    </p>
-                    <p className={`mt-1 text-sm font-medium relative z-10 ${glColor(lifetimeGL)}`}>
-                        {lifetimePct >= 0 ? '+' : ''}{lifetimePct.toFixed(2)}% ROI
-                    </p>
-                    <div className={`absolute -right-6 -bottom-6 w-32 h-32 rounded-full opacity-10 ${lifetimeGL >= 0 ? 'bg-emerald-500' : 'bg-red-500'}`}></div>
-                </div>
+                            <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-sm border border-gray-100 dark:border-neutral-800 p-6 transition-colors">
+                                <div className="flex items-center justify-between">
+                                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Market Value</p>
+                                    <div className="p-2 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg">
+                                        <Activity className="w-5 h-5 text-emerald-600 dark:text-emerald-500" />
+                                    </div>
+                                </div>
+                                <div className="mt-2">
+                                    <MaskedBalance
+                                        value={totalMarketValue}
+                                        className="text-3xl font-bold text-gray-900 dark:text-gray-100"
+                                    />
+                                </div>
+                                {latestSnapshot && (
+                                    <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">As of {fmtDateLong(latestSnapshot.snapshot_date)}</p>
+                                )}
+                            </div>
+
+                            <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-sm border border-gray-100 dark:border-neutral-800 p-6 relative overflow-hidden transition-colors">
+                                <div className="flex items-center justify-between relative z-10">
+                                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Gain/Loss</p>
+                                    <div className={`p-2 rounded-lg ${totalGL >= 0 ? 'bg-emerald-50 dark:bg-emerald-900/20' : 'bg-red-50 dark:bg-red-900/20'}`}>
+                                        <TrendingUp className={`w-5 h-5 ${totalGL >= 0 ? 'text-emerald-600 dark:text-emerald-500' : 'text-red-500 dark:text-red-400'}`} />
+                                    </div>
+                                </div>
+                                <p className={`mt-2 text-3xl font-bold relative z-10 ${glColor(totalGL)}`}>
+                                    {fmtGL(totalGL)}
+                                </p>
+                                <p className={`mt-1 text-sm font-medium relative z-10 ${glColor(totalGL)}`}>
+                                    {totalGLPct >= 0 ? '+' : ''}{totalGLPct.toFixed(2)}% ROI
+                                </p>
+                                <div className={`absolute -right-6 -bottom-6 w-32 h-32 rounded-full opacity-10 ${totalGL >= 0 ? 'bg-emerald-500' : 'bg-red-500'}`}></div>
+                            </div>
+                        </>
+                    );
+                })()}
             </div>
-
-            {/* Broker Summary Table */}
-            {latestSnapshot && latestSnapshot.summary_data && (
-                <div className="bg-white mb-4 dark:bg-neutral-900 rounded-2xl shadow-sm border border-gray-100 dark:border-neutral-800 overflow-hidden transition-colors">
-                    <div className="px-6 py-4 border-b border-gray-100 dark:border-neutral-800 flex justify-between items-center bg-neutral-50/50 dark:bg-neutral-800/50 transition-colors">
-                        <div className="flex items-center gap-2">
-                            <h3 className="text-sm font-bold text-gray-700 dark:text-gray-200 tracking-wider uppercase">Summary</h3>
-                            <span className="text-xs text-blue-500 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded font-medium">As of {fmtDateShort(latestSnapshot.snapshot_date)}</span>
-                        </div>
-                    </div>
-
-                    <div className="p-0 overflow-x-auto">
-                        <table className="min-w-full divide-y divide-gray-100 dark:divide-neutral-800">
-                            <tbody className="divide-y divide-gray-100 dark:divide-neutral-800">
-                                {['TRADING CASH BALANCE', 'MARKET VALUE OF CUSTODY', 'WORKING CAPITAL', 'TOTAL WORTH'].map((label, idx) => {
-                                    // Map label explicitly to properties for highly robust rendering
-                                    const keys = ['trading_cash', 'market_value', 'working_capital', 'total_worth'];
-                                    const val = latestSnapshot.summary_data[keys[idx]];
-                                    return (
-                                        <tr key={idx} className="hover:bg-neutral-50/50 dark:hover:bg-neutral-800/50 transition-colors">
-                                            <td className="px-6 py-3 whitespace-nowrap text-gray-500 dark:text-gray-400 uppercase tracking-widest text-[11px] font-semibold">{label}</td>
-                                            <td className="px-6 py-3 whitespace-nowrap text-right">
-                                                <span className="px-3 py-1 bg-gray-100/80 dark:bg-neutral-800 rounded font-mono text-gray-700 dark:text-gray-200 tracking-tight font-medium transition-colors">
-                                                    {fmtPKR(val)} Rs
-                                                </span>
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            )}
 
             {/* Current Holdings Data Table */}
             {latestSnapshot && (
@@ -595,15 +528,20 @@ export default function Stocks() {
                                     <th className="px-6 py-4 text-right">Cost/Unit</th>
                                     <th className="px-6 py-4 text-right">Total Cost</th>
                                     <th className="px-6 py-4 text-right">Market Price</th>
+                                    <th className="px-6 py-4 text-right">Change</th>
                                     <th className="px-6 py-4 text-right">Current Value</th>
-                                    <th className="px-6 py-4 text-right">ROI %</th>
-                                    <th className="px-6 py-4 text-right">Unrealized G/L</th>
-                                    <th className="px-6 py-4 text-right">Weight</th>
+                                    <th className="px-6 py-4 text-right">Today G/L</th>
+                                    <th className="px-6 py-4 text-center">Action</th>
                                 </tr>
                             </thead>
                             <tbody className="bg-white dark:bg-neutral-900 divide-y divide-gray-100 dark:divide-neutral-800 transition-colors">
                                 {latestSnapshot.holdings_data.map((stock, idx) => {
-                                    const weight = ((stock.custody_val / latestSnapshot.total_custody) * 100).toFixed(1);
+                                    const computedTotalCost = stock.total_cost || (stock.holding * (stock.cost_per_unit || 0));
+                                    const computedChange = stock.custody_val - computedTotalCost;
+                                    const changePct = computedTotalCost > 0 ? (computedChange / computedTotalCost) * 100 : 0;
+                                    const todayGl = stock.today_gl || 0;
+                                    const prevVal = stock.custody_val - todayGl;
+                                    const todayPct = prevVal > 0 ? (todayGl / prevVal) * 100 : 0;
                                     return (
                                         <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-neutral-800/50 transition-colors">
                                             <td className="px-6 py-2 whitespace-nowrap font-bold text-gray-900 dark:text-gray-100">
@@ -621,28 +559,58 @@ export default function Stocks() {
                                             <td className="px-6 py-2 whitespace-nowrap text-right text-gray-600 dark:text-gray-300">
                                                 {fmtPKR(stock.market_rate)}
                                             </td>
+                                            <td className="px-6 py-2 whitespace-nowrap text-right">
+                                                <div className={`font-medium ${glColor(computedChange)} flex flex-col items-end`}>
+                                                    <span>{fmtPKR(computedChange)}</span>
+                                                    <span className="text-[10px] opacity-80">{changePct > 0 ? '+' : ''}{changePct.toFixed(2)}%</span>
+                                                </div>
+                                            </td>
                                             <td className="px-6 py-2 whitespace-nowrap text-right font-semibold text-emerald-700 dark:text-emerald-400">
                                                 {fmtPKR(stock.custody_val)}
                                             </td>
-                                            <td className="px-6 py-2 whitespace-nowrap text-right">
-                                                <span className={`font-medium ${glColor(stock.roi_pct || 0)}`}>
-                                                    {stock.roi_pct !== undefined ? `${stock.roi_pct.toFixed(2)}%` : '—'}
-                                                </span>
-                                            </td>
                                             <td className="px-6 py-2 whitespace-nowrap text-right font-medium">
-                                                <span className={glColor(stock.unrealized_gl || 0)}>
-                                                    {stock.unrealized_gl !== undefined ? fmtPKR(stock.unrealized_gl) : '—'}
-                                                </span>
+                                                <div className={`${glColor(todayGl)} flex flex-col items-end`}>
+                                                    <span>{fmtPKR(todayGl)}</span>
+                                                    <span className="text-[10px] opacity-80">{todayPct > 0 ? '+' : ''}{todayPct.toFixed(2)}%</span>
+                                                </div>
                                             </td>
-                                            <td className="px-6 py-2 whitespace-nowrap text-right">
-                                                <span className="inline-block bg-gray-100 dark:bg-neutral-800 text-gray-600 dark:text-gray-300 px-2 py-1 rounded text-xs font-medium transition-colors">
-                                                    {weight}%
-                                                </span>
+                                            <td className="px-6 py-2 whitespace-nowrap text-center">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={(e) => { e.stopPropagation(); handleDeleteSymbolFromSnapshot(latestSnapshot.id, stock.symbol); }}
+                                                    className="h-8 w-8 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                                    title={`Remove ${stock.symbol} from today's holding`}
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </Button>
                                             </td>
                                         </tr>
                                     );
                                 })}
                             </tbody>
+                            <tfoot className="bg-gray-50 dark:bg-neutral-800/50 font-bold text-gray-900 dark:text-gray-100 text-xs text-right">
+                                <tr>
+                                    <td colSpan={3} className="px-6 py-3 uppercase tracking-wider">Total Cost</td>
+                                    <td className="px-6 py-3">{fmtPKR(latestSnapshot.holdings_data.reduce((sum, h) => sum + (h.total_cost || (h.holding * (h.cost_per_unit || 0))), 0))}</td>
+                                    <td colSpan={2} className="px-6 py-3 uppercase tracking-wider">Total Market Value</td>
+                                    <td className="px-6 py-3 text-emerald-700 dark:text-emerald-400">{fmtPKR(latestSnapshot.total_custody)}</td>
+                                    <td className={`px-6 py-3 text-right ${glColor(latestSnapshot.holdings_data.reduce((sum, h) => sum + (h.today_gl || 0), 0))}`}>
+                                        {fmtPKR(latestSnapshot.holdings_data.reduce((sum, h) => sum + (h.today_gl || 0), 0))}
+                                    </td>
+                                    <td className="px-6 py-3 text-center">
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={(e) => { e.stopPropagation(); handleDeleteSnapshot(latestSnapshot.id, latestSnapshot.snapshot_date); }}
+                                            className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 px-2 h-7"
+                                            title="Delete completely today's log"
+                                        >
+                                            <Trash2 className="w-4 h-4 mr-1" /> Clear All
+                                        </Button>
+                                    </td>
+                                </tr>
+                            </tfoot>
                         </table>
                     </div>
                 </div>
@@ -712,39 +680,71 @@ export default function Stocks() {
                                                         <thead>
                                                             <tr className="bg-gray-50/50 dark:bg-neutral-800/30 text-gray-500 dark:text-gray-400 uppercase tracking-wider font-semibold">
                                                                 <th className="px-6 py-2.5">Symbol</th>
-                                                                <th className="px-6 py-2.5 text-right">Holding</th>
-                                                                <th className="px-6 py-2.5 text-right">Rate</th>
-                                                                <th className="px-6 py-2.5 text-right">Market Value</th>
-                                                                <th className="px-6 py-2.5 text-right">ROI %</th>
+                                                                <th className="px-6 py-2.5 text-right">Quantity</th>
+                                                                <th className="px-6 py-2.5 text-right">Cost/Unit</th>
+                                                                <th className="px-6 py-2.5 text-right">Total Cost</th>
+                                                                <th className="px-6 py-2.5 text-right">Market Price</th>
+                                                                <th className="px-6 py-2.5 text-right">Change</th>
+                                                                <th className="px-6 py-2.5 text-right">Current Value</th>
+                                                                <th className="px-6 py-2.5 text-right">Today G/L</th>
                                                                 <th className="px-6 py-2.5 text-center">Action</th>
                                                             </tr>
                                                         </thead>
                                                         <tbody className="divide-y divide-gray-100 dark:divide-neutral-800/50 bg-white dark:bg-neutral-900">
-                                                            {holdings.map((h, hi) => (
-                                                                <tr key={hi} className="hover:bg-gray-50 dark:hover:bg-neutral-800/50 transition-colors">
-                                                                    <td className="px-6 py-3 font-bold text-gray-800 dark:text-gray-200">{h.symbol}</td>
-                                                                    <td className="px-6 py-3 text-right text-gray-600 dark:text-gray-300 font-medium">{Number(h.holding).toLocaleString()}</td>
-                                                                    <td className="px-6 py-3 text-right text-gray-500 dark:text-gray-400">{fmtPKR(h.market_rate)}</td>
-                                                                    <td className="px-6 py-3 text-right font-semibold text-gray-700 dark:text-gray-200">{fmtPKR(h.custody_val)}</td>
-                                                                    <td className="px-6 py-3 text-right font-medium">
-                                                                        <span className={glColor(h.roi_pct || 0)}>
-                                                                            {h.roi_pct >= 0 ? '+' : ''}{Number(h.roi_pct || 0).toFixed(2)}%
-                                                                        </span>
-                                                                    </td>
-                                                                    <td className="px-6 py-3 text-center">
-                                                                        <Button
-                                                                            variant="ghost"
-                                                                            size="icon"
-                                                                            onClick={(e) => { e.stopPropagation(); handleDeleteSymbolFromSnapshot(s.id, h.symbol); }}
-                                                                            className="h-8 w-8 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
-                                                                            title={`Remove ${h.symbol} from this history log`}
-                                                                        >
-                                                                            <Trash2 className="w-4 h-4" />
-                                                                        </Button>
-                                                                    </td>
-                                                                </tr>
-                                                            ))}
+                                                            {holdings.map((h, hi) => {
+                                                                const computedTotalCost = h.total_cost || (h.holding * (h.cost_per_unit || 0));
+                                                                const computedChange = h.custody_val - computedTotalCost;
+                                                                const changePct = computedTotalCost > 0 ? (computedChange / computedTotalCost) * 100 : 0;
+                                                                const todayGl = h.today_gl || 0;
+                                                                const prevVal = h.custody_val - todayGl;
+                                                                const todayPct = prevVal > 0 ? (todayGl / prevVal) * 100 : 0;
+                                                                return (
+                                                                    <tr key={hi} className="hover:bg-gray-50 dark:hover:bg-neutral-800/50 transition-colors">
+                                                                        <td className="px-6 py-3 font-bold text-gray-800 dark:text-gray-200">{h.symbol}</td>
+                                                                        <td className="px-6 py-3 text-right text-gray-600 dark:text-gray-300 font-medium">{Number(h.holding).toLocaleString()}</td>
+                                                                        <td className="px-6 py-3 text-right text-gray-500 dark:text-gray-400">{h.cost_per_unit ? fmtPKR(h.cost_per_unit) : '—'}</td>
+                                                                        <td className="px-6 py-3 text-right text-gray-600 dark:text-gray-300">{h.total_cost ? fmtPKR(h.total_cost) : '—'}</td>
+                                                                        <td className="px-6 py-3 text-right text-gray-500 dark:text-gray-400">{fmtPKR(h.market_rate)}</td>
+                                                                        <td className="px-6 py-3 text-right font-medium">
+                                                                            <div className={`${glColor(computedChange)} flex flex-col items-end`}>
+                                                                                <span>{fmtPKR(computedChange)}</span>
+                                                                                <span className="text-[10px] opacity-80">{changePct > 0 ? '+' : ''}{changePct.toFixed(2)}%</span>
+                                                                            </div>
+                                                                        </td>
+                                                                        <td className="px-6 py-3 text-right font-semibold text-gray-700 dark:text-gray-200">{fmtPKR(h.custody_val)}</td>
+                                                                        <td className="px-6 py-3 text-right font-medium">
+                                                                            <div className={`${glColor(todayGl)} flex flex-col items-end`}>
+                                                                                <span>{fmtPKR(todayGl)}</span>
+                                                                                <span className="text-[10px] opacity-80">{todayPct > 0 ? '+' : ''}{todayPct.toFixed(2)}%</span>
+                                                                            </div>
+                                                                        </td>
+                                                                        <td className="px-6 py-3 text-center">
+                                                                            <Button
+                                                                                variant="ghost"
+                                                                                size="icon"
+                                                                                onClick={(e) => { e.stopPropagation(); handleDeleteSymbolFromSnapshot(s.id, h.symbol); }}
+                                                                                className="h-8 w-8 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                                                                title={`Remove ${h.symbol} from this history log`}
+                                                                            >
+                                                                                <Trash2 className="w-4 h-4" />
+                                                                            </Button>
+                                                                        </td>
+                                                                    </tr>
+                                                                );
+                                                            })}
                                                         </tbody>
+                                                        <tfoot className="bg-gray-50/50 dark:bg-neutral-800/30 font-bold text-gray-900 dark:text-gray-100">
+                                                            <tr>
+                                                                <td colSpan={3} className="px-6 py-3 text-right uppercase tracking-wider">Total:</td>
+                                                                <td className="px-6 py-3 text-right">{fmtPKR(holdings.reduce((sum, h) => sum + (h.total_cost || (h.holding * (h.cost_per_unit || 0))), 0))}</td>
+                                                                <td colSpan={2} className="px-6 py-3"></td>
+                                                                <td className="px-6 py-3 text-right text-emerald-700 dark:text-emerald-400">{fmtPKR(holdings.reduce((sum, h) => sum + (h.custody_val || 0), 0))}</td>
+                                                                <td className={`px-6 py-3 text-right ${glColor(holdings.reduce((sum, h) => sum + (h.today_gl || 0), 0))}`}>
+                                                                    {fmtPKR(holdings.reduce((sum, h) => sum + (h.today_gl || 0), 0))}
+                                                                </td>
+                                                                <td className="px-6 py-3"></td>
+                                                            </tr>
+                                                        </tfoot>
                                                     </table>
                                                 </div>
                                             </div>

@@ -135,10 +135,36 @@ export default function Dashboard() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <MetricCard title="Total Bank Balance" value={metrics.totalBankBalance} icon={Landmark} color="primary" />
-                <MetricCard title="Total Wallet Balance" value={metrics.totalWalletBalance} icon={Wallet} color="cyan" />
-                <MetricCard title="PSX Total" value={metrics.stockValue} icon={TrendingUp} color="indigo" />
-                <MetricCard title="Mutual Fund Total" value={metrics.mutualFundValue} icon={PieIcon} color="purple" />
+                <MetricCard title=" Bank Balance" value={metrics.totalBankBalance} icon={Landmark} color="primary" />
+                <MetricCard title=" Wallet Balance " value={metrics.totalWalletBalance} icon={Wallet} color="cyan" />
+                <MetricCard
+                    title="PSX Balance"
+                    value={metrics.stockValue}
+                    icon={TrendingUp}
+                    color="indigo"
+                    subText={
+                        metrics.stockCost > 0
+                            ? (() => {
+                                const pct = ((metrics.stockValue - metrics.stockCost) / metrics.stockCost) * 100;
+                                return <span className={`font-semibold ${pct >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>{pct >= 0 ? '+' : ''}{pct.toFixed(2)}%</span>;
+                            })()
+                            : null
+                    }
+                />
+                <MetricCard
+                    title="Mutual Fund Total"
+                    value={metrics.mutualFundValue}
+                    icon={PieIcon}
+                    color="purple"
+                    subText={
+                        metrics.mutualFundCost > 0
+                            ? (() => {
+                                const pct = ((metrics.mutualFundValue - metrics.mutualFundCost) / metrics.mutualFundCost) * 100;
+                                return <span className={`font-semibold ${pct >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>{pct >= 0 ? '+' : ''}{pct.toFixed(2)}%</span>;
+                            })()
+                            : null
+                    }
+                />
                 <MetricCard title="Payment to Receive" value={metrics.totalReceivable} icon={ArrowUpCircle} color="emerald" />
                 <MetricCard title="Payment to Send" value={metrics.totalPayable} icon={ArrowDownCircle} color="red" />
                 <MetricCard title="Expenses (This Month)" value={metrics.currentMonthExpenses} icon={FileText} color="amber" />
@@ -171,7 +197,7 @@ export default function Dashboard() {
         </div>
     );
 
-    function MetricCard({ title, value, icon: Icon, color }) {
+    function MetricCard({ title, value, icon: Icon, color, subText }) {
         const colorClasses = {
             emerald: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400',
             blue: 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400',
@@ -183,15 +209,25 @@ export default function Dashboard() {
             orange: 'bg-orange-50 text-orange-600 dark:bg-orange-900/20 dark:text-orange-400',
         };
 
+        const themeClasses = colorClasses[color] || colorClasses.blue;
+
         return (
-            <div className="bg-white dark:bg-neutral-900 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-neutral-800 flex items-center space-x-4 transition-colors">
-                <div className={`p-3 rounded-full ${colorClasses[color]} transition-colors`}>
+            <div className="bg-white dark:bg-neutral-900 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-neutral-800 flex items-start space-x-4 transition-colors relative overflow-hidden group">
+                <div className={`p-4 rounded-2xl ${themeClasses} transition-colors group-hover:scale-110 duration-300`}>
                     <Icon className="w-5 h-5" />
                 </div>
-                <div>
-                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400 transition-colors">{title}</p>
-                    <MaskedBalance value={value} className="text-2xl font-bold text-gray-900 dark:text-gray-100 transition-colors inline-block mr-1" />
+                <div className="flex-1">
+                    <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400 transition-colors uppercase tracking-wider">{title}</h4>
+                    <div className="flex items-baseline gap-2 mt-1">
+                        <MaskedBalance value={value} className="text-2xl font-bold text-gray-900 dark:text-gray-100 transition-colors tracking-tight" />
+                        {subText && (
+                            <span className="text-xs bg-gray-50 dark:bg-neutral-800/80 px-2 py-0.5 rounded-full border border-gray-200 dark:border-neutral-700">
+                                {subText}
+                            </span>
+                        )}
+                    </div>
                 </div>
+                <div className={`absolute -right-6 -top-6 w-24 h-24 rounded-full opacity-[0.03] pointer-events-none transition-transform group-hover:scale-150 duration-500 ${themeClasses.split(' ')[0]}`}></div>
             </div>
         );
     }
