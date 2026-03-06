@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Plus, Trash2, Edit2, Wallet as WalletIcon, Building2, MoreHorizontal, ArrowRight, Eye, EyeOff } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useWallets, useCreateWallet, useUpdateWalletBalance, useDeleteWallet } from '../hooks/useWallets';
-import { useBanks, useCreateBank, useDeleteBank } from '../hooks/useBanks';
+import { useBanks, useCreateBank, useUpdateBankBalance, useDeleteBank } from '../hooks/useBanks';
 import { useInstitutions } from '../hooks/useInstitutions';
 import Button from '../components/Button';
 import TextInput from '../components/TextInput';
@@ -35,6 +35,7 @@ export default function Accounts() {
 
     // Mutations for Banks
     const createBank = useCreateBank();
+    const updateBankBalance = useUpdateBankBalance();
     const deleteBank = useDeleteBank();
 
     // UI States
@@ -42,6 +43,8 @@ export default function Accounts() {
     const [showBankModal, setShowBankModal] = useState(false);
     const [editWalletId, setEditWalletId] = useState(null);
     const [balanceInput, setBalanceInput] = useState('');
+    const [editBankId, setEditBankId] = useState(null);
+    const [bankBalanceInput, setBankBalanceInput] = useState('');
 
     // Form states
     const [walletForm, setWalletForm] = useState({ name: '', institution_id: '', balance: '', color_theme: 'blue', account_num: '' });
@@ -132,6 +135,20 @@ export default function Accounts() {
         }
     };
 
+    const handleUpdateBankBalance = async (e, id) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!bankBalanceInput && bankBalanceInput !== '0') return;
+        try {
+            await updateBankBalance.mutateAsync({ id, current_balance: bankBalanceInput });
+            setEditBankId(null);
+            setBankBalanceInput('');
+            toast.success('Bank balance updated');
+        } catch (error) {
+            toast.error('Failed to update bank balance');
+        }
+    };
+
     const formatInstitutionOptions = (filterType) => {
         return institutions
             .filter(i => filterType === 'all' || i.type === filterType)
@@ -173,47 +190,94 @@ export default function Accounts() {
                             <p className="text-sm text-gray-500 dark:text-gray-400">No bank accounts linked yet.</p>
                         </div>
                     ) : (
-                        banks.map((bank) => (
-                            <Link
-                                to={`/banks/${bank.id}`}
-                                key={bank.id}
-                                className="bg-white dark:bg-neutral-900 rounded-xl shadow-sm border border-gray-200 dark:border-neutral-800 p-6 hover:shadow-md hover:border-blue-200 dark:hover:border-blue-500/50 transition-all group flex flex-col"
-                            >
-                                <div className="flex justify-between items-start mb-4">
-                                    <div>
-                                        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                                            {bank.name}
-                                        </h3>
-                                        <p className="text-sm text-gray-500 dark:text-gray-400 font-mono mt-1">{bank.account_no}</p>
-                                    </div>
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        onClick={(e) => handleBankDelete(e, bank.id)}
-                                        className="text-gray-400 hover:text-red-500 p-1 h-8 w-8"
-                                    >
-                                        <Trash2 className="w-4 h-4" />
-                                    </Button>
-                                </div>
-                                <div className="mt-auto space-y-4">
-                                    <div>
-                                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">IBAN</p>
-                                        <p className="text-sm font-mono text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-neutral-800 px-2 py-1 rounded inline-block">
-                                            {bank.iban_no}
-                                        </p>
-                                    </div>
-                                    <div className="flex items-end justify-between pt-4 border-t border-gray-100 dark:border-neutral-800">
-                                        <div>
-                                            <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Current Balance</p>
-                                            <div className="flex items-center gap-2">
-                                                <MaskedBalance value={bank.current_balance} className="text-xl font-bold tracking-tight text-gray-900 dark:text-gray-100" />
-                                            </div>
+                        banks.map((bank) => {
+                            const isEditingBank = editBankId === bank.id;
+
+                            return (
+                                <div
+                                    key={bank.id}
+                                    className="bg-white dark:bg-neutral-900 rounded-xl shadow-sm border border-gray-200 dark:border-neutral-800 p-6 hover:shadow-md hover:border-blue-200 dark:hover:border-blue-500/50 transition-all group flex flex-col relative"
+                                >
+                                    <div className="flex justify-between items-start mb-4">
+                                        <Link to={`/banks/${bank.id}`} className="block">
+                                            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                                                {bank.name}
+                                            </h3>
+                                            <p className="text-sm text-gray-500 dark:text-gray-400 font-mono mt-1">{bank.account_no}</p>
+                                        </Link>
+                                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={(e) => {
+                                                    e.preventDefault();
+                                                    e.stopPropagation();
+                                                    setEditBankId(bank.id);
+                                                    setBankBalanceInput(bank.current_balance.toString());
+                                                }}
+                                                className="text-gray-400 hover:text-blue-500 p-1 h-8 w-8"
+                                            >
+                                                <Edit2 className="w-4 h-4" />
+                                            </Button>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={(e) => handleBankDelete(e, bank.id)}
+                                                className="text-gray-400 hover:text-red-500 p-1 h-8 w-8"
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                            </Button>
                                         </div>
-                                        <ArrowRight className="w-5 h-5 text-gray-300 group-hover:text-blue-500 transition-colors" />
+                                    </div>
+                                    <div className="mt-auto space-y-4">
+                                        <div>
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">IBAN</p>
+                                            <p className="text-sm font-mono text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-neutral-800 px-2 py-1 rounded inline-block">
+                                                {bank.iban_no}
+                                            </p>
+                                        </div>
+                                        <div className="flex items-end justify-between pt-4 border-t border-gray-100 dark:border-neutral-800">
+                                            <div className="w-full">
+                                                <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Current Balance</p>
+                                                {isEditingBank ? (
+                                                    <div className="flex items-center gap-2 mt-1">
+                                                        <input
+                                                            autoFocus
+                                                            type="number"
+                                                            className="bg-gray-50 dark:bg-neutral-800 border border-gray-300 dark:border-neutral-700 rounded px-2 py-1 text-gray-900 dark:text-gray-100 w-full outline-none focus:ring-2 focus:ring-blue-500 text-lg font-bold"
+                                                            value={bankBalanceInput}
+                                                            onChange={e => setBankBalanceInput(e.target.value)}
+                                                            onKeyDown={e => {
+                                                                if (e.key === 'Enter') handleUpdateBankBalance(e, bank.id);
+                                                                if (e.key === 'Escape') setEditBankId(null);
+                                                            }}
+                                                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                                                        />
+                                                        <Button
+                                                            size="sm"
+                                                            color="blue"
+                                                            onClick={(e) => handleUpdateBankBalance(e, bank.id)}
+                                                            className="px-3 py-1.5 font-bold h-8"
+                                                        >
+                                                            Save
+                                                        </Button>
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex items-center gap-2">
+                                                        <MaskedBalance value={bank.current_balance} className="text-xl font-bold tracking-tight text-gray-900 dark:text-gray-100" />
+                                                    </div>
+                                                )}
+                                            </div>
+                                            {!isEditingBank && (
+                                                <Link to={`/banks/${bank.id}`}>
+                                                    <ArrowRight className="w-5 h-5 text-gray-300 group-hover:text-blue-500 transition-colors" />
+                                                </Link>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
-                            </Link>
-                        ))
+                            );
+                        })
                     )}
                 </div>
             </section>

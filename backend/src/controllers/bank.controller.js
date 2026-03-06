@@ -77,6 +77,29 @@ export const updateBank = async (req, res) => {
     }
 };
 
+export const updateBankBalance = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { current_balance } = req.body;
+
+        const bank = await prisma.bank.findUnique({
+            where: { id, user_id: req.user.id }
+        });
+
+        if (!bank) return res.status(404).json({ message: 'Bank not found' });
+
+        const updatedBank = await prisma.bank.update({
+            where: { id },
+            data: { current_balance: Number(current_balance) }
+        });
+
+        res.json(updatedBank);
+    } catch (error) {
+        console.error('Error updating bank balance:', error);
+        res.status(500).json({ message: 'Error updating bank balance' });
+    }
+};
+
 export const deleteBank = async (req, res) => {
     try {
         const { id } = req.params;

@@ -94,3 +94,51 @@ export const useUpdatePsxSummary = () => {
         },
     });
 };
+
+/**
+ * Hook to delete an entire PSX snapshot.
+ */
+export const useDeletePsxSnapshot = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: async (id) => {
+            const { data } = await api.delete(`/psx/snapshots/${id}`);
+            return data;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['psxSnapshots'] });
+        },
+    });
+};
+
+/**
+ * Hook to delete a specific symbol from a PSX snapshot.
+ */
+export const useDeleteSymbolFromSnapshot = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: async ({ snapId, symbol }) => {
+            const { data } = await api.delete(`/psx/snapshots/${snapId}/symbols/${symbol}`);
+            return data;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['psxSnapshots'] });
+        },
+    });
+};
+
+/**
+ * Hook to sync PSX data (e.g. from HTML Paste).
+ */
+export const useSyncPsxData = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: async (syncData) => {
+            const { data } = await api.post('/psx/sync-data', syncData);
+            return data;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['psxSnapshots'] });
+        },
+    });
+};

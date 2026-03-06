@@ -6,6 +6,7 @@ import {
     getBanks,
     getBankById,
     updateBank,
+    updateBankBalance,
     deleteBank
 } from '../controllers/bank.controller.js';
 
@@ -18,6 +19,7 @@ router.post('/', validate(bankSchema), createBank);
 router.get('/', getBanks);
 router.get('/:id', getBankById);
 router.put('/:id', validate(bankSchema), updateBank);
+router.put('/:id/balance', updateBankBalance);
 router.delete('/:id', deleteBank);
 
 export default router;

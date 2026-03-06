@@ -5,7 +5,10 @@ import {
     deleteBankInvestment,
     getPsxSnapshots,
     uploadPsxSnapshot,
-    updatePsxSummary
+    syncPsxData,
+    updatePsxSummary,
+    deletePsxSnapshot,
+    deleteSymbolFromSnapshot
 } from '../controllers/psx.controller.js';
 import verifyToken from '../middleware/auth.middleware.js';
 import validate, { psxSnapshotSchema, bankInvestmentSchema } from '../middleware/validate.js';
@@ -22,6 +25,9 @@ router.delete('/investments/:id', deleteBankInvestment);
 // PSX Snapshots
 router.get('/snapshots', getPsxSnapshots);
 router.post('/snapshots', validate(psxSnapshotSchema), uploadPsxSnapshot);
+router.post('/sync-data', syncPsxData);
 router.put('/snapshots/:id/summary', updatePsxSummary);
+router.delete('/snapshots/:id', deletePsxSnapshot);
+router.delete('/snapshots/:id/symbols/:symbol', deleteSymbolFromSnapshot);
 
 export default router;

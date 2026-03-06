@@ -12,6 +12,7 @@ import DatePicker from 'react-datepicker';
 import { toast } from 'sonner';
 import MaskedBalance from '../components/MaskedBalance';
 import Button from '../components/Button';
+import { useDeletePsxSnapshot, useDeleteSymbolFromSnapshot, useSyncPsxData } from '../hooks/usePsx';
 
 export default function Stocks() {
     // ---- Server State ----
@@ -24,11 +25,18 @@ export default function Stocks() {
     const addBankTx = useAddBankInvestment();
     const delBankTx = useDeleteBankInvestment();
     const updateSummary = useUpdatePsxSummary();
+    const deleteSnapshot = useDeletePsxSnapshot();
+    const deleteSymbol = useDeleteSymbolFromSnapshot();
+    const syncData = useSyncPsxData();
 
     // ---- Local State ----
     const [showBankModal, setShowBankModal] = useState(false);
     const [showSummaryModal, setShowSummaryModal] = useState(false);
+    const [showHtmlModal, setShowHtmlModal] = useState(false);
+    const [htmlContent, setHtmlContent] = useState('');
+    const [isSyncing, setIsSyncing] = useState(false);
     const [showHistory, setShowHistory] = useState(false);
+    const [openSnapshotId, setOpenSnapshotId] = useState(null);
 
     // Security States
     const [revealedSecrets, setRevealedSecrets] = useState([]);
@@ -95,13 +103,13 @@ export default function Stocks() {
                     };
 
                     const sym = findValue('security', 'symbol');
-                    const hld = parseFloat((findValue('Quantity', 'holding') || '0').toString().replace(/,/g, '')) || 0;
-                    const rate = parseFloat((findValue('Current Price', 'market_rate', 'marketRate') || '0').toString().replace(/,/g, '')) || 0;
-                    const val = parseFloat((findValue('Current Value', 'custody_val', 'custodyVal') || (hld * rate)).toString().replace(/,/g, '')) || (hld * rate);
+                    const hld = parseFloat((findValue('Quantity', 'holding', 'position') || '0').toString().replace(/,/g, '')) || 0;
+                    const rate = parseFloat((findValue('Current Price', 'market_rate', 'marketRate', 'last') || '0').toString().replace(/,/g, '')) || 0;
+                    const val = parseFloat((findValue('Current Value', 'custody_val', 'custodyVal') || (hld * rate).toString()).toString().replace(/,/g, '')) || (hld * rate);
 
                     // New detailed fields
-                    const costPerUnit = parseFloat((findValue('Cost/Unit', 'cost_per_unit') || '0').toString().replace(/,/g, ''));
-                    const totalCost = parseFloat((findValue('Total Cost', 'total_cost') || '0').toString().replace(/,/g, ''));
+                    const costPerUnit = parseFloat((findValue('Cost/Unit', 'cost_per_unit', 'purchase price') || '0').toString().replace(/,/g, '')) || 0;
+                    const totalCost = parseFloat((findValue('Total Cost', 'total_cost') || (hld * costPerUnit).toString()).toString().replace(/,/g, '')) || (hld * costPerUnit);
                     const roiPct = parseFloat((findValue('Return of Investment %', 'roi_pct') || '0').toString().replace(/,/g, '').replace('%', ''));
                     const unrealizedGL = parseFloat((findValue('Unrealized Gain / Loss', 'unrealized_gl') || '0').toString().replace(/,/g, ''));
 
@@ -188,6 +196,120 @@ export default function Stocks() {
         }
     }
 
+    const handleHtmlSync = async () => {
+        if (!htmlContent.trim()) return;
+        setIsSyncing(true);
+        try {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(htmlContent, 'text/html');
+            const allRows = Array.from(doc.querySelectorAll('tr'));
+
+            if (allRows.length === 0) {
+                toast.error('No table rows (<tr>) found in the pasted content.');
+                return;
+            }
+
+            // Identify header row based on common stock columns
+            let headerRowIndex = allRows.findIndex(row => {
+                const text = row.textContent.toLowerCase();
+                return text.includes('symbol') || text.includes('security') || text.includes('holding');
+            });
+
+            if (headerRowIndex === -1) {
+                toast.error('Could not identify a header row. Ensure your table contains column names like "Symbol" or "Security".');
+                return;
+            }
+
+            const headerCells = Array.from(allRows[headerRowIndex].querySelectorAll('th, td'));
+            const headers = headerCells.map(el => el.textContent.trim().toLowerCase());
+
+            const holdings = [];
+            let totalVal = 0;
+
+            const dataRows = allRows.slice(headerRowIndex + 1);
+            dataRows.forEach(row => {
+                const cells = Array.from(row.querySelectorAll('td'));
+                if (cells.length < 2) return;
+
+                const rowData = {};
+                headers.forEach((header, i) => {
+                    if (cells[i]) rowData[header] = cells[i].textContent.trim();
+                });
+
+                const sym = rowData['security'] || rowData['symbol'];
+                const hldStr = (rowData['quantity'] || rowData['holding'] || rowData['position'] || '0').replace(/,/g, '');
+                const hld = parseFloat(hldStr) || 0;
+                const rateStr = (rowData['current price'] || rowData['market price'] || rowData['market_rate'] || rowData['last'] || '0').replace(/,/g, '');
+                const rate = parseFloat(rateStr) || 0;
+                const valStr = (rowData['current value'] || rowData['custody value'] || rowData['custody_val'] || '').replace(/,/g, '');
+                const val = parseFloat(valStr) || (hld * rate);
+
+                const costStr = (rowData['cost/unit'] || rowData['purchase price'] || '0').replace(/,/g, '');
+                const costPerUnit = parseFloat(costStr) || 0;
+                const totalCostStr = (rowData['total cost'] || '').replace(/,/g, '');
+                const totalCost = parseFloat(totalCostStr) || (hld * costPerUnit);
+                const roiStr = (rowData['return of investment %'] || rowData['roi %'] || '0').replace(/,/g, '').replace('%', '');
+                const roiPct = parseFloat(roiStr) || 0;
+                const glStr = (rowData['unrealized gain / loss'] || rowData['unrealized_gl'] || '0').replace(/,/g, '');
+                const unrealizedGL = parseFloat(glStr) || 0;
+
+                if (sym && hld > 0) {
+                    holdings.push({
+                        symbol: sym.toUpperCase(),
+                        holding: hld,
+                        market_rate: rate,
+                        custody_val: val,
+                        cost_per_unit: costPerUnit,
+                        total_cost: totalCost,
+                        roi_pct: roiPct,
+                        unrealized_gl: unrealizedGL
+                    });
+                    totalVal += val;
+                }
+            });
+
+            if (holdings.length === 0) {
+                toast.error('No valid stock data found in pasted content.');
+                return;
+            }
+
+            await syncData.mutateAsync({
+                snapshot_date: csvDate,
+                total_custody: totalVal,
+                holdings_data: holdings
+            });
+
+            toast.success(`Synced ${holdings.length} symbols from HTML! Portfolio: PKR ${fmtPKR(totalVal)}`);
+            setShowHtmlModal(false);
+            setHtmlContent('');
+        } catch (error) {
+            console.error('Sync error', error);
+            toast.error('Error syncing data: ' + (error.response?.data?.message || error.message));
+        } finally {
+            setIsSyncing(false);
+        }
+    };
+
+    const handleDeleteSnapshot = async (id, date) => {
+        if (!window.confirm(`Delete snapshot from ${fmtDate(date)}?`)) return;
+        try {
+            await deleteSnapshot.mutateAsync(id);
+            toast.success('Snapshot deleted successfully');
+        } catch (err) {
+            toast.error('Failed to delete snapshot');
+        }
+    };
+
+    const handleDeleteSymbolFromSnapshot = async (snapId, symbol) => {
+        if (!window.confirm(`Remove ${symbol} from this history log?`)) return;
+        try {
+            await deleteSymbol.mutateAsync({ snapId, symbol });
+            toast.success(`${symbol} removed from log`);
+        } catch (err) {
+            toast.error('Failed to remove symbol');
+        }
+    };
+
     // ---- Chart preparation ----
     const chronologicalSnapshots = [...snapshots].reverse();
     const xAxisDates = chronologicalSnapshots.map(s => fmtDateShort(s.snapshot_date));
@@ -248,6 +370,17 @@ export default function Stocks() {
                         className="h-10 px-4 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-900/50 hover:bg-blue-100 dark:hover:bg-blue-900/40 shadow-sm w-full sm:w-auto"
                     >
                         <DollarSign className="w-4 h-4 mr-2" /> Bank Transfers
+                    </Button>
+
+                    <Button
+                        variant="ghost"
+                        onClick={() => {
+                            setHtmlContent('');
+                            setShowHtmlModal(true);
+                        }}
+                        className="h-10 px-4 bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300 border-neutral-200 dark:border-neutral-700 shadow-sm w-full sm:w-auto"
+                    >
+                        <Database className="w-4 h-4 mr-2 text-neutral-500" /> Paste HTML
                     </Button>
 
                     {/* Primary Split Button */}
@@ -447,7 +580,7 @@ export default function Stocks() {
                 <div className="bg-white mb-4 dark:bg-neutral-900 rounded-2xl shadow-sm border border-gray-100 dark:border-neutral-800 overflow-hidden text-sm transition-colors">
                     <div className="px-6 py-5 border-b border-gray-100 dark:border-neutral-800 flex justify-between items-center bg-gray-50 dark:bg-neutral-800/50 transition-colors">
                         <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">Latest Holdings</h3>
-                        <span className="px-3 py-1 bg-white dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 text-gray-600 dark:text-gray-300 rounded-full text-xs font-medium shadow-sm flex items-center transition-colors">
+                        <span className="px-3 py-1 bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-700 text-gray-600 dark:text-gray-300 rounded-full text-xs font-medium shadow-sm flex items-center transition-colors">
                             <Clock className="w-3 h-3 mr-1" />
                             {fmtDateLong(latestSnapshot.snapshot_date)}
                         </span>
@@ -515,6 +648,7 @@ export default function Stocks() {
                 </div>
             )}
 
+
             {/* Snapshot History List (Collapsible) */}
             {snapshots.length > 1 && (
                 <div className="bg-white mb-4 dark:bg-neutral-900 rounded-2xl shadow-sm border border-gray-100 dark:border-neutral-800 overflow-hidden transition-colors">
@@ -531,17 +665,93 @@ export default function Stocks() {
                     </Button>
 
                     {showHistory && (
-                        <div className="border-t border-gray-100 dark:border-neutral-800 p-2 bg-gray-50 dark:bg-neutral-800/50 transition-colors">
-                            {snapshots.map(s => (
-                                <div key={s.id} className="bg-white dark:bg-neutral-900 p-4 mb-2 border border-gray-100 dark:border-neutral-700 rounded-lg flex justify-between items-center text-sm shadow-sm last:mb-0 transition-colors">
-                                    <div className="font-medium text-gray-900 dark:text-gray-100">{fmtDateLong(s.snapshot_date)}</div>
-                                    <div className="text-gray-500 dark:text-gray-400 hidden sm:block">Custody: PKR {fmtPKR(s.total_custody)}</div>
-                                    <div className="text-gray-500 dark:text-gray-400 hidden md:block">Invested: PKR {fmtPKR(s.total_invested)}</div>
-                                    <div className={`font-semibold ${s.total_custody - s.total_invested >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'}`}>
-                                        ROI: {((s.total_custody - s.total_invested) / (Number(s.total_invested) || 1) * 100).toFixed(1)}%
+                        <div className="border-t border-gray-100 dark:border-neutral-800 bg-gray-50/30 dark:bg-neutral-800/20 transition-colors">
+                            {snapshots.map(s => {
+                                const isOpen = openSnapshotId === s.id;
+                                const holdings = Array.isArray(s.holdings_data) ? s.holdings_data : [];
+
+                                return (
+                                    <div key={s.id} className="border-b border-gray-100 dark:border-neutral-800 last:border-0 overflow-hidden">
+                                        {/* Snapshot Header Row */}
+                                        <div
+                                            onClick={() => setOpenSnapshotId(isOpen ? null : s.id)}
+                                            className="px-6 py-4 flex items-center justify-between cursor-pointer hover:bg-gray-50 dark:hover:bg-neutral-800/50 bg-white dark:bg-neutral-900 transition-colors"
+                                        >
+                                            <div className="flex items-center gap-4 flex-1">
+                                                <div className="flex items-center gap-2">
+                                                    {isOpen ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
+                                                    <span className="font-bold text-gray-900 dark:text-gray-100">{fmtDateLong(s.snapshot_date)}</span>
+                                                </div>
+                                                <div className="hidden sm:flex items-center gap-6 text-xs text-gray-500 dark:text-gray-400">
+                                                    <span>Custody: <span className="font-mono text-gray-700 dark:text-gray-300">{fmtPKR(s.total_custody)}</span></span>
+                                                    <span>Invested: <span className="font-mono text-gray-700 dark:text-gray-300">{fmtPKR(s.total_invested)}</span></span>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-3">
+                                                <div className={`text-xs font-bold px-2 py-0.5 rounded ${s.total_custody - s.total_invested >= 0 ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400' : 'bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400'}`}>
+                                                    ROI: {((s.total_custody - s.total_invested) / (Number(s.total_invested) || 1) * 100).toFixed(1)}%
+                                                </div>
+                                                <div className="pl-3 border-l border-gray-100 dark:border-neutral-800">
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        onClick={(e) => { e.stopPropagation(); handleDeleteSnapshot(s.id, s.snapshot_date); }}
+                                                        className="h-8 w-8 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Detailed Holdings Table (Expanded) */}
+                                        {isOpen && (
+                                            <div className="border-t border-gray-100 dark:border-neutral-800 transition-colors animate-in slide-in-from-top-2 duration-200">
+                                                <div className="overflow-x-auto">
+                                                    <table className="w-full text-xs text-left whitespace-nowrap">
+                                                        <thead>
+                                                            <tr className="bg-gray-50/50 dark:bg-neutral-800/30 text-gray-500 dark:text-gray-400 uppercase tracking-wider font-semibold">
+                                                                <th className="px-6 py-2.5">Symbol</th>
+                                                                <th className="px-6 py-2.5 text-right">Holding</th>
+                                                                <th className="px-6 py-2.5 text-right">Rate</th>
+                                                                <th className="px-6 py-2.5 text-right">Market Value</th>
+                                                                <th className="px-6 py-2.5 text-right">ROI %</th>
+                                                                <th className="px-6 py-2.5 text-center">Action</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="divide-y divide-gray-100 dark:divide-neutral-800/50 bg-white dark:bg-neutral-900">
+                                                            {holdings.map((h, hi) => (
+                                                                <tr key={hi} className="hover:bg-gray-50 dark:hover:bg-neutral-800/50 transition-colors">
+                                                                    <td className="px-6 py-3 font-bold text-gray-800 dark:text-gray-200">{h.symbol}</td>
+                                                                    <td className="px-6 py-3 text-right text-gray-600 dark:text-gray-300 font-medium">{Number(h.holding).toLocaleString()}</td>
+                                                                    <td className="px-6 py-3 text-right text-gray-500 dark:text-gray-400">{fmtPKR(h.market_rate)}</td>
+                                                                    <td className="px-6 py-3 text-right font-semibold text-gray-700 dark:text-gray-200">{fmtPKR(h.custody_val)}</td>
+                                                                    <td className="px-6 py-3 text-right font-medium">
+                                                                        <span className={glColor(h.roi_pct || 0)}>
+                                                                            {h.roi_pct >= 0 ? '+' : ''}{Number(h.roi_pct || 0).toFixed(2)}%
+                                                                        </span>
+                                                                    </td>
+                                                                    <td className="px-6 py-3 text-center">
+                                                                        <Button
+                                                                            variant="ghost"
+                                                                            size="icon"
+                                                                            onClick={(e) => { e.stopPropagation(); handleDeleteSymbolFromSnapshot(s.id, h.symbol); }}
+                                                                            className="h-8 w-8 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                                                            title={`Remove ${h.symbol} from this history log`}
+                                                                        >
+                                                                            <Trash2 className="w-4 h-4" />
+                                                                        </Button>
+                                                                    </td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     )}
                 </div>
@@ -704,6 +914,51 @@ export default function Stocks() {
                                 </Button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Paste HTML Modal */}
+            {showHtmlModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                    <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+                        <div className="px-6 py-4 border-b border-gray-100 dark:border-neutral-800 flex justify-between items-center bg-gray-50 dark:bg-neutral-800/50 transition-colors">
+                            <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 flex items-center">
+                                <Database className="w-5 h-5 text-emerald-600 dark:text-emerald-500 mr-2" />
+                                Paste PSX Portfolio HTML
+                            </h2>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => setShowHtmlModal(false)}
+                                className="h-8 w-8 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-full"
+                            >
+                                ✕
+                            </Button>
+                        </div>
+                        <div className="p-6">
+                            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                                Copy the portfolio table from your broker's portal and paste it below. We'll parse the symbols and current values.
+                            </p>
+                            <textarea
+                                className="w-full h-64 p-4 border border-gray-200 dark:border-neutral-700 rounded-xl bg-gray-50 dark:bg-neutral-800/50 text-xs font-mono dark:text-gray-300 focus:ring-2 focus:ring-emerald-500 transition-colors"
+                                placeholder="Pasted <tr>...</tr> or <table> content here..."
+                                value={htmlContent}
+                                onChange={(e) => setHtmlContent(e.target.value)}
+                            />
+                            <div className="mt-6 flex justify-end gap-3">
+                                <Button variant="outline" onClick={() => setShowHtmlModal(false)}>
+                                    Cancel
+                                </Button>
+                                <Button
+                                    onClick={handleHtmlSync}
+                                    processing={isSyncing}
+                                    className="px-6"
+                                >
+                                    Sync Data
+                                </Button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}

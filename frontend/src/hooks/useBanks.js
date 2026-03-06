@@ -51,6 +51,21 @@ export const useUpdateBank = () => {
     });
 };
 
+export const useUpdateBankBalance = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: async ({ id, current_balance }) => {
+            if (!id) throw new Error("Bank ID required for balance update");
+            const { data } = await api.put(`/banks/${id}/balance`, { current_balance });
+            return data;
+        },
+        onSuccess: (data, variables) => {
+            queryClient.invalidateQueries({ queryKey: ['banks'] });
+            queryClient.invalidateQueries({ queryKey: ['banks', variables.id] });
+        },
+    });
+};
+
 export const useDeleteBank = () => {
     const queryClient = useQueryClient();
     return useMutation({
