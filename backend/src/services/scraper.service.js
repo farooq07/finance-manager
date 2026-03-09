@@ -22,40 +22,35 @@ export async function scrapePSX(tickers = []) {
 
             const companyName = await page.$eval('.quote__name', el => el.textContent.trim());
             const priceText = await page.$eval('.quote__close', el => el.textContent.trim());
-            const changeText = await page.$eval('.quote__change', el => el.textContent.trim());
+            const changeValueText = await page.$eval('.change__value', el => el.textContent.trim());
+            const changePercentText = await page.$eval('.change__percent', el => el.textContent.trim());
 
-            const stats = await page.$$eval('.stats_item', items => {
-                const data = {};
-                for (const item of items) {
-                    const label = item.querySelector('.stats_label')?.textContent?.trim();
+            const stats = await page.$eval('.stats.stats--noborder', container => {
+                const items = Array.from(container.querySelectorAll('.stats_item'));
+                const res = {};
+                items.forEach(item => {
+                    const label = item.querySelector('.stats_label')?.textContent?.trim()?.toLowerCase();
                     const value = item.querySelector('.stats_value')?.textContent?.trim();
                     if (label && value) {
-                        data[label] = value;
+                        res[label] = value;
                     }
-                }
-                return data;
+                });
+                return res;
             });
 
-            // Try to parse the change
-            let change = 0;
-            let changePct = 0;
-            const changeMatch = changeText.match(/([\-\+]?[\d\,]+\.?\d*)\s*\(([\-\+]?[\d\,]+\.?\d*)%\)/);
-            if (changeMatch) {
-                change = parseFloat(changeMatch[1].replace(/,/g, ''));
-                changePct = parseFloat(changeMatch[2].replace(/,/g, ''));
-            } else {
-                change = parseFloat(changeText.split(' ')[0].replace(/,/g, '')) || 0;
-            }
+            const parseNumber = (str) => {
+                if (!str) return 0;
+                // Remove Rs. prefix and everything except digits, decimal, and minus
+                const clean = str.replace(/Rs\./gi, '').replace(/[^0-9.-]/g, '');
+                return parseFloat(clean) || 0;
+            };
 
-            // Parse other fields safely
-            const parseNumber = (str) => parseFloat((str || '0').replace(/[,KMB]/gi, '')) || 0;
-
-            const volumeStr = stats['Volume'] || '0';
-            const volume = parseInt(volumeStr.replace(/,/g, '')) || 0;
-            const high = parseNumber(stats['High']);
-            const low = parseNumber(stats['Low']);
-            const marketCapStr = stats['Market Cap'] || '0';
-            const marketCap = parseNumber(marketCapStr);
+            const change = parseNumber(changeValueText);
+            const changePct = parseNumber(changePercentText);
+            const volume = parseInt((stats['volume'] || '0').replace(/,/g, ''), 10) || 0;
+            const high = parseNumber(stats['high']);
+            const low = parseNumber(stats['low']);
+            const marketCap = parseNumber(stats['market cap']);
 
             results.push({
                 ticker,
@@ -67,6 +62,7 @@ export async function scrapePSX(tickers = []) {
                 high,
                 low,
                 marketCap,
+                lastUpdated: new Date()
             });
 
             await page.close();
