@@ -11,6 +11,7 @@ import Dashboard from './pages/Dashboard';
 import Expenses from './pages/Expenses';
 import MutualFunds from './pages/MutualFunds';
 import Stocks from './pages/Stocks';
+import StockDetail from './pages/StockDetail';
 import DuesLedger from './pages/DuesLedger';
 import RentTracker from './pages/RentTracker';
 import Accounts from './pages/Accounts';
@@ -51,6 +52,7 @@ function App() {
               <Route path="expenses" element={<Expenses />} />
               <Route path="mutual-funds" element={<MutualFunds />} />
               <Route path="stocks" element={<Stocks />} />
+              <Route path="stocks/:id" element={<StockDetail />} />
               <Route path="dues" element={<DuesLedger />} />
               <Route path="rents" element={<RentTracker />} />
               <Route path="psx-engine" element={<Stocks />} />

@@ -20,7 +20,9 @@
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.0.2",
+    "node-cron": "^4.2.1",
     "nodemailer": "^8.0.1",
+    "playwright": "^1.58.2",
     "xlsx": "^0.18.5",
     "zod": "^4.3.6"
   },

@@ -1,7 +1,8 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Papa from 'papaparse';
 import ReactECharts from 'echarts-for-react';
-import { Upload, Plus, Trash2, TrendingUp, DollarSign, Calendar, Clock, Database, ChevronDown, ChevronRight, Activity, Percent, Eye, EyeOff, Briefcase, Loader2 } from 'lucide-react';
+import { Upload, Plus, Trash2, TrendingUp, DollarSign, Calendar, Clock, Database, ChevronDown, ChevronRight, Activity, Percent, Eye, EyeOff, Briefcase, Loader2, RefreshCw } from 'lucide-react';
 import { usePsxSnapshots, useUploadPsxSnapshot, useBankInvestments, useAddBankInvestment, useDeleteBankInvestment, useUpdatePsxSummary } from '../hooks/usePsx';
 import { useBrokerAccounts } from '../hooks/useBrokerAccounts';
 import { fmtPKR, pctChange, glColor, fmtGL } from '../utils/currency';
@@ -13,12 +14,17 @@ import { toast } from 'sonner';
 import MaskedBalance from '../components/MaskedBalance';
 import Button from '../components/Button';
 import { useDeletePsxSnapshot, useDeleteSymbolFromSnapshot, useSyncPsxData } from '../hooks/usePsx';
+import { usePsxStocks, useSyncPsxStocks } from '../hooks/useStocks';
+
+const DEFAULT_TARGETS = ['HUBC', 'FFL', 'FFC', 'MEBL', 'OGDC'];
 
 export default function Stocks() {
+    const navigate = useNavigate();
     // ---- Server State ----
     const { data: snapshots = [], isLoading: loadingSnapshots } = usePsxSnapshots();
     const { data: bankData, isLoading: loadingBank } = useBankInvestments();
     const { data: brokerAccounts = [], isLoading: loadingBrokers } = useBrokerAccounts();
+    const { data: liveStocks = [], isLoading: loadingLiveStocks } = usePsxStocks();
 
     // Mutations
     const uploadSnapshot = useUploadPsxSnapshot();
@@ -28,6 +34,7 @@ export default function Stocks() {
     const deleteSnapshot = useDeletePsxSnapshot();
     const deleteSymbol = useDeleteSymbolFromSnapshot();
     const syncData = useSyncPsxData();
+    const syncLiveStocks = useSyncPsxStocks();
 
     // ---- Local State ----
     const [showBankModal, setShowBankModal] = useState(false);
@@ -363,7 +370,22 @@ export default function Stocks() {
                 <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 transition-colors">PSX Portfolio Tracking</h1>
 
                 <div className="flex flex-col sm:flex-row flex-wrap items-center gap-3 w-full md:w-auto">
-                    {/* Soft Themed Button */}
+                    <Button
+                        variant="primary"
+                        onClick={async () => {
+                            try {
+                                await syncLiveStocks.mutateAsync();
+                                toast.success('Live stock prices synced manually.');
+                            } catch (error) {
+                                toast.error('Failed to sync live stock prices.');
+                            }
+                        }}
+                        processing={syncLiveStocks.isPending}
+                        className="h-10 px-4 w-full sm:w-auto"
+                    >
+                        <RefreshCw className="w-4 h-4 mr-2" /> Sync Live Data
+                    </Button>
+
                     <Button
                         variant="secondary"
                         onClick={() => setShowBankModal(true)}
@@ -444,6 +466,88 @@ export default function Stocks() {
                     </div>
                 </div>
             )}
+
+            {/* Live Tracked Stocks Table */}
+            <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-sm border border-gray-100 dark:border-neutral-800 overflow-hidden text-sm transition-colors mb-8">
+                <div className="px-6 py-5 border-b border-gray-100 dark:border-neutral-800 flex justify-between items-center bg-blue-50 dark:bg-blue-900/20 transition-colors">
+                    <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 flex items-center">
+                        <Activity className="w-5 h-5 mr-2 text-blue-600 dark:text-blue-400" /> Live PSX Tracked Stocks
+                    </h3>
+                    {liveStocks.length === 0 && (
+                        <span className="text-xs font-semibold text-blue-700 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/40 px-3 py-1 rounded-full animate-pulse border border-blue-200 dark:border-blue-800">
+                            Awaiting initial manual sync
+                        </span>
+                    )}
+                </div>
+
+                <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200 dark:divide-neutral-800 transition-colors">
+                        <thead className="bg-white dark:bg-neutral-900 tracking-wider text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase text-left transition-colors">
+                            <tr>
+                                <th className="px-6 py-4">Symbol</th>
+                                <th className="px-6 py-4">Company</th>
+                                <th className="px-6 py-4 text-right">Price</th>
+                                <th className="px-6 py-4 text-right">Change</th>
+                                <th className="px-6 py-4 text-right">Volume</th>
+                                <th className="px-6 py-4 text-right">High / Low</th>
+                                <th className="px-6 py-4 text-right">Last Updated</th>
+                            </tr>
+                        </thead>
+                        <tbody className="bg-white dark:bg-neutral-900 divide-y divide-gray-100 dark:divide-neutral-800 transition-colors">
+                            {liveStocks.length > 0 ? liveStocks.map((stock, idx) => {
+                                return (
+                                    <tr
+                                        key={idx}
+                                        onClick={() => navigate(`/stocks/${stock.ticker}`)}
+                                        className="hover:bg-blue-50/50 dark:hover:bg-blue-900/10 cursor-pointer transition-colors"
+                                    >
+                                        <td className="px-6 py-3 whitespace-nowrap font-bold text-blue-600 dark:text-blue-400 underline underline-offset-2">
+                                            {stock.ticker}
+                                        </td>
+                                        <td className="px-6 py-3 whitespace-nowrap text-gray-600 dark:text-gray-300 font-medium">
+                                            {stock.companyName}
+                                        </td>
+                                        <td className="px-6 py-3 whitespace-nowrap text-right font-medium text-gray-900 dark:text-gray-100">
+                                            {fmtPKR(stock.price)}
+                                        </td>
+                                        <td className="px-6 py-3 whitespace-nowrap text-right">
+                                            <div className={`font-medium ${glColor(stock.change)} flex flex-col items-end`}>
+                                                <span>{fmtPKR(stock.change)}</span>
+                                                <span className="text-[10px] opacity-80">{stock.changePct > 0 ? '+' : ''}{stock.changePct}%</span>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-3 whitespace-nowrap text-right text-gray-600 dark:text-gray-300">
+                                            {Number(stock.volume).toLocaleString()}
+                                        </td>
+                                        <td className="px-6 py-3 whitespace-nowrap text-right text-gray-600 dark:text-gray-300">
+                                            {fmtPKR(stock.high)} / {fmtPKR(stock.low)}
+                                        </td>
+                                        <td className="px-6 py-3 whitespace-nowrap text-right text-gray-500 dark:text-gray-400 text-xs">
+                                            {fmtDateLong(stock.lastUpdated)}
+                                        </td>
+                                    </tr>
+                                );
+                            }) : DEFAULT_TARGETS.map(ticker => (
+                                <tr
+                                    key={ticker}
+                                    onClick={() => navigate(`/stocks/${ticker}`)}
+                                    className="hover:bg-blue-50/50 dark:hover:bg-blue-900/10 cursor-pointer transition-colors opacity-70"
+                                >
+                                    <td className="px-6 py-4 whitespace-nowrap font-bold text-blue-600 dark:text-blue-400 underline underline-offset-2">
+                                        {ticker}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-gray-400 dark:text-gray-500 italic">Target Company</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-right text-gray-400">—</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-right text-gray-400">—</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-right text-gray-400">—</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-right text-gray-400">—</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-right text-gray-400 italic text-xs">Awaiting sync...</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
 
             {/* Top Stat Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4">

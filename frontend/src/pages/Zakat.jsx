@@ -143,25 +143,25 @@ export default function Zakat() {
                         <table className="min-w-full text-left text-sm whitespace-nowrap">
                             <thead>
                                 <tr className="bg-gray-50/50 dark:bg-neutral-800/30 text-gray-500 dark:text-gray-400 uppercase tracking-wider font-semibold text-xs border-b border-gray-100 dark:border-neutral-800">
-                                    <th className="px-6 py-4">Date</th>
-                                    <th className="px-6 py-4">Description</th>
-                                    <th className="px-6 py-4 text-right">Amount</th>
-                                    <th className="px-6 py-4 text-center">Action</th>
+                                    <th className="px-6 py-1">Date</th>
+                                    <th className="px-6 py-1">Description</th>
+                                    <th className="px-6 py-1 text-right">Amount</th>
+                                    <th className="px-6 py-1 text-center">Action</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100 dark:divide-neutral-800/50">
                                 {entries.map((entry) => (
                                     <tr key={entry.id} className="hover:bg-gray-50 dark:hover:bg-neutral-800/50 transition-colors">
-                                        <td className="px-6 py-4 font-medium text-gray-900 dark:text-gray-100">
+                                        <td className="px-6 py-1 font-medium text-gray-900 dark:text-gray-100">
                                             {fmtDateLong(entry.date)}
                                         </td>
-                                        <td className="px-6 py-4 text-gray-600 dark:text-gray-300">
+                                        <td className="px-6 py-1 text-gray-600 dark:text-gray-300">
                                             {entry.description}
                                         </td>
-                                        <td className="px-6 py-4 text-right font-medium text-emerald-600 dark:text-emerald-400">
+                                        <td className="px-6 py-1 text-right font-medium text-emerald-600 dark:text-emerald-400">
                                             {fmtPKR(entry.amount)}
                                         </td>
-                                        <td className="px-6 py-4 text-center">
+                                        <td className="px-6 py-1 text-center">
                                             <Button
                                                 variant="ghost"
                                                 size="icon"

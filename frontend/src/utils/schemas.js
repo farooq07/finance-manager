@@ -64,6 +64,17 @@ export const stockTransactionSchema = z.object({
     brokerage_fee: z.coerce.number().min(0).optional(),
 });
 
+export const psxStockSchema = z.object({
+    ticker: z.string().min(1),
+    companyName: z.string().min(1),
+    price: z.number().nonnegative(),
+    change: z.number(),
+    changePct: z.number(),
+    volume: z.string().or(z.number()),
+    high: z.number(),
+    low: z.number(),
+});
+
 // ========== Helper: Extract Zod errors into a flat object ==========
 
 export const getFormErrors = (result) => {

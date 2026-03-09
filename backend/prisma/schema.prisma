@@ -291,3 +291,20 @@ model Asset {
 
   @@map("assets")
 }
+
+model PsxStock {
+  id          String   @id @default(cuid())
+  ticker      String   @unique  // "FFL", "ENGRO"
+  companyName String
+  price       Decimal  @db.Decimal(10, 2)
+  change      Decimal  @db.Decimal(10, 2)
+  changePct   Decimal  @db.Decimal(5, 2)
+  volume      BigInt
+  high        Decimal  @db.Decimal(10, 2)
+  low         Decimal  @db.Decimal(10, 2)
+  marketCap   Decimal? @db.Decimal(18, 2)
+  lastUpdated DateTime @updatedAt
+  createdAt   DateTime @default(now())
+
+  @@map("psx_stocks")
+}
