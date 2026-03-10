@@ -5,6 +5,7 @@ import DatePickerInput from '../components/DatePickerInput';
 import { toast } from 'sonner';
 import Button from '../components/Button';
 import { TableSkeleton } from '../components/Skeleton';
+import Modal from '../components/Modal';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
@@ -14,6 +15,7 @@ export default function RentTracker() {
     const [showForm, setShowForm] = useState(false);
     const [editingId, setEditingId] = useState(null);
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+    const [deleteModal, setDeleteModal] = useState({ isOpen: false, id: null });
 
     const emptyForm = {
         month: MONTHS[new Date().getMonth()],
@@ -72,13 +74,21 @@ export default function RentTracker() {
         setShowForm(true);
     };
 
-    const handleDelete = async (id) => {
-        if (!window.confirm('Delete this rent entry?')) return;
-        try {
-            await api.delete(`/rents/${id}`);
-            fetchEntries();
-        } catch (error) {
-            console.error('Error deleting entry', error);
+    const handleDelete = (id) => {
+        setDeleteModal({ isOpen: true, id });
+    };
+
+    const confirmDelete = async () => {
+        if (deleteModal.id) {
+            try {
+                await api.delete(`/rents/${deleteModal.id}`);
+                fetchEntries();
+                toast.success('Rent entry deleted');
+            } catch (error) {
+                toast.error('Failed to delete entry');
+            } finally {
+                setDeleteModal({ isOpen: false, id: null });
+            }
         }
     };
 
@@ -327,6 +337,22 @@ export default function RentTracker() {
                     </div>
                 )}
             </div>
+            <Modal
+                isOpen={deleteModal.isOpen}
+                onClose={() => setDeleteModal({ isOpen: false, id: null })}
+                title="Delete Rent Entry"
+                description="Are you sure you want to delete this rent entry?"
+                type="danger"
+                primaryAction={{
+                    label: 'Delete',
+                    onClick: confirmDelete,
+                    variant: 'danger'
+                }}
+                secondaryAction={{
+                    label: 'Cancel',
+                    onClick: () => setDeleteModal({ isOpen: false, id: null })
+                }}
+            />
         </div>
     );
 }

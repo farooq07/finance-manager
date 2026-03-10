@@ -5,6 +5,7 @@ import { fmtDateLong } from '../utils/dates';
 import Button from '../components/Button';
 import MaskedBalance from '../components/MaskedBalance';
 import { TableSkeleton, StatSkeleton } from '../components/Skeleton';
+import Modal from '../components/Modal';
 import { HeartHandshake, Plus, Trash2, Calculator, Calendar } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -16,6 +17,7 @@ export default function Zakat() {
     const deleteZakat = useDeleteZakatEntry();
 
     const [form, setForm] = useState({ amount: '', description: '', date: new Date().toISOString().split('T')[0] });
+    const [deleteModal, setDeleteModal] = useState({ isOpen: false, id: null });
 
     if (loadingZakat || loadingDashboard) return (
         <div className="space-y-6">
@@ -44,13 +46,19 @@ export default function Zakat() {
         }
     };
 
-    const handleDelete = async (id) => {
-        if (window.confirm('Are you sure you want to delete this Zakat entry?')) {
+    const handleDelete = (id) => {
+        setDeleteModal({ isOpen: true, id });
+    };
+
+    const confirmDelete = async () => {
+        if (deleteModal.id) {
             try {
-                await deleteZakat.mutateAsync(id);
+                await deleteZakat.mutateAsync(deleteModal.id);
                 toast.success('Deleted successfully');
             } catch (error) {
                 toast.error('Failed to delete');
+            } finally {
+                setDeleteModal({ isOpen: false, id: null });
             }
         }
     };
@@ -184,6 +192,23 @@ export default function Zakat() {
                     </div>
                 )}
             </div>
+            <Modal
+                isOpen={deleteModal.isOpen}
+                onClose={() => setDeleteModal({ isOpen: false, id: null })}
+                title="Delete Zakat Entry"
+                description="Are you sure you want to delete this Zakat entry?"
+                type="danger"
+                primaryAction={{
+                    label: 'Delete',
+                    onClick: confirmDelete,
+                    isLoading: deleteZakat.isPending,
+                    variant: 'danger'
+                }}
+                secondaryAction={{
+                    label: 'Cancel',
+                    onClick: () => setDeleteModal({ isOpen: false, id: null })
+                }}
+            />
         </div>
     );
 }

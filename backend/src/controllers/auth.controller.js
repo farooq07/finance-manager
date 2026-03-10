@@ -42,7 +42,7 @@ export const register = async (req, res) => {
             { expiresIn: '7d' }
         );
 
-        res.status(201).json({ user, token });
+        res.status(201).json({ user: { ...user, hasPin: false }, token });
 
     } catch (error) {
         console.error('Register Error:', error);
@@ -178,7 +178,16 @@ export const verifyOtp = async (req, res) => {
             { expiresIn: '7d' }
         );
 
-        res.json({ message: 'Login successful', token, user: { id: user.id, name: user.name, email: user.email } });
+        res.json({
+            message: 'Login successful',
+            token,
+            user: {
+                id: user.id,
+                name: user.name,
+                email: user.email,
+                hasPin: !!user.app_pin_code
+            }
+        });
     } catch (error) {
         console.error('Verify OTP Error:', error);
         res.status(500).json({ message: 'Server error verifying OTP' });

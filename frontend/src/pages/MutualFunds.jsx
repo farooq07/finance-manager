@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import api from '../services/api';
+import { toast } from 'sonner';
 import { Upload, Plus, ChevronDown, ChevronRight, Loader2, Trash2, Calendar, TrendingUp, TrendingDown } from 'lucide-react';
+import Modal from '../components/Modal';
 import ReactECharts from 'echarts-for-react';
 import { StatSkeleton, ChartSkeleton, TableSkeleton } from '../components/Skeleton';
 import Button from '../components/Button';
@@ -26,6 +28,7 @@ export default function MutualFunds() {
     const [htmlContent, setHtmlContent] = useState('');
     const [isSyncing, setIsSyncing] = useState(false);
     const [selectedSnapIds, setSelectedSnapIds] = useState(new Set());
+    const [deleteModal, setDeleteModal] = useState({ isOpen: false, title: '', description: '', onConfirm: null, isLoading: false });
 
     const fetchFunds = async () => {
         try {
@@ -100,7 +103,7 @@ export default function MutualFunds() {
             const doc = parser.parseFromString(htmlContent, 'text/html');
             const allRows = Array.from(doc.querySelectorAll('tr'));
             if (allRows.length === 0) {
-                alert('No table rows (<tr>) found in the pasted content.');
+                toast.error('No table rows (<tr>) found in the pasted content.');
                 return;
             }
             let headerRowIndex = allRows.findIndex(row => {
@@ -108,7 +111,7 @@ export default function MutualFunds() {
                 return text.includes('fund') || text.includes('units') || text.includes('nav');
             });
             if (headerRowIndex === -1) {
-                alert('Could not identify a header row. Ensure your table contains column names like "Funds", "Units", or "NAV".');
+                toast.error('Could not identify a header row. Ensure your table contains column names like "Funds", "Units", or "NAV".');
                 return;
             }
             const headerCells = Array.from(allRows[headerRowIndex].querySelectorAll('th, td'));
@@ -123,7 +126,7 @@ export default function MutualFunds() {
                 return rowData;
             }).filter(r => r !== null && Object.keys(r).length > 2);
             if (dataRows.length === 0) {
-                alert(`Found headers: [${headers.join(', ')}], but no valid data rows below them. Check if the table content is properly formatted.`);
+                toast.error(`Found headers: [${headers.join(', ')}], but no valid data rows below them.`);
                 return;
             }
             const res = await api.post('/mutual-funds/sync-data', { rows: dataRows });
@@ -134,43 +137,73 @@ export default function MutualFunds() {
             fetchSnapshots();
         } catch (error) {
             console.error('Sync error', error);
-            alert('Error syncing data: ' + (error.response?.data?.message || error.message));
+            toast.error('Error syncing data: ' + (error.response?.data?.message || error.message));
         } finally {
             setIsSyncing(false);
         }
     };
 
-    const handleDeleteSnapshot = async (id, date) => {
-        if (!window.confirm(`Delete snapshot from ${fmtDate(date)}?`)) return;
-        try {
-            await api.delete(`/mutual-funds/snapshots/${id}`);
-            setSelectedSnapIds(prev => { const n = new Set(prev); n.delete(id); return n; });
-            fetchSnapshots();
-        } catch (error) {
-            console.error('Error deleting snapshot', error);
-        }
+    const handleDeleteSnapshot = (id, date) => {
+        setDeleteModal({
+            isOpen: true,
+            title: 'Delete Snapshot',
+            description: `Are you sure you want to delete the snapshot from ${fmtDate(date)}?`,
+            onConfirm: async () => {
+                setDeleteModal(prev => ({ ...prev, isLoading: true }));
+                try {
+                    await api.delete(`/mutual-funds/snapshots/${id}`);
+                    setSelectedSnapIds(prev => { const n = new Set(prev); n.delete(id); return n; });
+                    fetchSnapshots();
+                    toast.success('Snapshot deleted');
+                } catch (error) {
+                    toast.error('Failed to delete snapshot');
+                } finally {
+                    setDeleteModal({ isOpen: false });
+                }
+            }
+        });
     };
 
-    const handleBulkDeleteSnapshots = async () => {
+    const handleBulkDeleteSnapshots = () => {
         if (selectedSnapIds.size === 0) return;
-        if (!window.confirm(`Delete ${selectedSnapIds.size} selected snapshot(s)?`)) return;
-        try {
-            await api.post('/mutual-funds/snapshots/bulk-delete', { ids: Array.from(selectedSnapIds) });
-            setSelectedSnapIds(new Set());
-            fetchSnapshots();
-        } catch (error) {
-            console.error('Error bulk deleting snapshots', error);
-        }
+        setDeleteModal({
+            isOpen: true,
+            title: 'Bulk Delete Snapshots',
+            description: `Are you sure you want to delete ${selectedSnapIds.size} selected snapshot(s)?`,
+            onConfirm: async () => {
+                setDeleteModal(prev => ({ ...prev, isLoading: true }));
+                try {
+                    await api.post('/mutual-funds/snapshots/bulk-delete', { ids: Array.from(selectedSnapIds) });
+                    setSelectedSnapIds(new Set());
+                    fetchSnapshots();
+                    toast.success('Snapshots deleted');
+                } catch (error) {
+                    toast.error('Failed to bulk delete snapshots');
+                } finally {
+                    setDeleteModal({ isOpen: false });
+                }
+            }
+        });
     };
 
-    const handleDeleteFundFromSnapshot = async (snapId, symbol) => {
-        if (!window.confirm(`Remove ${symbol} from this snapshot?`)) return;
-        try {
-            await api.delete(`/mutual-funds/snapshots/${snapId}/funds/${symbol}`);
-            fetchSnapshots();
-        } catch (error) {
-            console.error('Error deleting fund from snapshot', error);
-        }
+    const handleDeleteFundFromSnapshot = (snapId, symbol) => {
+        setDeleteModal({
+            isOpen: true,
+            title: 'Remove Fund',
+            description: `Are you sure you want to remove ${symbol} from this snapshot?`,
+            onConfirm: async () => {
+                setDeleteModal(prev => ({ ...prev, isLoading: true }));
+                try {
+                    await api.delete(`/mutual-funds/snapshots/${snapId}/funds/${symbol}`);
+                    fetchSnapshots();
+                    toast.success('Fund removed from snapshot');
+                } catch (error) {
+                    toast.error('Failed to remove fund');
+                } finally {
+                    setDeleteModal({ isOpen: false });
+                }
+            }
+        });
     };
 
     const toggleSnapSelect = (id, e) => {
@@ -178,27 +211,47 @@ export default function MutualFunds() {
         setSelectedSnapIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
     };
 
-    const handleDelete = async (id, name) => {
-        if (!window.confirm(`Delete "${name}" from your portfolio?`)) return;
-        try {
-            await api.delete(`/mutual-funds/${id}`);
-            setSelectedIds(prev => { const n = new Set(prev); n.delete(id); return n; });
-            fetchFunds();
-        } catch (error) {
-            console.error('Error deleting fund', error);
-        }
+    const handleDelete = (id, name) => {
+        setDeleteModal({
+            isOpen: true,
+            title: 'Delete Fund',
+            description: `Are you sure you want to delete "${name}" from your portfolio?`,
+            onConfirm: async () => {
+                setDeleteModal(prev => ({ ...prev, isLoading: true }));
+                try {
+                    await api.delete(`/mutual-funds/${id}`);
+                    setSelectedIds(prev => { const n = new Set(prev); n.delete(id); return n; });
+                    fetchFunds();
+                    toast.success('Fund deleted');
+                } catch (error) {
+                    toast.error('Failed to delete fund');
+                } finally {
+                    setDeleteModal({ isOpen: false });
+                }
+            }
+        });
     };
 
-    const handleBulkDelete = async () => {
+    const handleBulkDelete = () => {
         if (selectedIds.size === 0) return;
-        if (!window.confirm(`Delete ${selectedIds.size} selected fund(s)?`)) return;
-        try {
-            await api.post('/mutual-funds/bulk-delete', { ids: Array.from(selectedIds) });
-            setSelectedIds(new Set());
-            fetchFunds();
-        } catch (error) {
-            console.error('Error bulk deleting', error);
-        }
+        setDeleteModal({
+            isOpen: true,
+            title: 'Bulk Delete Funds',
+            description: `Are you sure you want to delete ${selectedIds.size} selected fund(s)?`,
+            onConfirm: async () => {
+                setDeleteModal(prev => ({ ...prev, isLoading: true }));
+                try {
+                    await api.post('/mutual-funds/bulk-delete', { ids: Array.from(selectedIds) });
+                    setSelectedIds(new Set());
+                    fetchFunds();
+                    toast.success('Funds deleted');
+                } catch (error) {
+                    toast.error('Failed to bulk delete');
+                } finally {
+                    setDeleteModal({ isOpen: false });
+                }
+            }
+        });
     };
 
     const toggleSelect = (id) => {
@@ -540,6 +593,24 @@ export default function MutualFunds() {
                     })}
                 </div>
             )}
+            {/* Global Delete Modal */}
+            <Modal
+                isOpen={deleteModal.isOpen}
+                onClose={() => setDeleteModal({ isOpen: false })}
+                title={deleteModal.title}
+                description={deleteModal.description}
+                type="danger"
+                primaryAction={{
+                    label: 'Confirm',
+                    onClick: deleteModal.onConfirm,
+                    isLoading: deleteModal.isLoading,
+                    variant: 'danger'
+                }}
+                secondaryAction={{
+                    label: 'Cancel',
+                    onClick: () => setDeleteModal({ isOpen: false })
+                }}
+            />
         </div>
     );
 }

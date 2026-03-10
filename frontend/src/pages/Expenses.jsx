@@ -5,6 +5,7 @@ import { TableSkeleton } from '../components/Skeleton';
 import DatePickerInput from '../components/DatePickerInput';
 import MaskedBalance from '../components/MaskedBalance';
 import Button from '../components/Button';
+import Modal from '../components/Modal';
 import TextInput from '../components/TextInput';
 import { toast } from 'sonner';
 import { useBanks } from '../hooks/useBanks';
@@ -25,6 +26,7 @@ export default function Expenses() {
     const [loading, setLoading] = useState(true);
     const [showForm, setShowForm] = useState(false);
     const [showBatchModal, setShowBatchModal] = useState(false);
+    const [deleteModal, setDeleteModal] = useState({ isOpen: false, id: null });
 
     // Monthly View State
     const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
@@ -141,13 +143,21 @@ export default function Expenses() {
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
-    const handleDelete = async (id) => {
-        if (!window.confirm('Are you sure you want to delete this expense?')) return;
-        try {
-            await api.delete(`/expenses/${id}`);
-            fetchExpenses();
-        } catch (error) {
-            console.error('Error deleting expense', error);
+    const handleDelete = (id) => {
+        setDeleteModal({ isOpen: true, id });
+    };
+
+    const confirmDelete = async () => {
+        if (deleteModal.id) {
+            try {
+                await api.delete(`/expenses/${deleteModal.id}`);
+                fetchExpenses();
+                toast.success('Expense deleted');
+            } catch (error) {
+                toast.error('Failed to delete expense');
+            } finally {
+                setDeleteModal({ isOpen: false, id: null });
+            }
         }
     };
 
@@ -517,6 +527,22 @@ export default function Expenses() {
                     </tbody>
                 </table>
             </div>
+            <Modal
+                isOpen={deleteModal.isOpen}
+                onClose={() => setDeleteModal({ isOpen: false, id: null })}
+                title="Delete Expense"
+                description="Are you sure you want to delete this expense?"
+                type="danger"
+                primaryAction={{
+                    label: 'Delete',
+                    onClick: confirmDelete,
+                    variant: 'danger'
+                }}
+                secondaryAction={{
+                    label: 'Cancel',
+                    onClick: () => setDeleteModal({ isOpen: false, id: null })
+                }}
+            />
         </div>
     );
 }

@@ -38,6 +38,7 @@ export default function DuesLedger() {
     // Inline editing state
     const [editingTx, setEditingTx] = useState(null); // tx id being edited
     const [editForm, setEditForm] = useState({ description: '', amount: '', transaction_date: '', transaction_type: '' });
+    const [deleteModal, setDeleteModal] = useState({ isOpen: false, type: '', id: null, title: '', description: '', onConfirm: null });
 
     const fetchPeople = async () => {
         try {
@@ -86,15 +87,26 @@ export default function DuesLedger() {
         }
     };
 
-    const handleDelete = async (id) => {
-        if (!window.confirm('Remove this person and all their ledger history?')) return;
-        try {
-            await api.delete(`/dues/${id}`);
-            if (expandedPerson === id) setExpandedPerson(null);
-            fetchPeople();
-        } catch (error) {
-            console.error('Error deleting person', error);
-        }
+    const handleDelete = (id) => {
+        setDeleteModal({
+            isOpen: true,
+            type: 'person',
+            id,
+            title: 'Remove Person',
+            description: 'Remove this person and all their ledger history? This cannot be undone.',
+            onConfirm: async () => {
+                try {
+                    await api.delete(`/dues/${id}`);
+                    if (expandedPerson === id) setExpandedPerson(null);
+                    fetchPeople();
+                    toast.success('Person removed');
+                } catch (error) {
+                    toast.error('Failed to remove person');
+                } finally {
+                    setDeleteModal({ isOpen: false });
+                }
+            }
+        });
     };
 
     const handleEditPerson = async (e) => {
@@ -158,16 +170,26 @@ export default function DuesLedger() {
         });
     };
 
-    const handleDeleteSelected = async () => {
+    const handleDeleteSelected = () => {
         if (selectedTxs.size === 0) return;
-        if (!window.confirm(`Delete ${selectedTxs.size} selected entries?`)) return;
-        try {
-            await api.post('/dues/transactions/delete', { ids: Array.from(selectedTxs) });
-            setSelectedTxs(new Set());
-            fetchPeople();
-        } catch (error) {
-            console.error('Error deleting transactions', error);
-        }
+        setDeleteModal({
+            isOpen: true,
+            type: 'bulk',
+            title: 'Delete Entries',
+            description: `Are you sure you want to delete ${selectedTxs.size} selected entries?`,
+            onConfirm: async () => {
+                try {
+                    await api.post('/dues/transactions/delete', { ids: Array.from(selectedTxs) });
+                    setSelectedTxs(new Set());
+                    fetchPeople();
+                    toast.success('Entries deleted');
+                } catch (error) {
+                    toast.error('Failed to delete entries');
+                } finally {
+                    setDeleteModal({ isOpen: false });
+                }
+            }
+        });
     };
 
     const handleBulkTypeChange = async (type) => {
@@ -644,6 +666,22 @@ export default function DuesLedger() {
                     <p className="text-gray-400 dark:text-gray-500 text-sm mt-1">Click "Add Person" to start tracking dues</p>
                 </div>
             )}
+            <Modal
+                isOpen={deleteModal.isOpen}
+                onClose={() => setDeleteModal({ isOpen: false })}
+                title={deleteModal.title}
+                description={deleteModal.description}
+                type="danger"
+                primaryAction={{
+                    label: 'Delete',
+                    onClick: deleteModal.onConfirm,
+                    variant: 'danger'
+                }}
+                secondaryAction={{
+                    label: 'Cancel',
+                    onClick: () => setDeleteModal({ isOpen: false })
+                }}
+            />
         </div>
     );
 }

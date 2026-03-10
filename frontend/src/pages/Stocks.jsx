@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Papa from 'papaparse';
 import ReactECharts from 'echarts-for-react';
 import { Upload, Plus, Trash2, TrendingUp, DollarSign, Calendar, Clock, Database, ChevronDown, ChevronRight, Activity, Percent, Eye, EyeOff, Briefcase, Loader2, RefreshCw } from 'lucide-react';
+import { usePin } from '../context/PinContext';
 import { usePsxSnapshots, useUploadPsxSnapshot, useBankInvestments, useAddBankInvestment, useDeleteBankInvestment, useUpdatePsxSummary } from '../hooks/usePsx';
 import { useBrokerAccounts } from '../hooks/useBrokerAccounts';
 import { fmtPKR, pctChange, glColor, fmtGL } from '../utils/currency';
@@ -15,11 +16,13 @@ import MaskedBalance from '../components/MaskedBalance';
 import Button from '../components/Button';
 import { useDeletePsxSnapshot, useDeleteSymbolFromSnapshot, useSyncPsxData } from '../hooks/usePsx';
 import { usePsxStocks, useSyncPsxStocks } from '../hooks/useStocks';
+import Modal from '../components/Modal';
 
 const DEFAULT_TARGETS = ['HUBC', 'FFL', 'FFC', 'MEBL', 'OGDC'];
 
 export default function Stocks() {
     const navigate = useNavigate();
+    const { isUnlocked } = usePin();
     // ---- Server State ----
     const { data: snapshots = [], isLoading: loadingSnapshots } = usePsxSnapshots();
     const { data: bankData, isLoading: loadingBank } = useBankInvestments();
@@ -44,6 +47,7 @@ export default function Stocks() {
     const [isSyncing, setIsSyncing] = useState(false);
     const [showHistory, setShowHistory] = useState(false);
     const [openSnapshotId, setOpenSnapshotId] = useState(null);
+    const [deleteModal, setDeleteModal] = useState({ isOpen: false, title: '', description: '', onConfirm: null, isLoading: false });
 
     // Security States
     const [revealedSecrets, setRevealedSecrets] = useState([]);
@@ -181,10 +185,23 @@ export default function Stocks() {
         }
     };
 
-    const handleDeleteBankTx = async (id) => {
-        if (window.confirm('Delete this bank transaction? This alters your "Invested" basis.')) {
-            await delBankTx.mutateAsync(id);
-        }
+    const handleDeleteBankTx = (id) => {
+        setDeleteModal({
+            isOpen: true,
+            title: 'Delete Bank Transaction',
+            description: 'Are you sure you want to delete this bank transaction? This alters your "Invested" basis.',
+            onConfirm: async () => {
+                setDeleteModal(prev => ({ ...prev, isLoading: true }));
+                try {
+                    await delBankTx.mutateAsync(id);
+                    toast.success('Transaction deleted');
+                } catch (err) {
+                    toast.error('Failed to delete transaction');
+                } finally {
+                    setDeleteModal({ isOpen: false });
+                }
+            }
+        });
     }
 
     const handleUpdateSummary = async (e) => {
@@ -313,24 +330,42 @@ export default function Stocks() {
         }
     };
 
-    const handleDeleteSnapshot = async (id, date) => {
-        if (!window.confirm(`Delete snapshot from ${fmtDate(date)}?`)) return;
-        try {
-            await deleteSnapshot.mutateAsync(id);
-            toast.success('Snapshot deleted successfully');
-        } catch (err) {
-            toast.error('Failed to delete snapshot');
-        }
+    const handleDeleteSnapshot = (id, date) => {
+        setDeleteModal({
+            isOpen: true,
+            title: 'Delete Snapshot',
+            description: `Are you sure you want to delete the snapshot from ${fmtDate(date)}?`,
+            onConfirm: async () => {
+                setDeleteModal(prev => ({ ...prev, isLoading: true }));
+                try {
+                    await deleteSnapshot.mutateAsync(id);
+                    toast.success('Snapshot deleted successfully');
+                } catch (err) {
+                    toast.error('Failed to delete snapshot');
+                } finally {
+                    setDeleteModal({ isOpen: false });
+                }
+            }
+        });
     };
 
-    const handleDeleteSymbolFromSnapshot = async (snapId, symbol) => {
-        if (!window.confirm(`Remove ${symbol} from this history log?`)) return;
-        try {
-            await deleteSymbol.mutateAsync({ snapId, symbol });
-            toast.success(`${symbol} removed from log`);
-        } catch (err) {
-            toast.error('Failed to remove symbol');
-        }
+    const handleDeleteSymbolFromSnapshot = (snapId, symbol) => {
+        setDeleteModal({
+            isOpen: true,
+            title: 'Remove Symbol',
+            description: `Are you sure you want to remove ${symbol} from this history log?`,
+            onConfirm: async () => {
+                setDeleteModal(prev => ({ ...prev, isLoading: true }));
+                try {
+                    await deleteSymbol.mutateAsync({ snapId, symbol });
+                    toast.success(`${symbol} removed from log`);
+                } catch (err) {
+                    toast.error('Failed to remove symbol');
+                } finally {
+                    setDeleteModal({ isOpen: false });
+                }
+            }
+        });
     };
 
     // ---- Chart preparation ----
@@ -599,12 +634,16 @@ export default function Stocks() {
                                         <TrendingUp className={`w-5 h-5 ${totalGL >= 0 ? 'text-emerald-600 dark:text-emerald-500' : 'text-red-500 dark:text-red-400'}`} />
                                     </div>
                                 </div>
-                                <p className={`mt-2 text-3xl font-bold relative z-10 ${glColor(totalGL)}`}>
-                                    {fmtGL(totalGL)}
-                                </p>
-                                <p className={`mt-1 text-sm font-medium relative z-10 ${glColor(totalGL)}`}>
-                                    {totalGLPct >= 0 ? '+' : ''}{totalGLPct.toFixed(2)}% ROI
-                                </p>
+                                <div className="mt-2 relative z-10">
+                                    <MaskedBalance
+                                        value={fmtGL(totalGL)}
+                                        className={`text-3xl font-bold ${glColor(totalGL)}`}
+                                        isCurrency={false}
+                                    />
+                                    <p className={`mt-1 text-sm font-medium ${glColor(totalGL)}`}>
+                                        {isUnlocked ? `${totalGLPct >= 0 ? '+' : ''}${totalGLPct.toFixed(2)}% ROI` : '••••% ROI'}
+                                    </p>
+                                </div>
                                 <div className={`absolute -right-6 -bottom-6 w-32 h-32 rounded-full opacity-10 ${totalGL >= 0 ? 'bg-emerald-500' : 'bg-red-500'}`}></div>
                             </div>
                         </>
@@ -673,9 +712,14 @@ export default function Stocks() {
                                                 {fmtPKR(stock.custody_val)}
                                             </td>
                                             <td className="px-6 py-2 whitespace-nowrap text-right font-medium">
-                                                <div className={`${glColor(todayGl)} flex flex-col items-end`}>
-                                                    <span>{fmtPKR(todayGl)}</span>
-                                                    <span className="text-[10px] opacity-80">{todayPct > 0 ? '+' : ''}{todayPct.toFixed(2)}%</span>
+                                                <div className="flex flex-col items-end">
+                                                    <MaskedBalance
+                                                        value={todayGl}
+                                                        className={`text-sm font-semibold ${glColor(todayGl)}`}
+                                                    />
+                                                    <span className={`text-[10px] ${glColor(todayGl)} opacity-80`}>
+                                                        {isUnlocked ? `${todayPct > 0 ? '+' : ''}${todayPct.toFixed(2)}%` : '•••%'}
+                                                    </span>
                                                 </div>
                                             </td>
                                             <td className="px-6 py-2 whitespace-nowrap text-center">
@@ -699,8 +743,13 @@ export default function Stocks() {
                                     <td className="px-6 py-3">{fmtPKR(latestSnapshot.holdings_data.reduce((sum, h) => sum + (h.total_cost || (h.holding * (h.cost_per_unit || 0))), 0))}</td>
                                     <td colSpan={2} className="px-6 py-3 uppercase tracking-wider">Total Market Value</td>
                                     <td className="px-6 py-3 text-emerald-700 dark:text-emerald-400">{fmtPKR(latestSnapshot.total_custody)}</td>
-                                    <td className={`px-6 py-3 text-right ${glColor(latestSnapshot.holdings_data.reduce((sum, h) => sum + (h.today_gl || 0), 0))}`}>
-                                        {fmtPKR(latestSnapshot.holdings_data.reduce((sum, h) => sum + (h.today_gl || 0), 0))}
+                                    <td className="px-6 py-3 text-right">
+                                        <div className="flex justify-end">
+                                            <MaskedBalance
+                                                value={latestSnapshot.holdings_data.reduce((sum, h) => sum + (h.today_gl || 0), 0)}
+                                                className={`font-bold ${glColor(latestSnapshot.holdings_data.reduce((sum, h) => sum + (h.today_gl || 0), 0))}`}
+                                            />
+                                        </div>
                                     </td>
                                     <td className="px-6 py-3 text-center">
                                         <Button
@@ -761,7 +810,7 @@ export default function Stocks() {
                                             </div>
                                             <div className="flex items-center gap-3">
                                                 <div className={`text-xs font-bold px-2 py-0.5 rounded ${s.total_custody - s.total_invested >= 0 ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400' : 'bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400'}`}>
-                                                    ROI: {((s.total_custody - s.total_invested) / (Number(s.total_invested) || 1) * 100).toFixed(1)}%
+                                                    ROI: {isUnlocked ? `${((s.total_custody - s.total_invested) / (Number(s.total_invested) || 1) * 100).toFixed(1)}%` : '•••%'}
                                                 </div>
                                                 <div className="pl-3 border-l border-gray-100 dark:border-neutral-800">
                                                     <Button
@@ -810,16 +859,26 @@ export default function Stocks() {
                                                                         <td className="px-6 py-3 text-right text-gray-600 dark:text-gray-300">{h.total_cost ? fmtPKR(h.total_cost) : '—'}</td>
                                                                         <td className="px-6 py-3 text-right text-gray-500 dark:text-gray-400">{fmtPKR(h.market_rate)}</td>
                                                                         <td className="px-6 py-3 text-right font-medium">
-                                                                            <div className={`${glColor(computedChange)} flex flex-col items-end`}>
-                                                                                <span>{fmtPKR(computedChange)}</span>
-                                                                                <span className="text-[10px] opacity-80">{changePct > 0 ? '+' : ''}{changePct.toFixed(2)}%</span>
+                                                                            <div className="flex flex-col items-end">
+                                                                                <MaskedBalance
+                                                                                    value={computedChange}
+                                                                                    className={`text-xs font-semibold ${glColor(computedChange)}`}
+                                                                                />
+                                                                                <span className={`text-[10px] ${glColor(computedChange)} opacity-80`}>
+                                                                                    {isUnlocked ? `${changePct > 0 ? '+' : ''}${changePct.toFixed(2)}%` : '•••%'}
+                                                                                </span>
                                                                             </div>
                                                                         </td>
                                                                         <td className="px-6 py-3 text-right font-semibold text-gray-700 dark:text-gray-200">{fmtPKR(h.custody_val)}</td>
                                                                         <td className="px-6 py-3 text-right font-medium">
-                                                                            <div className={`${glColor(todayGl)} flex flex-col items-end`}>
-                                                                                <span>{fmtPKR(todayGl)}</span>
-                                                                                <span className="text-[10px] opacity-80">{todayPct > 0 ? '+' : ''}{todayPct.toFixed(2)}%</span>
+                                                                            <div className="flex flex-col items-end">
+                                                                                <MaskedBalance
+                                                                                    value={todayGl}
+                                                                                    className={`text-xs font-semibold ${glColor(todayGl)}`}
+                                                                                />
+                                                                                <span className={`text-[10px] ${glColor(todayGl)} opacity-80`}>
+                                                                                    {isUnlocked ? `${todayPct > 0 ? '+' : ''}${todayPct.toFixed(2)}%` : '•••%'}
+                                                                                </span>
                                                                             </div>
                                                                         </td>
                                                                         <td className="px-6 py-3 text-center">
@@ -1066,6 +1125,24 @@ export default function Stocks() {
                     </div>
                 </div>
             )}
+
+            <Modal
+                isOpen={deleteModal.isOpen}
+                onClose={() => setDeleteModal({ isOpen: false })}
+                title={deleteModal.title}
+                description={deleteModal.description}
+                type="danger"
+                primaryAction={{
+                    label: 'Confirm',
+                    onClick: deleteModal.onConfirm,
+                    isLoading: deleteModal.isLoading,
+                    variant: 'danger'
+                }}
+                secondaryAction={{
+                    label: 'Cancel',
+                    onClick: () => setDeleteModal({ isOpen: false })
+                }}
+            />
         </div>
     );
 }

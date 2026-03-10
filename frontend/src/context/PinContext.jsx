@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
-import api from '../services/api';
+import { toast } from 'sonner';
 
 const PinContext = createContext();
 
@@ -39,7 +39,7 @@ export const PinProvider = ({ children }) => {
         if (!hasPin) {
             // If they don't have a PIN, theoretically everything is unlocked, or they should be prompted to create one.
             // But per business logic, balances are masked until a PIN is created.
-            alert("You need to setup a Master PIN in Console Settings first.");
+            toast.error("You need to setup a Master PIN in Console Settings first.");
             return Promise.resolve(false);
         }
 

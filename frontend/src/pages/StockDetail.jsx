@@ -52,7 +52,7 @@ export default function StockDetail() {
             </div>
 
             {/* Stock Detail Card */}
-            <div className="bg-white dark:bg-neutral-900 rounded-3xl shadow-sm border border-gray-100 dark:border-neutral-800 p-8 transition-colors">
+            <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-sm border border-gray-100 dark:border-neutral-800 p-8 transition-colors">
                 {!stock ? (
                     <div className="text-center py-12">
                         <div className="inline-flex items-center justify-center p-4 bg-gray-50 dark:bg-neutral-800 rounded-full mb-4">

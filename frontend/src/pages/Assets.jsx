@@ -5,6 +5,7 @@ import { fmtDateLong } from '../utils/dates';
 import Button from '../components/Button';
 import MaskedBalance from '../components/MaskedBalance';
 import { TableSkeleton, StatSkeleton } from '../components/Skeleton';
+import Modal from '../components/Modal';
 import { Car, Home, Camera, Gem, Plus, Trash2, Box, Calendar } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -26,6 +27,7 @@ export default function Assets() {
     const deleteAsset = useDeleteAsset();
 
     const [form, setForm] = useState({ name: '', type: 'Real Estate', value: '', description: '', purchase_date: '' });
+    const [deleteModal, setDeleteModal] = useState({ isOpen: false, id: null });
 
     if (isLoading) return (
         <div className="space-y-6">
@@ -49,13 +51,19 @@ export default function Assets() {
         }
     };
 
-    const handleDelete = async (id) => {
-        if (window.confirm('Are you confirm you want to remove this asset?')) {
+    const handleDelete = (id) => {
+        setDeleteModal({ isOpen: true, id });
+    };
+
+    const confirmDelete = async () => {
+        if (deleteModal.id) {
             try {
-                await deleteAsset.mutateAsync(id);
+                await deleteAsset.mutateAsync(deleteModal.id);
                 toast.success('Asset removed');
             } catch (error) {
                 toast.error('Failed to delete asset');
+            } finally {
+                setDeleteModal({ isOpen: false, id: null });
             }
         }
     };
@@ -184,6 +192,23 @@ export default function Assets() {
                     </div>
                 )}
             </div>
+            <Modal
+                isOpen={deleteModal.isOpen}
+                onClose={() => setDeleteModal({ isOpen: false, id: null })}
+                title="Remove Asset"
+                description="Are you sure you want to remove this asset? This cannot be undone."
+                type="danger"
+                primaryAction={{
+                    label: 'Remove',
+                    onClick: confirmDelete,
+                    isLoading: deleteAsset.isPending,
+                    variant: 'danger'
+                }}
+                secondaryAction={{
+                    label: 'Cancel',
+                    onClick: () => setDeleteModal({ isOpen: false, id: null })
+                }}
+            />
         </div>
     );
 }

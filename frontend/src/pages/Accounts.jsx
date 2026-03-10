@@ -20,7 +20,7 @@ const CARD_THEMES = {
     emerald: 'from-emerald-600 to-emerald-800',
     rose: 'from-rose-600 to-rose-800',
     purple: 'from-fuchsia-600 to-fuchsia-800',
-    amber: 'from-amber-500 to-orange-600'
+    amber: 'from-[#ff5018] to-[#ff5018]'
 };
 
 export default function Accounts() {
@@ -45,6 +45,8 @@ export default function Accounts() {
     const [balanceInput, setBalanceInput] = useState('');
     const [editBankId, setEditBankId] = useState(null);
     const [bankBalanceInput, setBankBalanceInput] = useState('');
+    const [deleteWalletModal, setDeleteWalletModal] = useState({ isOpen: false, id: null });
+    const [deleteBankModal, setDeleteBankModal] = useState({ isOpen: false, id: null });
 
     // Form states
     const [walletForm, setWalletForm] = useState({ name: '', institution_id: '', balance: '', color_theme: 'blue', account_num: '', currency: 'PKR', exchange_rate: '1' });
@@ -104,8 +106,14 @@ export default function Accounts() {
     };
 
     const handleWalletDelete = async (id) => {
-        if (window.confirm('Delete this wallet? This cannot be undone.')) {
-            await deleteWallet.mutateAsync(id);
+        setDeleteWalletModal({ isOpen: true, id });
+    };
+
+    const confirmWalletDelete = async () => {
+        if (deleteWalletModal.id) {
+            await deleteWallet.mutateAsync(deleteWalletModal.id);
+            setDeleteWalletModal({ isOpen: false, id: null });
+            toast.success('Wallet deleted successfully');
         }
     };
 
@@ -134,8 +142,14 @@ export default function Accounts() {
     const handleBankDelete = async (e, id) => {
         e.preventDefault();
         e.stopPropagation();
-        if (window.confirm('Delete this bank account?')) {
-            await deleteBank.mutateAsync(id);
+        setDeleteBankModal({ isOpen: true, id });
+    };
+
+    const confirmBankDelete = async () => {
+        if (deleteBankModal.id) {
+            await deleteBank.mutateAsync(deleteBankModal.id);
+            setDeleteBankModal({ isOpen: false, id: null });
+            toast.success('Bank account deleted successfully');
         }
     };
 
@@ -619,6 +633,43 @@ export default function Accounts() {
                     </div>
                 </div>
             )}
+            {/* Delete Wallet Modal */}
+            <Modal
+                isOpen={deleteWalletModal.isOpen}
+                onClose={() => setDeleteWalletModal({ isOpen: false, id: null })}
+                title="Delete Wallet"
+                description="Are you sure you want to delete this wallet? This cannot be undone."
+                type="danger"
+                primaryAction={{
+                    label: 'Delete Wallet',
+                    onClick: confirmWalletDelete,
+                    isLoading: deleteWallet.isPending,
+                    variant: 'danger'
+                }}
+                secondaryAction={{
+                    label: 'Cancel',
+                    onClick: () => setDeleteWalletModal({ isOpen: false, id: null })
+                }}
+            />
+
+            {/* Delete Bank Modal */}
+            <Modal
+                isOpen={deleteBankModal.isOpen}
+                onClose={() => setDeleteBankModal({ isOpen: false, id: null })}
+                title="Delete Bank Account"
+                description="Are you sure you want to delete this bank account? This will remove all associated history."
+                type="danger"
+                primaryAction={{
+                    label: 'Delete Bank',
+                    onClick: confirmBankDelete,
+                    isLoading: deleteBank.isPending,
+                    variant: 'danger'
+                }}
+                secondaryAction={{
+                    label: 'Cancel',
+                    onClick: () => setDeleteBankModal({ isOpen: false, id: null })
+                }}
+            />
 
         </div>
     );
