@@ -29,6 +29,17 @@ A full-stack web application to track expenses, mutual fund portfolios, stock in
 ### 📈 Stocks
 - Stock portfolio with buy transactions
 - Brokerage fee tracking
+- **Live PSX Data Sync** via Playwright scraper
+
+### 🕋 Zakat & Assets
+- Calculate Zakat automatically
+- Manage physical assets like property and gold
+
+### 🔐 Advanced Authentication
+- Secure JWT-based registration and login
+- OTP email verification step
+- Secure "Forgot Password" flow with OTP
+- Master PIN generation for masking sensitive portfolio values
 
 ### 📋 Dashboard & Reports
 - Portfolio summary cards

@@ -41,13 +41,23 @@ export const AuthProvider = ({ children }) => {
         setUser(data.user);
     };
 
+    const forgotPassword = async (email) => {
+        const { data } = await api.post('/auth/forgot-password', { email });
+        return data;
+    };
+
+    const resetPassword = async (email, otp, newPassword) => {
+        const { data } = await api.post('/auth/reset-password', { email, otp, newPassword });
+        return data;
+    };
+
     const logout = () => {
         localStorage.removeItem('token');
         setUser(null);
     };
 
     return (
-        <AuthContext.Provider value={{ user, loading, login, verifyOtp, register, logout }}>
+        <AuthContext.Provider value={{ user, loading, login, verifyOtp, register, forgotPassword, resetPassword, logout }}>
             {!loading && children}
         </AuthContext.Provider>
     );

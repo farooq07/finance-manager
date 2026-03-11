@@ -1,5 +1,5 @@
 import express from 'express';
-import { register, login, getMe, verifyOtp, setupPin, verifyPin, changePin } from '../controllers/auth.controller.js';
+import { register, login, getMe, verifyOtp, setupPin, verifyPin, changePin, forgotPassword, resetPassword } from '../controllers/auth.controller.js';
 import verifyToken from '../middleware/auth.middleware.js';
 
 const router = express.Router();
@@ -11,5 +11,7 @@ router.get('/me', verifyToken, getMe);
 router.put('/pin', verifyToken, setupPin);
 router.put('/pin/change', verifyToken, changePin);
 router.post('/verify-pin', verifyToken, verifyPin);
+router.post('/forgot-password', forgotPassword);
+router.post('/reset-password', resetPassword);
 
 export default router;

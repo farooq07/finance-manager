@@ -10,6 +10,15 @@ export const fmtDate = (d) => {
 };
 
 /**
+ * Format a date as "27 Feb"
+ */
+export const fmtDateShort = (d) => {
+    if (!d) return '—';
+    const date = typeof d === 'string' ? parseISO(d) : new Date(d);
+    return format(date, 'd MMM');
+};
+
+/**
  * Format a date as "27 February 2026"
  */
 export const fmtDateLong = (d) => {

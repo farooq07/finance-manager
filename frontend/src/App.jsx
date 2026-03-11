@@ -6,6 +6,7 @@ import PinGate from './components/PinGate';
 import Layout from './components/Layout';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import ForgotPassword from './pages/ForgotPassword';
 import OTPVerification from './pages/OTPVerification';
 import Dashboard from './pages/Dashboard';
 import Expenses from './pages/Expenses';
@@ -45,6 +46,7 @@ function App() {
           <Routes>
             <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
             <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
+            <Route path="/forgot-password" element={<PublicRoute><ForgotPassword /></PublicRoute>} />
             <Route path="/verify-otp" element={<PublicRoute><OTPVerification /></PublicRoute>} />
 
             <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>

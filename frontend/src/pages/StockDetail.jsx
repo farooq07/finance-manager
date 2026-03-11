@@ -1,17 +1,23 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { Activity, ArrowLeft, RefreshCw, TrendingUp, TrendingDown, Clock, BarChart2 } from 'lucide-react';
 import { usePsxStocks, useSyncPsxStocks } from '../hooks/useStocks';
-import { fmtPKR, glColor } from '../utils/currency';
-import { fmtDateLong } from '../utils/dates';
+import { usePsxSnapshots } from '../hooks/usePsx';
+import { fmtPKR, glColor, fmtGL } from '../utils/currency';
+import { fmtDateLong, fmtDateShort } from '../utils/dates';
 import Button from '../components/Button';
 import { toast } from 'sonner';
+import MaskedBalance from '../components/MaskedBalance';
+import { usePin } from '../context/PinContext';
+import ReactECharts from 'echarts-for-react';
 
 export default function StockDetail() {
     const { id: ticker } = useParams();
     const navigate = useNavigate();
 
     const { data: liveStocks = [], isLoading } = usePsxStocks();
+    const { data: snapshots = [], isLoading: loadingSnapshots } = usePsxSnapshots();
     const syncLiveStocks = useSyncPsxStocks();
+    const { isUnlocked } = usePin();
 
     // Find the current stock in the cached list
     const stock = liveStocks.find(s => s.ticker === ticker);
@@ -25,7 +31,7 @@ export default function StockDetail() {
         }
     };
 
-    if (isLoading) {
+    if (isLoading || loadingSnapshots) {
         return (
             <div className="flex items-center justify-center h-64">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
@@ -33,8 +39,54 @@ export default function StockDetail() {
         );
     }
 
+    // Filter snapshots where this user holds this stock
+    const holdingHistory = snapshots.filter(snap =>
+        snap.holdings_data?.some(h => h.symbol === ticker)
+    ).reverse(); // Oldest to newest for charts
+
+    const latestSnapshotWithStock = snapshots.find(snap =>
+        snap.holdings_data?.some(h => h.symbol === ticker)
+    );
+    const currentHolding = latestSnapshotWithStock?.holdings_data?.find(h => h.symbol === ticker);
+
+    // Chart Options for history
+    const chartDates = holdingHistory.map(s => fmtDateShort(s.snapshot_date));
+    const chartValues = holdingHistory.map(s => {
+        const h = s.holdings_data.find(x => x.symbol === ticker);
+        return h ? Number(h.custody_val) : 0;
+    });
+    const chartCosts = holdingHistory.map(s => {
+        const h = s.holdings_data.find(x => x.symbol === ticker);
+        return h ? Number(h.total_cost || (h.holding * (h.cost_per_unit || 0))) : 0;
+    });
+
+    const chartOptions = {
+        tooltip: { trigger: 'axis', axisPointer: { type: 'cross' } },
+        legend: { data: ['Market Value', 'Total Cost'], bottom: 0 },
+        grid: { left: '3%', right: '4%', bottom: '10%', containLabel: true },
+        xAxis: { type: 'category', boundaryGap: false, data: chartDates },
+        yAxis: { type: 'value', axisLabel: { formatter: (value) => value / 1000 + 'k' } },
+        series: [
+            {
+                name: 'Market Value',
+                type: 'line',
+                data: chartValues,
+                smooth: true,
+                areaStyle: { opacity: 0.1 },
+                itemStyle: { color: '#10b981' } // Emerald green
+            },
+            {
+                name: 'Total Cost',
+                type: 'line',
+                data: chartCosts,
+                smooth: true,
+                itemStyle: { color: '#3b82f6' } // Blue
+            }
+        ]
+    };
+
     return (
-        <div className="max-w-4xl mx-auto">
+        <div className=" mx-auto">
             {/* Header Actions */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                 <Button variant="ghost" className="text-gray-500 hover:text-gray-900 dark:hover:text-gray-100 px-0" onClick={() => navigate('/stocks')}>
@@ -121,6 +173,79 @@ export default function StockDetail() {
                                 </p>
                             </div>
                         </div>
+
+                        {/* User Holding Specifics */}
+                        {currentHolding && (
+                            <div className="mt-10 pt-10 border-t border-gray-100 dark:border-neutral-800">
+                                <div className="flex items-center gap-3 mb-6">
+                                    <div className="p-2 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg">
+                                        <Activity className="w-5 h-5 text-emerald-600 dark:text-emerald-500" />
+                                    </div>
+                                    <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100">My Position</h3>
+                                </div>
+
+                                {(() => {
+                                    const qty = Number(currentHolding.holding);
+                                    const avgCost = Number(currentHolding.cost_per_unit) || 0;
+                                    const totalCost = Number(currentHolding.total_cost) || (qty * avgCost);
+
+                                    // Use live PSX price to calculate real-time value if available, else fallback to snapshot rate
+                                    const livePrice = stock?.price > 0 ? stock.price : (currentHolding.market_rate || 0);
+                                    const marketValue = qty * livePrice;
+
+                                    const unrealizedGL = marketValue - totalCost;
+                                    const roiPct = totalCost > 0 ? (unrealizedGL / totalCost) * 100 : 0;
+
+                                    return (
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                                            <div className="bg-gray-50 dark:bg-neutral-800/50 rounded-2xl p-5 border border-gray-100 dark:border-neutral-800">
+                                                <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Quantity Details</p>
+                                                <div className="flex flex-col">
+                                                    <MaskedBalance value={qty} isCurrency={false} className="text-2xl font-bold text-gray-900 dark:text-gray-100" />
+                                                    <span className="text-sm text-gray-500 mt-1">Shares</span>
+                                                </div>
+                                            </div>
+
+                                            <div className="bg-gray-50 dark:bg-neutral-800/50 rounded-2xl p-5 border border-gray-100 dark:border-neutral-800">
+                                                <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Average Cost</p>
+                                                <div className="flex flex-col">
+                                                    <MaskedBalance value={avgCost} className="text-2xl font-bold text-gray-900 dark:text-gray-100" />
+                                                    <span className="text-sm text-gray-500 mt-1">Per Share</span>
+                                                </div>
+                                            </div>
+
+                                            <div className="bg-gray-50 dark:bg-neutral-800/50 rounded-2xl p-5 border border-gray-100 dark:border-neutral-800">
+                                                <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Total Cost</p>
+                                                <MaskedBalance value={totalCost} className="text-2xl font-bold text-gray-900 dark:text-gray-100" />
+                                            </div>
+
+                                            <div className="bg-emerald-50 dark:bg-emerald-900/10 rounded-2xl p-5 border border-emerald-100 dark:border-emerald-900/30">
+                                                <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Unrealized G/L</p>
+                                                <MaskedBalance value={fmtGL(unrealizedGL)} isCurrency={false} className={`text-2xl font-bold ${glColor(unrealizedGL)}`} />
+                                                <p className={`text-sm font-bold mt-1 ${glColor(unrealizedGL)}`}>
+                                                    {isUnlocked ? `${roiPct > 0 ? '+' : ''}${roiPct.toFixed(2)}% ROI` : '•••% ROI'}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
+                            </div>
+                        )}
+
+                        {/* Holding History Chart */}
+                        {holdingHistory.length > 1 && (
+                            <div className="mt-10 pt-10 border-t border-gray-100 dark:border-neutral-800">
+                                <div className="flex items-center gap-3 mb-6">
+                                    <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                                        <TrendingUp className="w-5 h-5 text-blue-600 dark:text-blue-500" />
+                                    </div>
+                                    <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100">Performance Over Time</h3>
+                                </div>
+                                <div className="h-[350px] w-full">
+                                    <ReactECharts option={chartOptions} style={{ height: '100%', width: '100%' }} />
+                                </div>
+                            </div>
+                        )}
                     </>
                 )}
             </div>
