@@ -15,6 +15,7 @@ import institutionRoutes from './src/routes/institution.routes.js';
 import brokerRoutes from './src/routes/broker.routes.js';
 import zakatRoutes from './src/routes/zakat.routes.js';
 import assetRoutes from './src/routes/asset.routes.js';
+import { initCronJobs } from './src/services/cron.service.js';
 
 dotenv.config();
 
@@ -43,4 +44,7 @@ const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
+    
+    // Initialize cron jobs after server starts
+    initCronJobs();
 });

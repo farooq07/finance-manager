@@ -1,14 +1,16 @@
 import { useState, useEffect } from 'react';
 import api from '../services/api';
 import ReactECharts from 'echarts-for-react';
-import { TrendingUp, PieChart as PieIcon, Activity, FileText, ArrowUpCircle, ArrowDownCircle, Wallet, Landmark } from 'lucide-react';
+import { TrendingUp, PieChart as PieIcon, Activity, FileText, ArrowUpCircle, ArrowDownCircle, Wallet, Landmark, Mail, Loader2 } from 'lucide-react';
 import { fmtPKR } from '../utils/currency';
 import { StatSkeleton, ChartSkeleton } from '../components/Skeleton';
 import MaskedBalance from '../components/MaskedBalance';
+import { toast } from 'sonner';
 
 export default function Dashboard() {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [sendingEmail, setSendingEmail] = useState(false);
 
     useEffect(() => {
         const fetchDashboard = async () => {
@@ -23,6 +25,19 @@ export default function Dashboard() {
         };
         fetchDashboard();
     }, []);
+
+    const handleSendEmail = async () => {
+        setSendingEmail(true);
+        try {
+            await api.post('/dashboard/send-summary');
+            toast.success('Summary email sent successfully to farooqibex@gmail.com');
+        } catch (error) {
+            console.error('Failed to send summary email:', error);
+            toast.error('Failed to send email. Check console.');
+        } finally {
+            setSendingEmail(false);
+        }
+    };
 
     if (loading) return (
         <div className="space-y-6">
@@ -103,10 +118,21 @@ export default function Dashboard() {
 
     return (
         <div className="space-y-6">
-            <div className="flex justify-between items-center">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 transition-colors">Dashboard Overview</h1>
-                <div className="text-sm text-gray-500 dark:text-gray-400">
-                    Last Updated: {new Date().toLocaleTimeString()}
+                <div className="flex items-center gap-4">
+                    <button
+                        onClick={handleSendEmail}
+                        disabled={sendingEmail}
+                        className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                        title="Send Weekly Summary Email Now"
+                    >
+                        {sendingEmail ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
+                        Email Summary
+                    </button>
+                    <div className="text-sm text-gray-500 dark:text-gray-400 hidden sm:block">
+                        Last Updated: {new Date().toLocaleTimeString()}
+                    </div>
                 </div>
             </div>
 

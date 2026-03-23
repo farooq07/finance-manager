@@ -11,6 +11,7 @@ import { CardSkeleton } from '../components/Skeleton';
 import Select from '../components/Select';
 import { toast } from 'sonner';
 import MaskedBalance from '../components/MaskedBalance';
+import Modal from '../components/Modal';
 import api from '../services/api';
 
 // Mapping color themes to Tailwind gradients for the Credit Card UI

@@ -1,5 +1,5 @@
 import express from 'express';
-import { getDashboardSummary } from '../controllers/dashboard.controller.js';
+import { getDashboardSummary, sendManualSummaryEmail } from '../controllers/dashboard.controller.js';
 import verifyToken from '../middleware/auth.middleware.js';
 
 const router = express.Router();
@@ -8,5 +8,6 @@ const router = express.Router();
 router.use(verifyToken);
 
 router.get('/summary', getDashboardSummary);
+router.post('/send-summary', sendManualSummaryEmail);
 
 export default router;

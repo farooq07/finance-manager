@@ -1,11 +1,9 @@
 import prisma from '../utils/prisma.js';
+import { sendSummaryEmail } from '../utils/email.js';
 
-export const getDashboardSummary = async (req, res) => {
-    try {
-        const userId = req.user.id; // from auth middleware
-
-        // 1. Bank Balance (Wallets and Banks)
-        const wallets = await prisma.wallet.findMany({ where: { user_id: userId } });
+export const fetchDashboardData = async (userId) => {
+    // 1. Bank Balance (Wallets and Banks)
+    const wallets = await prisma.wallet.findMany({ where: { user_id: userId } });
         const totalWalletBalance = wallets.reduce((sum, w) => sum + (Number(w.balance) * Number(w.exchange_rate || 1)), 0);
 
         const banks = await prisma.bank.findMany({ where: { user_id: userId } });
@@ -140,44 +138,75 @@ export const getDashboardSummary = async (req, res) => {
         const assets = await prisma.asset.findMany({ where: { user_id: userId } });
         const totalAssetValue = assets.reduce((sum, asset) => sum + Number(asset.value), 0);
 
-        // Net Worth formula = Liquid Cash + Assets/Investments + Receivables - Payables (Physical Assets excluded from Comprehensive Net Worth)
-        const netWorth = totalBankBalance + totalWalletBalance + totalInvestments + totalReceivable - totalPayable;
+    // Net Worth formula = Liquid Cash + Assets/Investments + Receivables - Payables (Physical Assets excluded from Comprehensive Net Worth)
+    const netWorth = totalBankBalance + totalWalletBalance + totalInvestments + totalReceivable - totalPayable;
 
-        res.json({
-            metrics: {
-                netWorth,
-                totalBankBalance,
-                totalWalletBalance,
-                totalInvestments,
-                mutualFundValue: mfCurrentValue,
-                mutualFundCost: mfCost,
-                stockValue: stockCurrentValue,
-                stockCost,
-                totalReceivable,
-                totalPayable,
-                totalExpenses,
-                currentMonthExpenses,
-                totalAssetValue
-            },
-            charts: {
-                monthlyExpenses: chartData,
-                investmentDistribution: [
-                    { name: 'Mutual Funds', value: mfCurrentValue },
-                    { name: 'Stocks', value: stockCurrentValue }
-                ].filter(i => i.value > 0),
-                assetAllocation: [
-                    { name: 'Banks', value: totalBankBalance },
-                    { name: 'Wallets', value: totalWalletBalance },
-                    { name: 'Mutual Funds', value: mfCurrentValue },
-                    { name: 'Stocks', value: stockCurrentValue },
-                    { name: 'Physical Assets', value: totalAssetValue },
-                    { name: 'Ledger Dues', value: totalReceivable } // Only positive assets
-                ].filter(i => i.value > 0)
-            }
-        });
+    return {
+        metrics: {
+            netWorth,
+            totalBankBalance,
+            totalWalletBalance,
+            totalInvestments,
+            mutualFundValue: mfCurrentValue,
+            mutualFundCost: mfCost,
+            stockValue: stockCurrentValue,
+            stockCost,
+            totalReceivable,
+            totalPayable,
+            totalExpenses,
+            currentMonthExpenses,
+            totalAssetValue
+        },
+        charts: {
+            monthlyExpenses: chartData,
+            investmentDistribution: [
+                { name: 'Mutual Funds', value: mfCurrentValue },
+                { name: 'Stocks', value: stockCurrentValue }
+            ].filter(i => i.value > 0),
+            assetAllocation: [
+                { name: 'Banks', value: totalBankBalance },
+                { name: 'Wallets', value: totalWalletBalance },
+                { name: 'Mutual Funds', value: mfCurrentValue },
+                { name: 'Stocks', value: stockCurrentValue },
+                { name: 'Physical Assets', value: totalAssetValue },
+                { name: 'Ledger Dues', value: totalReceivable } // Only positive assets
+            ].filter(i => i.value > 0)
+        }
+    };
+};
 
+export const getDashboardSummary = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const data = await fetchDashboardData(userId);
+        res.json(data);
     } catch (error) {
         console.error('Dashboard Summary Error:', error);
         res.status(500).json({ message: 'Server error generating dashboard summary' });
     }
 };
+
+export const sendManualSummaryEmail = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        
+        // Fetch user info
+        const user = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { name: true, email: true }
+        });
+
+        const targetEmail = 'farooqibex@gmail.com'; // Hardcoded as requested
+        const targetName = user?.name || 'Farooq';
+
+        const data = await fetchDashboardData(userId);
+
+        await sendSummaryEmail(targetEmail, targetName, data.metrics);
+
+        res.json({ message: 'Summary email sent successfully to farooqibex@gmail.com' });
+    } catch (error) {
+        console.error('Manual Summary Email Error:', error);
+        res.status(500).json({ message: 'Server error sending summary email' });
+    }
+};
+

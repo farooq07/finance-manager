@@ -90,3 +90,82 @@ export const sendReminderEmail = async (to, personName, netBalance) => {
         throw new Error('Failed to send reminder email');
     }
 };
+
+/**
+ * Sends a weekly or manual dashboard summary email to the user.
+ * @param {string} to - Recipient email address
+ * @param {string} userName - Name of the recipient
+ * @param {object} metrics - Dashboard metrics object
+ */
+export const sendSummaryEmail = async (to, userName, metrics) => {
+    if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
+        console.warn('⚠️ GMAIL_USER or GMAIL_APP_PASSWORD is not set in .env. Summary email will not be sent.');
+        console.warn(`[DEV MODE] Simulated summary would have sent to ${to}`);
+        return;
+    }
+
+    const formatCurrency = (amount) => {
+        return `Rs. ${Number(amount || 0).toLocaleString('en-PK', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+    };
+
+    const mailOptions = {
+        from: `"Finance Manager" <${process.env.GMAIL_USER}>`,
+        to,
+        subject: 'Your Finance Manager Summary',
+        html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eaeaec; border-radius: 10px;">
+                <h2 style="color: #4f46e5; text-align: center;">Finance Manager Summary</h2>
+                <p style="font-size: 16px; color: #333;">Hello <strong>${userName}</strong>,</p>
+                <p style="font-size: 16px; color: #333;">Here is your latest financial summary overview:</p>
+                
+                <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                    <h3 style="margin-top: 0; color: #1f2937; border-bottom: 2px solid #e5e7eb; padding-bottom: 10px;">Net Worth Overview</h3>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                        <span style="color: #4b5563;">Total Net Worth:</span>
+                        <strong style="color: #4f46e5; font-size: 18px;">${formatCurrency(metrics.netWorth)}</strong>
+                    </div>
+                </div>
+
+                <div style="background-color: #f9fafb; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                    <h3 style="margin-top: 0; color: #1f2937; border-bottom: 2px solid #e5e7eb; padding-bottom: 10px;">Key Balances</h3>
+                    
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid #f3f4f6;">
+                        <span style="color: #4b5563;">Bank & Wallet Balance:</span>
+                        <strong style="color: #1f2937;">${formatCurrency(metrics.totalBankBalance + metrics.totalWalletBalance)}</strong>
+                    </div>
+                    
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid #f3f4f6;">
+                        <span style="color: #4b5563;">Total Invested (Stocks & Funds):</span>
+                        <strong style="color: #10b981;">${formatCurrency(metrics.totalInvestments)}</strong>
+                    </div>
+
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid #f3f4f6;">
+                        <span style="color: #4b5563;">Ledger Receivables (To Receive):</span>
+                        <strong style="color: #10b981;">${formatCurrency(metrics.totalReceivable)}</strong>
+                    </div>
+
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                        <span style="color: #4b5563;">Ledger Payables (To Pay):</span>
+                        <strong style="color: #ef4444;">${formatCurrency(metrics.totalPayable)}</strong>
+                    </div>
+                </div>
+
+                <p style="font-size: 14px; color: #666; text-align: center; margin-top: 30px;">
+                    Log in to your dashboard to view more detailed insights and track your financial journey.
+                </p>
+                <p style="font-size: 12px; color: #9ca3af; text-align: center; margin-top: 10px;">
+                    Finance Manager Automated Summary
+                </p>
+            </div>
+        `
+    };
+
+    try {
+        await transporter.sendMail(mailOptions);
+        console.log(`Summary email sent successfully to ${to}`);
+    } catch (error) {
+        console.error('Error sending summary email:', error);
+        throw new Error('Failed to send summary email');
+    }
+};
+
