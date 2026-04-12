@@ -42,6 +42,15 @@ app.use('/api/zakat', zakatRoutes);
 app.use('/api/assets', assetRoutes);
 app.use('/api/users', userRoutes);
 
+// Root route / Health check
+app.get('/', (req, res) => {
+    res.json({
+        message: 'Finance Manager API is running',
+        version: '1.0.0',
+        timestamp: new Date().toISOString()
+    });
+});
+
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {

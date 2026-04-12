@@ -3,13 +3,10 @@
     "version": ">= 5.0.0"
   },
   "build": {
-    "development": {
+    "debug": {
       "distribution": "internal",
       "android": {
         "gradleCommand": ":app:assembleDebug"
-      },
-      "ios": {
-        "simulator": true
       }
     },
     "preview": {
@@ -22,14 +19,6 @@
       "distribution": "store",
       "android": {
         "gradleCommand": ":app:bundleRelease"
-      }
-    }
-  },
-  "submit": {
-    "production": {
-      "android": {
-        "serviceAccount": "api-key.json",
-        "track": "internal"
       }
     }
   }
