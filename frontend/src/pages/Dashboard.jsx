@@ -238,14 +238,14 @@ export default function Dashboard() {
         const themeClasses = colorClasses[color] || colorClasses.blue;
 
         return (
-            <div className="bg-white dark:bg-neutral-900 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-neutral-800 flex items-start space-x-4 transition-colors relative overflow-hidden group">
-                <div className={`p-4 rounded-2xl ${themeClasses} transition-colors group-hover:scale-110 duration-300`}>
-                    <Icon className="w-5 h-5" />
+            <div className="bg-white dark:bg-neutral-900 p-2 rounded-xl shadow-sm border border-gray-100 dark:border-neutral-800 flex items-start space-x-4 transition-colors relative overflow-hidden group">
+                <div className={`p-2 rounded-md ${themeClasses} transition-colors group-hover:scale-110 duration-300`}>
+                    <Icon className="w-4 h-4" />
                 </div>
                 <div className="flex-1">
                     <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400 transition-colors uppercase tracking-wider">{title}</h4>
                     <div className="flex items-baseline gap-2 mt-1">
-                        <MaskedBalance value={value} className="text-2xl font-bold text-gray-900 dark:text-gray-100 transition-colors tracking-tight" />
+                        <MaskedBalance value={value} className="text-md font-bold text-gray-900 dark:text-gray-100 transition-colors tracking-tight" />
                         {subText && (
                             <span className="text-xs bg-gray-50 dark:bg-neutral-800/80 px-2 py-0.5 rounded-full border border-gray-200 dark:border-neutral-700">
                                 {subText}

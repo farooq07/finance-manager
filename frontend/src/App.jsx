@@ -18,6 +18,7 @@ import RentTracker from './pages/RentTracker';
 import Accounts from './pages/Accounts';
 import BankDetail from './pages/BankDetail';
 import Settings from './pages/Settings';
+import Users from './pages/Users';
 import Reports from './pages/Reports';
 import DesignSystem from './pages/DesignSystem';
 import Zakat from './pages/Zakat';
@@ -61,6 +62,7 @@ function App() {
               <Route path="accounts" element={<Accounts />} />
               <Route path="banks/:id" element={<BankDetail />} />
               <Route path="settings" element={<Settings />} />
+              <Route path="users" element={<Users />} />
               <Route path="reports" element={<Reports />} />
               <Route path="zakat" element={<Zakat />} />
               <Route path="assets" element={<Assets />} />

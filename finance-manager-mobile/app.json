@@ -1,15 +1,15 @@
 {
   "expo": {
-    "name": "WealthAxis",
-    "slug": "wealthaxis-mobile",
+    "name": "Finance Manager",
+    "slug": "finance-manager-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/logo.svg",
+    "icon": "./assets/adaptive-icon.png",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-    "scheme": "wealthaxis",
+    "scheme": "financemanager",
     "splash": {
-      "image": "./assets/logo.svg",
+      "image": "./assets/adaptive-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#1f4842"
     },

@@ -15,6 +15,7 @@ import institutionRoutes from './src/routes/institution.routes.js';
 import brokerRoutes from './src/routes/broker.routes.js';
 import zakatRoutes from './src/routes/zakat.routes.js';
 import assetRoutes from './src/routes/asset.routes.js';
+import userRoutes from './src/routes/user.routes.js';
 import { initCronJobs } from './src/services/cron.service.js';
 
 dotenv.config();
@@ -39,6 +40,7 @@ app.use('/api/institutions', institutionRoutes);
 app.use('/api/broker-accounts', brokerRoutes);
 app.use('/api/zakat', zakatRoutes);
 app.use('/api/assets', assetRoutes);
+app.use('/api/users', userRoutes);
 
 const PORT = process.env.PORT || 5000;
 

@@ -34,13 +34,13 @@ export default function Sidebar() {
         <aside className={clsx(
             "bg-white dark:bg-neutral-900 border-r border-gray-200 dark:border-neutral-800 flex flex-col items-center py-4 hidden md:flex shrink-0 relative",
             mounted ? "transition-all duration-300 ease-in-out" : "",
-            isExpanded ? "w-[240px] items-start px-4" : "w-[64px] items-center"
+            isExpanded ? "w-[220px] items-start px-2" : "w-[64px] items-center"
         )}>
             {/* Expand Toggle */}
 
 
             {/* Logo mark */}
-            <div className={clsx("flex items-center mb-6 h-9 overflow-hidden", isExpanded ? "w-full justify-start px-2" : "justify-center")}>
+            <div className={clsx("flex items-center mb-2 h-9 ", isExpanded ? "w-full justify-start px-2" : "justify-center")}>
                 <img
                     src={isExpanded ? logo : logosm}
                     alt="WealthAxis"
@@ -62,7 +62,7 @@ export default function Sidebar() {
                                 isExpanded ? "w-full px-3 py-2.5" : "w-10 h-10 justify-center",
                                 isActive
                                     ? "bg-emerald-50 text-emerald-600 shadow-sm dark:bg-emerald-900/20 dark:text-emerald-400"
-                                    : "text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-neutral-800 dark:hover:text-gray-100"
+                                    : "text-gray-800 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-neutral-800 dark:hover:text-gray-100"
                             )}
                         >
                             <item.icon className={clsx("w-[20px] h-[20px] shrink-0", isExpanded && "mr-3")} strokeWidth={isActive ? 2.2 : 1.8} />
