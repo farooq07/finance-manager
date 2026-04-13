@@ -29,14 +29,20 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
       try {
         const token = await SecureStore.getItemAsync('auth_token');
         if (token) {
-          const res = await api.get('/auth/me');
-          setAuth(res.data);
+          try {
+            const res = await api.get('/auth/me');
+            setAuth(res.data);
+          } catch (apiError) {
+            console.warn('Auth check failed:', apiError);
+            clearAuth();
+            await SecureStore.deleteItemAsync('auth_token');
+          }
         } else {
           clearAuth();
         }
-      } catch {
+      } catch (error) {
+        console.error('Auth initialization error:', error);
         clearAuth();
-        await SecureStore.deleteItemAsync('auth_token');
       } finally {
         setIsLoading(false);
       }
