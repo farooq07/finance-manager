@@ -1,0 +1,6 @@
+frontend/
+finance-manager-mobile/
+node_modules/
+.git/
+.env.local
+.DS_Store

@@ -1,0 +1,12 @@
+{
+  "$schema": "https://railway.app/schema.json",
+  "build": {
+    "builder": "nixpacks",
+    "buildCommand": "cd backend && npm install && npm run build 2>/dev/null || true"
+  },
+  "deploy": {
+    "startCommand": "cd backend && npm start",
+    "restartPolicyMaxRetries": 5,
+    "restartPolicyWindowMs": 60000
+  }
+}
