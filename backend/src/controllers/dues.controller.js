@@ -6,10 +6,14 @@ import { sendOtpEmail } from '../utils/email.js';
 // Get all people associated with user and their net balances
 export const getPeopleWithLedgers = async (req, res) => {
     try {
+        console.log("📌 GET /dues - User ID:", req.user?.id, "Email:", req.user?.email);
+
         const people = await prisma.person.findMany({
             where: { user_id: req.user.id },
             include: { transactions: true }
         });
+
+        console.log(`📊 Found ${people.length} people for user ${req.user.id}`);
 
         // Calculate net balance for each person
         const peopleWithNet = people.map(p => {
@@ -24,9 +28,10 @@ export const getPeopleWithLedgers = async (req, res) => {
             return { ...p, netBalance };
         });
 
+        console.log(`✅ Returning ${peopleWithNet.length} people with transactions`);
         res.json(peopleWithNet);
     } catch (error) {
-        console.error("Dues Ledger GET Error:", error);
+        console.error("❌ Dues Ledger GET Error:", error);
         res.status(500).json({ message: 'Error fetching ledgers' });
     }
 };

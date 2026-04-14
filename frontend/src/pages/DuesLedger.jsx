@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import api from '../services/api';
+import { useAuth } from '../context/AuthContext';
 import { Plus, Trash2, Upload, ChevronDown, ChevronUp, Loader2, FileSpreadsheet, Pencil, Check, X, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
 import { StatSkeleton, TableSkeleton } from '../components/Skeleton';
 import DatePickerInput from '../components/DatePickerInput';
@@ -8,6 +9,7 @@ import Modal from '../components/Modal';
 import Button from '../components/Button';
 
 export default function DuesLedger() {
+    const { user } = useAuth();
     const [people, setPeople] = useState([]);
     const [loading, setLoading] = useState(true);
     const [expandedPerson, setExpandedPerson] = useState(null);
@@ -43,9 +45,16 @@ export default function DuesLedger() {
     const fetchPeople = async () => {
         try {
             const { data } = await api.get('/dues');
-            setPeople(data);
+            console.log('Dues API Response:', data);
+            console.log('Number of people:', data?.length);
+            if (data && Array.isArray(data) && data.length > 0) {
+                console.log('First person:', data[0]);
+            }
+            setPeople(data || []);
         } catch (error) {
             console.error('Error fetching dues', error);
+            console.error('Error details:', error.response?.data || error.message);
+            toast.error('Failed to load dues ledger');
         } finally {
             setLoading(false);
         }
@@ -243,6 +252,17 @@ export default function DuesLedger() {
 
     const formatPKR = (val) => Number(val).toLocaleString('en-PK', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 
+    const testDebugEndpoint = async () => {
+        try {
+            const { data } = await api.get('/dues/debug/user-info');
+            console.log('Debug info:', data);
+            toast.success(`Found ${data.peopleCount} people and ${data.transactionCount} transactions`);
+        } catch (error) {
+            console.error('Debug error:', error);
+            toast.error('Debug endpoint error: ' + (error.response?.data?.error || error.message));
+        }
+    };
+
     if (loading) return (
         <div className="space-y-6 animate-in fade-in duration-500">
             <div className="flex justify-between items-center mb-6">
@@ -266,15 +286,35 @@ export default function DuesLedger() {
 
     return (
         <div className="space-y-6">
+            {/* Debug Info */}
+            <div className="text-xs text-gray-500 dark:text-gray-500 mb-2">
+                Logged in as: <span className="font-mono font-semibold text-gray-700 dark:text-gray-300">{user?.email || 'Unknown'}</span>
+            </div>
+
             {/* Header */}
             <div className="flex justify-between items-center">
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 transition-colors">Dues Ledger</h1>
                     <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Track who owes you and who you owe</p>
                 </div>
-                <Button color="blue" onClick={() => setShowAddPerson(!showAddPerson)}>
-                    <Plus className="w-4 h-4 mr-2" /> Add Person
-                </Button>
+                <div className="flex gap-2">
+                    <button
+                        onClick={testDebugEndpoint}
+                        className="px-3 py-2 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 rounded-lg hover:bg-purple-200 dark:hover:bg-purple-900/50 transition-colors text-xs font-medium"
+                        title="Check backend data"
+                    >
+                        Debug
+                    </button>
+                    <button
+                        onClick={fetchPeople}
+                        className="px-4 py-2 bg-gray-200 dark:bg-neutral-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-neutral-600 transition-colors text-sm font-medium"
+                    >
+                        Refresh
+                    </button>
+                    <Button color="blue" onClick={() => setShowAddPerson(!showAddPerson)}>
+                        <Plus className="w-4 h-4 mr-2" /> Add Person
+                    </Button>
+                </div>
             </div>
 
             {/* Summary Cards */}
