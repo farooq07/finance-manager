@@ -21,5 +21,5 @@ COPY backend ./
 # Expose port
 EXPOSE 5000
 
-# Run migrations and start server
-CMD ["sh", "-c", "npx prisma migrate deploy && npm start"]
+# Start server (migrations handled separately)
+CMD ["npm", "start"]
