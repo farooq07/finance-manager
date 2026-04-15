@@ -3,7 +3,7 @@ import * as SecureStore from 'expo-secure-store';
 import { useAuthStore } from '../stores/authStore';
 
 const api = axios.create({
-  baseURL: process.env.EXPO_PUBLIC_API_URL || 'http://192.168.18.10:5000/api',
+  baseURL: process.env.EXPO_PUBLIC_API_URL || 'https://finance-manager-production-30c4.up.railway.app/api',
   timeout: 15000,
   headers: { 'Content-Type': 'application/json' },
 });
