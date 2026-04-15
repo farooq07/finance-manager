@@ -9,14 +9,25 @@ const api = axios.create({
 });
 
 api.interceptors.request.use(async (config) => {
+  console.log(`[API REQUEST]: ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`);
   const token = await SecureStore.getItemAsync('auth_token');
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
 
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    console.log(`[API SUCCESS]: ${response.status} ${response.config.url}`);
+    return response;
+  },
   async (error) => {
+    console.log(`[API ERROR]: ${error.message} - URL: ${error.config?.baseURL}${error.config?.url}`);
+    if (error.response) {
+      console.log(`[API ERROR RESPONSE]: ${error.response.status} -`, error.response.data);
+    } else {
+      console.log(`[API NETWORK ERROR]: The request never reached the server or was blocked.`);
+    }
+    
     if (error.response?.status === 401) {
       await SecureStore.deleteItemAsync('auth_token');
       useAuthStore.getState().clearAuth();
