@@ -30,6 +30,18 @@ export default function LoginScreen() {
   const onSubmit = async (data: LoginForm) => {
     setLoading(true);
     try {
+      try {
+        console.log('[FETCH TEST] Attempting native fetch...');
+        const fetchRes = await fetch('https://finance-manager-production-30c4.up.railway.app/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+        console.log('[FETCH TEST RESULT] Status:', fetchRes.status);
+      } catch (err) {
+        console.log('[FETCH TEST ERROR] Native fetch failed:', err);
+      }
+      
       const res = await api.post('/auth/login', data);
       router.push({
         pathname: '/(auth)/otp-verification',
