@@ -1,14 +1,14 @@
 export const Colors = {
-  primary: '#1f4842',       // dark teal - main brand color
-  primaryDark: '#163a38',   // darker teal
+  primary: '#10B981',       // vibrant emerald green - main brand color
+  primaryDark: '#059669',   // darker emerald green
   secondary: '#8B5CF6',     // violet-500
   accent: '#F59E0B',        // amber-500
-  success: '#1DD1A1',       // same as primary
+  success: '#10B981',       // same as primary
   danger: '#EF4444',        // red-500
   warning: '#F59E0B',
   info: '#3B82F6',          // blue-500
   accentPink: '#FFE4E4',    // pink for delete/backspace
-  primaryTint: '#D4E8E6',   // light teal bg for icon backgrounds
+  primaryTint: '#D1FAE5',   // light emerald bg for icon backgrounds
   dangerTint: '#FEF2F2',    // light red bg for destructive actions
   dangerTintBorder: '#FECACA', // light red border
 
