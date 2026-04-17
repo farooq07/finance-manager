@@ -172,11 +172,7 @@ export default function ExpensesScreen() {
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>{editing ? 'Edit Expense' : 'Add Expense'}</Text>
-            <TouchableOpacity
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              onPress={() => setShowModal(false)}
-              activeOpacity={0.7}
-            >
+            <TouchableOpacity onPress={() => setShowModal(false)}>
               <Ionicons name="close" size={24} color={Colors.text} />
             </TouchableOpacity>
           </View>
@@ -258,10 +254,10 @@ const styles = StyleSheet.create({
   searchRow: { flexDirection: 'row', alignItems: 'center', margin: 16, backgroundColor: Colors.surface, borderRadius: 10, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: 12 },
   searchIcon: { marginRight: 8 },
   searchInput: { flex: 1, paddingVertical: 10, fontSize: 14, color: Colors.text },
-  filterBar: { marginBottom: 12, paddingVertical: 8, backgroundColor: Colors.background },
-  filterChip: { paddingHorizontal: 16, paddingVertical: 9, borderRadius: 100, borderWidth: 1.5, borderColor: Colors.border, backgroundColor: Colors.surface, marginRight: 0 },
+  filterBar: { maxHeight: 44, marginBottom: 4 },
+  filterChip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface, marginRight: 0 },
   filterChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  filterText: { fontSize: 13, color: Colors.text, fontWeight: '600' },
+  filterText: { fontSize: 13, color: Colors.textSecondary, fontWeight: '500' },
   filterTextActive: { color: '#fff' },
   row: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: Colors.border },
   rowIcon: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 12 },

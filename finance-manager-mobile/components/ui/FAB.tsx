@@ -19,10 +19,10 @@ export function FAB({ onPress, icon = 'add', style }: Props) {
 const styles = StyleSheet.create({
   fab: {
     position: 'absolute', bottom: 24, right: 24,
-    width: 60, height: 60, borderRadius: 30,
+    width: 56, height: 56, borderRadius: 28,
     backgroundColor: Colors.primary,
     justifyContent: 'center', alignItems: 'center',
-    shadowColor: Colors.primary, shadowOpacity: 0.3, shadowRadius: 20,
-    shadowOffset: { width: 0, height: 8 }, elevation: 10,
+    shadowColor: Colors.primary, shadowOpacity: 0.35, shadowRadius: 18,
+    shadowOffset: { width: 0, height: 6 }, elevation: 12,
   },
 });
