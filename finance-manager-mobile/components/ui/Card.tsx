@@ -1,34 +1,54 @@
 import { View, StyleSheet, ViewStyle } from 'react-native';
 import { Colors } from '../../constants/colors';
+import { BorderRadius, Spacing, Elevation } from '../../constants/typography';
 
 interface Props {
   children: React.ReactNode;
   style?: ViewStyle;
-  elevated?: boolean;
+  variant?: 'elevated' | 'outlined' | 'filled';
 }
 
-export function Card({ children, style, elevated }: Props) {
+export function Card({ children, style, variant = 'outlined' }: Props) {
   return (
-    <View style={[styles.card, elevated && styles.elevated, style]}>
+    <View style={[styles.base, styles[variant], style]}>
       {children}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
-    backgroundColor: Colors.surface,
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: Colors.border,
+  // ═══════════════════════════════════════════════════════════════
+  // Base Card Styles (M3)
+  // ═══════════════════════════════════════════════════════════════
+  base: {
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    overflow: 'hidden',
   },
+
+  // ═══════════════════════════════════════════════════════════════
+  // Card Variants (M3: Elevated, Outlined, Filled)
+  // ═══════════════════════════════════════════════════════════════
+
+  // Elevated Card - Subtle shadow for surface variation
   elevated: {
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 4,
+    backgroundColor: Colors.surface,
+    ...Elevation.elevation1,
     borderWidth: 0,
+  },
+
+  // Outlined Card - Border for clear distinction (default)
+  outlined: {
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.outline,
+    ...Elevation.none,
+  },
+
+  // Filled Card - Colored background for emphasis
+  filled: {
+    backgroundColor: Colors.surfaceVariant,
+    borderWidth: 0,
+    ...Elevation.none,
   },
 });

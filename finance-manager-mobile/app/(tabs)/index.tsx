@@ -1,14 +1,17 @@
-import { ScrollView, View, Text, TouchableOpacity, StyleSheet, RefreshControl } from 'react-native';
+import { ScrollView, View, Text, TouchableOpacity, StyleSheet, RefreshControl, Modal, TextInput, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useMutation } from '@tanstack/react-query';
+import { useState } from 'react';
 import Toast from 'react-native-toast-message';
 import { Colors } from '../../constants/colors';
 import { fmtPKR, fmtGL, glColor, pctChange } from '../../utils/currency';
 import { MaskedBalance } from '../../components/ui/MaskedBalance';
 import { Card } from '../../components/ui/Card';
 import { Skeleton } from '../../components/ui/Skeleton';
+import { Button } from '../../components/ui/Button';
 import { useAuthStore } from '../../stores/authStore';
+import { usePinVerification } from '../../hooks/usePinVerification';
 import api from '../../services/api';
 import { DashboardResponse } from '../../types/api';
 import { QUERY_KEYS } from '../../constants/queryKeys';
@@ -16,6 +19,8 @@ import { QUERY_KEYS } from '../../constants/queryKeys';
 export default function DashboardScreen() {
   const insets = useSafeAreaInsets();
   const user = useAuthStore((s) => s.user);
+  const [amountsVisible, setAmountsVisible] = useState(true);
+  const { showPinModal, setShowPinModal, pinInput, setPinInput, verifying, handleVerify } = usePinVerification();
 
   const { data, isLoading, refetch, isRefetching } = useQuery<DashboardResponse>({
     queryKey: QUERY_KEYS.dashboard,
@@ -57,9 +62,33 @@ export default function DashboardScreen() {
           <Text style={styles.greeting}>Good day, {user?.name?.split(' ')[0]} 👋</Text>
           <Text style={styles.headerSub}>Your financial overview</Text>
         </View>
-        <TouchableOpacity style={styles.emailBtn} onPress={() => sendSummary.mutate()} disabled={sendSummary.isPending}>
-          <Ionicons name="mail-outline" size={20} color={Colors.primary} />
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          {/* Eye Icon for Amount Privacy */}
+          <TouchableOpacity
+            style={styles.headerBtn}
+            onPress={() => {
+              if (amountsVisible) {
+                setShowPinModal(true);
+              } else {
+                setAmountsVisible(true);
+              }
+            }}
+          >
+            <Ionicons
+              name={amountsVisible ? 'eye-outline' : 'eye-off-outline'}
+              size={20}
+              color={Colors.primary}
+            />
+          </TouchableOpacity>
+          {/* Email Button */}
+          <TouchableOpacity
+            style={styles.headerBtn}
+            onPress={() => sendSummary.mutate()}
+            disabled={sendSummary.isPending}
+          >
+            <Ionicons name="mail-outline" size={20} color={Colors.primary} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Net Worth Card */}
@@ -173,6 +202,61 @@ export default function DashboardScreen() {
           </Card>
         </View>
       )}
+
+      {/* PIN Verification Modal for Amount Privacy */}
+      <Modal
+        visible={showPinModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          setShowPinModal(false);
+          setPinInput('');
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.pinModal}>
+            <Text style={styles.pinTitle}>Enter PIN</Text>
+            <Text style={styles.pinSubtitle}>Verify PIN to view amounts</Text>
+
+            <TextInput
+              style={styles.pinInput}
+              value={pinInput}
+              onChangeText={setPinInput}
+              placeholder="0000"
+              placeholderTextColor={Colors.textTertiary}
+              keyboardType="numeric"
+              secureTextEntry
+              maxLength={4}
+            />
+
+            <View style={styles.pinButtonRow}>
+              <Button
+                title="Cancel"
+                variant="secondary"
+                onPress={() => {
+                  setShowPinModal(false);
+                  setPinInput('');
+                }}
+                style={{ flex: 1 }}
+              />
+              <Button
+                title={verifying ? '' : 'Verify'}
+                variant="primary"
+                onPress={async () => {
+                  const success = await handleVerify();
+                  if (success) {
+                    setAmountsVisible(false); // Hide amounts when unlocked
+                    setShowPinModal(false);
+                  }
+                }}
+                loading={verifying}
+                disabled={!pinInput.trim() || verifying}
+                style={{ flex: 1, marginLeft: 12 }}
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -186,7 +270,8 @@ const styles = StyleSheet.create({
   },
   greeting: { fontSize: 20, fontWeight: '700', color: Colors.text },
   headerSub: { fontSize: 13, color: Colors.textSecondary, marginTop: 2 },
-  emailBtn: { padding: 8, backgroundColor: Colors.primaryTint, borderRadius: 10 },
+  headerActions: { flexDirection: 'row', gap: 12, alignItems: 'center' },
+  headerBtn: { padding: 8, backgroundColor: Colors.primaryTint, borderRadius: 10 },
   netWorthCard: {
     marginHorizontal: 16, marginTop: 16, marginBottom: 8,
     backgroundColor: Colors.primary, borderRadius: 20, padding: 24,
@@ -217,4 +302,50 @@ const styles = StyleSheet.create({
   barTrack: { flex: 1, height: 8, backgroundColor: Colors.border, borderRadius: 4, marginHorizontal: 10, overflow: 'hidden' },
   barFill: { height: 8, backgroundColor: Colors.primary, borderRadius: 4 },
   barValue: { fontSize: 12, color: Colors.text, fontWeight: '600', width: 90, textAlign: 'right' },
+
+  // PIN Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  pinModal: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: 24,
+    width: '80%',
+    maxWidth: 320,
+  },
+  pinTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: Colors.text,
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  pinSubtitle: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  pinInput: {
+    borderWidth: 1,
+    borderColor: Colors.outline,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 18,
+    color: Colors.text,
+    backgroundColor: Colors.background,
+    textAlign: 'center',
+    letterSpacing: 8,
+    marginBottom: 20,
+    fontWeight: '600',
+  },
+  pinButtonRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
 });

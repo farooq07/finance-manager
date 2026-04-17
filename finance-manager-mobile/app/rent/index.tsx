@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import React from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
   Modal, TextInput, ActivityIndicator, ScrollView, Alert, RefreshControl,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
 import { Colors } from '../../constants/colors';
@@ -24,6 +26,13 @@ export default function RentScreen() {
   const { data, isLoading, refetch, isRefetching } = useRent();
   const createRent = useCreateRent();
   const deleteRent = useDeleteRent();
+
+  // Refetch data when screen comes into focus (mobile UX improvement)
+  useFocusEffect(
+    React.useCallback(() => {
+      refetch();
+    }, [refetch])
+  );
 
   const [showModal, setShowModal] = useState(false);
   const [month, setMonth] = useState(MONTHS[new Date().getMonth()]);

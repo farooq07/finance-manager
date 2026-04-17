@@ -1,13 +1,15 @@
 import { View, Text, TextInput, StyleSheet, TextInputProps, ViewStyle } from 'react-native';
 import { Colors } from '../../constants/colors';
+import { Typography, Spacing, BorderRadius } from '../../constants/typography';
 
 interface Props extends TextInputProps {
   label?: string;
   error?: string;
+  helper?: string;
   containerStyle?: ViewStyle;
 }
 
-export function Input({ label, error, containerStyle, style, ...props }: Props) {
+export function Input({ label, error, helper, containerStyle, style, ...props }: Props) {
   return (
     <View style={[styles.container, containerStyle]}>
       {label && <Text style={styles.label}>{label}</Text>}
@@ -16,19 +18,65 @@ export function Input({ label, error, containerStyle, style, ...props }: Props) 
         placeholderTextColor={Colors.textTertiary}
         {...props}
       />
-      {error && <Text style={styles.error}>{error}</Text>}
+      {error ? (
+        <Text style={styles.error}>{error}</Text>
+      ) : helper ? (
+        <Text style={styles.helper}>{helper}</Text>
+      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { marginBottom: 12 },
-  label: { fontSize: 14, fontWeight: '600', color: Colors.text, marginBottom: 6 },
-  input: {
-    borderWidth: 1, borderColor: Colors.border, borderRadius: 10,
-    paddingHorizontal: 14, paddingVertical: 12, fontSize: 15,
-    color: Colors.text, backgroundColor: Colors.background,
+  // ═══════════════════════════════════════════════════════════════
+  // Container (M3 Spacing)
+  // ═══════════════════════════════════════════════════════════════
+  container: {
+    marginBottom: Spacing.lg,
   },
-  inputError: { borderColor: Colors.danger },
-  error: { color: Colors.danger, fontSize: 12, marginTop: 4 },
+
+  // ═══════════════════════════════════════════════════════════════
+  // Label (M3 Body Small)
+  // ═══════════════════════════════════════════════════════════════
+  label: {
+    ...Typography.labelMedium,
+    color: Colors.text,
+    marginBottom: Spacing.sm,
+  },
+
+  // ═══════════════════════════════════════════════════════════════
+  // Input Field (M3 Outlined Text Field)
+  // ═══════════════════════════════════════════════════════════════
+  input: {
+    ...Typography.bodyLarge,
+    borderWidth: 1,
+    borderColor: Colors.outline,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    color: Colors.text,
+    backgroundColor: Colors.surface,
+  },
+
+  // ═══════════════════════════════════════════════════════════════
+  // Error State (M3 Error Color)
+  // ═══════════════════════════════════════════════════════════════
+  inputError: {
+    borderColor: Colors.error,
+  },
+
+  // ═══════════════════════════════════════════════════════════════
+  // Supporting Text (M3)
+  // ═══════════════════════════════════════════════════════════════
+  error: {
+    ...Typography.labelSmall,
+    color: Colors.error,
+    marginTop: Spacing.xs,
+  },
+
+  helper: {
+    ...Typography.labelSmall,
+    color: Colors.textTertiary,
+    marginTop: Spacing.xs,
+  },
 });

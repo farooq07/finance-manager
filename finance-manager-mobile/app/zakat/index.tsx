@@ -4,6 +4,7 @@ import {
   Modal, TextInput, ActivityIndicator, Alert, RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useQuery } from '@tanstack/react-query';
 import Toast from 'react-native-toast-message';
 import { Colors } from '../../constants/colors';
 import { fmtPKR } from '../../utils/currency';
@@ -14,16 +15,27 @@ import { Card } from '../../components/ui/Card';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { FAB } from '../../components/ui/FAB';
 import { Skeleton } from '../../components/ui/Skeleton';
+import { Button } from '../../components/ui/Button';
+import api from '../../services/api';
+import { DashboardResponse } from '../../types/api';
+import { QUERY_KEYS } from '../../constants/queryKeys';
 
 export default function ZakatScreen() {
   const { data, isLoading, refetch, isRefetching } = useZakat();
   const createZakat = useCreateZakat();
   const deleteZakat = useDeleteZakat();
 
+  // Fetch dashboard data for net worth
+  const { data: dashboardData } = useQuery<DashboardResponse>({
+    queryKey: QUERY_KEYS.dashboard,
+    queryFn: () => api.get('/dashboard/summary').then((r) => r.data),
+  });
+
   const [showModal, setShowModal] = useState(false);
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
   const [date, setDate] = useState(todayISO());
+  const [calculating, setCalculating] = useState(false);
 
   const handleAdd = async () => {
     if (!amount.trim()) { Toast.show({ type: 'error', text1: 'Amount is required' }); return; }
@@ -40,6 +52,37 @@ export default function ZakatScreen() {
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: () => deleteZakat.mutate(id) },
     ]);
+  };
+
+  // Auto-calculate 2.5% of net worth
+  const handleAutoCalculate = async () => {
+    if (!dashboardData?.metrics?.netWorth) {
+      Toast.show({
+        type: 'error',
+        text1: 'Unable to calculate',
+        text2: 'Net worth data not available',
+      });
+      return;
+    }
+
+    setCalculating(true);
+    try {
+      // Simulate calculation delay for UX
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      const netWorth = dashboardData.metrics.netWorth;
+      const estimatedZakat = Math.round(netWorth * 0.025); // 2.5% of net worth
+
+      setAmount(estimatedZakat.toString());
+
+      Toast.show({
+        type: 'success',
+        text1: 'Zakat Calculated',
+        text2: `2.5% of Net Worth: ${fmtPKR(estimatedZakat)}`,
+      });
+    } finally {
+      setCalculating(false);
+    }
   };
 
   return (
@@ -102,7 +145,17 @@ export default function ZakatScreen() {
             </TouchableOpacity>
           </View>
           <View style={{ padding: 20 }}>
-            <Text style={styles.label}>Amount (PKR) *</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <Text style={styles.label}>Amount (PKR) *</Text>
+              <Button
+                title={calculating ? '' : 'Auto Calculate'}
+                variant="secondary"
+                size="small"
+                onPress={handleAutoCalculate}
+                loading={calculating}
+                disabled={!dashboardData?.metrics?.netWorth || calculating}
+              />
+            </View>
             <TextInput
               style={styles.input}
               value={amount}
