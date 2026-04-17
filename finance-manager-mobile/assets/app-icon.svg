@@ -1,0 +1,30 @@
+<svg width="192" height="192" viewBox="0 0 192 192" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background with rounded corners -->
+  <rect width="192" height="192" rx="44" fill="#1f4741"/>
+
+  <!-- Outer glow circle -->
+  <circle cx="96" cy="96" r="85" fill="none" stroke="#10B981" stroke-width="2" opacity="0.3"/>
+
+  <!-- Main icon: Financial chart/bars -->
+  <!-- Bar 1 (Short) -->
+  <rect x="52" y="108" width="16" height="40" rx="4" fill="#A3F0D8"/>
+
+  <!-- Bar 2 (Medium) -->
+  <rect x="78" y="88" width="16" height="60" rx="4" fill="#86EFAC"/>
+
+  <!-- Bar 3 (Tall) -->
+  <rect x="104" y="68" width="16" height="80" rx="4" fill="#10B981"/>
+
+  <!-- Bar 4 (Medium) -->
+  <rect x="130" y="88" width="16" height="60" rx="4" fill="#86EFAC"/>
+
+  <!-- Upward arrow showing growth -->
+  <path d="M96 48 L96 52 M96 52 L88 60 M96 52 L104 60" stroke="#10B981" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+
+  <!-- Dollar sign accent -->
+  <circle cx="156" cy="52" r="20" fill="#10B981" opacity="0.8"/>
+  <text x="156" y="62" font-size="28" font-weight="bold" fill="#1f4741" text-anchor="middle" font-family="Arial">$</text>
+
+  <!-- Subtle line at bottom showing stability -->
+  <line x1="50" y1="150" x2="142" y2="150" stroke="#86EFAC" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
+</svg>

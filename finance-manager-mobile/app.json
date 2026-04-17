@@ -4,7 +4,7 @@
     "slug": "finance-manager-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/adaptive-icon.png",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "scheme": "financemanager",
@@ -13,6 +13,7 @@
       "resizeMode": "contain",
       "backgroundColor": "#1f4842"
     },
+    "description": "Professional Finance Management App - Track your finances, investments, and goals with ease",
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.farooqibex.financemanager"

@@ -1,0 +1,44 @@
+<svg width="540" height="720" viewBox="0 0 540 720" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background with gradient effect -->
+  <defs>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1f4741;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0f2724;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+
+  <rect width="540" height="720" fill="url(#bgGradient)"/>
+
+  <!-- Decorative circles in background -->
+  <circle cx="270" cy="360" r="200" fill="#10B981" opacity="0.1"/>
+  <circle cx="270" cy="360" r="120" fill="#10B981" opacity="0.15"/>
+
+  <!-- App Icon - Financial Chart -->
+  <g transform="translate(270, 200)">
+    <!-- Bar 1 -->
+    <rect x="-35" y="35" width="18" height="45" rx="3" fill="#A3F0D8"/>
+    <!-- Bar 2 -->
+    <rect x="-9" y="15" width="18" height="65" rx="3" fill="#86EFAC"/>
+    <!-- Bar 3 (Tallest) -->
+    <rect x="17" y="-5" width="18" height="85" rx="3" fill="#10B981"/>
+    <!-- Growth Arrow -->
+    <path d="M40 -15 L40 -5 M40 -5 L32 3 M40 -5 L48 3" stroke="#86EFAC" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  </g>
+
+  <!-- App Name -->
+  <text x="270" y="380" font-size="48" font-weight="700" fill="#FFFFFF" text-anchor="middle" font-family="Arial, sans-serif">Finance Manager</text>
+
+  <!-- Tagline -->
+  <text x="270" y="425" font-size="18" fill="#A3F0D8" text-anchor="middle" font-family="Arial, sans-serif">Smart Financial Management</text>
+
+  <!-- Bottom accent line -->
+  <line x1="80" y1="480" x2="460" y2="480" stroke="#10B981" stroke-width="3" stroke-linecap="round" opacity="0.6"/>
+
+  <!-- Version -->
+  <text x="270" y="620" font-size="14" fill="#86EFAC" text-anchor="middle" font-family="Arial, sans-serif" opacity="0.7">v1.0.0</text>
+
+  <!-- Loading dots animation indicator -->
+  <circle cx="220" cy="655" r="5" fill="#10B981"/>
+  <circle cx="270" cy="655" r="5" fill="#10B981" opacity="0.6"/>
+  <circle cx="320" cy="655" r="5" fill="#10B981" opacity="0.3"/>
+</svg>
