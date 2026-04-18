@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet,
-  Modal, ScrollView, ActivityIndicator, Alert, RefreshControl, TextInput,
+  View, TouchableOpacity, StyleSheet,
+  Modal, ScrollView, Alert, RefreshControl, TextInput,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { Text } from 'react-native-paper';
 import Toast from 'react-native-toast-message';
 import { Colors } from '../../constants/colors';
 import { fmtPKR } from '../../utils/currency';
@@ -92,11 +93,11 @@ export default function AccountsScreen() {
         <Text style={styles.title}>Accounts</Text>
         <View style={styles.headerBtns}>
           <TouchableOpacity style={styles.addBtn} onPress={() => setShowBankModal(true)}>
-            <Ionicons name="business-outline" size={15} color={Colors.primary} />
+            <MaterialCommunityIcons name="bank" size={15} color={Colors.primary} />
             <Text style={styles.addBtnText}>Bank</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.addBtn} onPress={() => setShowWalletModal(true)}>
-            <Ionicons name="wallet-outline" size={15} color={Colors.primary} />
+            <MaterialCommunityIcons name="wallet" size={15} color={Colors.primary} />
             <Text style={styles.addBtnText}>Wallet</Text>
           </TouchableOpacity>
         </View>

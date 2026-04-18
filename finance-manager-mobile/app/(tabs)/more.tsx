@@ -1,7 +1,7 @@
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import { useAuthStore } from '../../stores/authStore';
 import { useLogout } from '../../hooks/useAuth';
@@ -41,28 +41,28 @@ export default function MoreScreen() {
       items: [
         {
           label: 'Dues Ledger',
-          icon: 'people-outline' as const,
+          icon: 'account-multiple' as const,
           color: '#8B5CF6',
           route: '/dues',
           badge: dues ? `${dues.length} persons` : undefined,
         },
         {
           label: 'Rental Income',
-          icon: 'home-outline' as const,
+          icon: 'home' as const,
           color: '#F59E0B',
           route: '/rent',
           badge: rent?.entries?.length ? fmtPKR(rent.totalReceived) : undefined,
         },
         {
           label: 'Zakat',
-          icon: 'heart-outline' as const,
+          icon: 'heart' as const,
           color: '#10B981',
           route: '/zakat',
           badge: zakat ? fmtPKR(zakat.currentYearTotal) : undefined,
         },
         {
           label: 'Physical Assets',
-          icon: 'diamond-outline' as const,
+          icon: 'diamond' as const,
           color: '#F97316',
           route: '/assets',
           badge: assets ? fmtPKR(assets.totalValue) : undefined,
@@ -74,14 +74,14 @@ export default function MoreScreen() {
       items: [
         {
           label: 'Broker Account',
-          icon: 'briefcase-outline' as const,
+          icon: 'briefcase' as const,
           color: '#6366F1',
           route: '/broker',
           badge: undefined,
         },
         {
           label: 'Change PIN',
-          icon: 'lock-closed-outline' as const,
+          icon: 'lock' as const,
           color: '#64748B',
           route: '/change-pin',
           badge: undefined,
@@ -132,11 +132,11 @@ export default function MoreScreen() {
                 activeOpacity={0.7}
               >
                 <View style={[styles.menuIcon, { backgroundColor: item.color + '18' }]}>
-                  <Ionicons name={item.icon} size={20} color={item.color} />
+                  <MaterialCommunityIcons name={item.icon} size={20} color={item.color} />
                 </View>
                 <Text style={styles.menuLabel}>{item.label}</Text>
                 {item.badge && <Text style={styles.menuBadge}>{item.badge}</Text>}
-                <Ionicons name="chevron-forward" size={16} color={Colors.textTertiary} />
+                <MaterialCommunityIcons name="chevron-right" size={16} color={Colors.textTertiary} />
               </TouchableOpacity>
             ))}
           </View>
@@ -145,7 +145,7 @@ export default function MoreScreen() {
 
       {/* Logout */}
       <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
-        <Ionicons name="log-out-outline" size={20} color={Colors.danger} />
+        <MaterialCommunityIcons name="logout" size={20} color={Colors.danger} />
         <Text style={styles.logoutText}>Sign Out</Text>
       </TouchableOpacity>
     </ScrollView>
