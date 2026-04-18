@@ -1,8 +1,9 @@
 import { useState, useCallback } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
-  TextInput, Modal, ScrollView, ActivityIndicator, RefreshControl, Alert,
+  Modal, ScrollView, ActivityIndicator, RefreshControl, Alert,
 } from 'react-native';
+import { TextInput } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useForm, Controller } from 'react-hook-form';
@@ -108,14 +109,14 @@ export default function ExpensesScreen() {
       </View>
 
       {/* Search */}
-      <View style={styles.searchRow}>
-        <MaterialCommunityIcons name="magnify" size={18} color={Colors.textTertiary} style={styles.searchIcon} />
+      <View style={{ marginHorizontal: 16, marginBottom: 8 }}>
         <TextInput
-          style={styles.searchInput}
+          label="Search expenses..."
+          mode="outlined"
           placeholder="Search expenses..."
-          placeholderTextColor={Colors.textTertiary}
           value={search}
           onChangeText={setSearch}
+          left={<TextInput.Icon icon="magnify" />}
         />
       </View>
 
@@ -177,12 +178,16 @@ export default function ExpensesScreen() {
             </TouchableOpacity>
           </View>
           <ScrollView style={styles.modalBody} keyboardShouldPersistTaps="handled">
-            <Text style={styles.label}>Amount (PKR)</Text>
             <Controller control={control} name="amount" render={({ field: { onChange, value } }) => (
-              <TextInput style={[styles.input, errors.amount && styles.inputError]}
-                placeholder="0" placeholderTextColor={Colors.textTertiary}
-                keyboardType="numeric" value={value ? String(value) : ''}
-                onChangeText={(t) => onChange(parseFloat(t) || 0)} />
+              <TextInput
+                label="Amount (PKR)"
+                mode="outlined"
+                placeholder="0"
+                keyboardType="numeric"
+                value={value ? String(value) : ''}
+                onChangeText={(t) => onChange(parseFloat(t) || 0)}
+                error={!!errors.amount}
+              />
             )} />
             {errors.amount && <Text style={styles.err}>{errors.amount.message}</Text>}
 
@@ -202,11 +207,16 @@ export default function ExpensesScreen() {
             </ScrollView>
             {errors.category && <Text style={styles.err}>{errors.category.message}</Text>}
 
-            <Text style={styles.label}>Date (YYYY-MM-DD)</Text>
             <Controller control={control} name="expense_date" render={({ field: { onChange, value } }) => (
-              <TextInput style={[styles.input, errors.expense_date && styles.inputError]}
-                placeholder={todayISO()} placeholderTextColor={Colors.textTertiary}
-                value={value} onChangeText={onChange} />
+              <TextInput
+                label="Date (YYYY-MM-DD)"
+                mode="outlined"
+                placeholder={todayISO()}
+                value={value}
+                onChangeText={onChange}
+                error={!!errors.expense_date}
+                style={{ marginTop: 16 }}
+              />
             )} />
 
             <Text style={styles.label}>Payment Method</Text>
@@ -223,11 +233,17 @@ export default function ExpensesScreen() {
               ))}
             </ScrollView>
 
-            <Text style={styles.label}>Notes</Text>
             <Controller control={control} name="notes" render={({ field: { onChange, value } }) => (
-              <TextInput style={[styles.input, { height: 80, textAlignVertical: 'top' }]}
-                placeholder="Optional notes..." placeholderTextColor={Colors.textTertiary}
-                value={value ?? ''} onChangeText={onChange} multiline />
+              <TextInput
+                label="Notes"
+                mode="outlined"
+                placeholder="Optional notes..."
+                value={value ?? ''}
+                onChangeText={onChange}
+                multiline
+                numberOfLines={4}
+                style={{ marginTop: 16 }}
+              />
             )} />
 
             <TouchableOpacity

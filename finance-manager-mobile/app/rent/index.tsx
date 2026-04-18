@@ -2,10 +2,11 @@ import { useState, useEffect, useCallback } from 'react';
 import React from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
-  Modal, TextInput, ActivityIndicator, ScrollView, Alert, RefreshControl,
+  Modal, ActivityIndicator, ScrollView, Alert, RefreshControl,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { TextInput } from 'react-native-paper';
 import Toast from 'react-native-toast-message';
 import { Colors } from '../../constants/colors';
 import { fmtPKR } from '../../utils/currency';
@@ -110,7 +111,7 @@ export default function RentScreen() {
                 <View style={{ alignItems: 'flex-end', gap: 8 }}>
                   <Text style={styles.entryAmount}>{fmtPKR(item.amount)}</Text>
                   <TouchableOpacity onPress={() => handleDelete(item.id)}>
-                    <Ionicons name="trash-outline" size={16} color={Colors.danger} />
+                    <MaterialCommunityIcons name="trash-can" size={16} color={Colors.danger} />
                   </TouchableOpacity>
                 </View>
               </View>
@@ -126,7 +127,7 @@ export default function RentScreen() {
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Add Rent Entry</Text>
             <TouchableOpacity onPress={() => setShowModal(false)}>
-              <Ionicons name="close" size={24} color={Colors.text} />
+              <MaterialCommunityIcons name="close" size={24} color={Colors.text} />
             </TouchableOpacity>
           </View>
           <ScrollView style={{ padding: 20 }} keyboardShouldPersistTaps="handled">
@@ -150,18 +151,17 @@ export default function RentScreen() {
               { label: 'Payment Date (YYYY-MM-DD)', value: paymentDate, onChange: setPaymentDate },
               { label: 'Account Source', value: source, onChange: setSource, placeholder: 'e.g. HBL, JazzCash' },
               { label: 'Notes', value: notes, onChange: setNotes, placeholder: 'Optional' },
-            ].map((f) => (
-              <View key={f.label}>
-                <Text style={styles.label}>{f.label}</Text>
-                <TextInput
-                  style={styles.input}
-                  value={f.value}
-                  onChangeText={f.onChange}
-                  keyboardType={f.numeric ? 'numeric' : 'default'}
-                  placeholder={f.placeholder ?? ''}
-                  placeholderTextColor={Colors.textTertiary}
-                />
-              </View>
+            ].map((f, idx) => (
+              <TextInput
+                key={f.label}
+                label={f.label}
+                mode="outlined"
+                value={f.value}
+                onChangeText={f.onChange}
+                keyboardType={f.numeric ? 'numeric' : 'default'}
+                placeholder={f.placeholder ?? ''}
+                style={{ marginTop: idx === 0 ? 12 : 16 }}
+              />
             ))}
 
             <TouchableOpacity style={styles.saveBtn} onPress={handleAdd} disabled={createRent.isPending}>

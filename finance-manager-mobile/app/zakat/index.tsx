@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
-  Modal, TextInput, ActivityIndicator, Alert, RefreshControl,
+  Modal, ActivityIndicator, Alert, RefreshControl,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { TextInput } from 'react-native-paper';
 import { useQuery } from '@tanstack/react-query';
 import Toast from 'react-native-toast-message';
 import { Colors } from '../../constants/colors';
@@ -96,7 +97,7 @@ export default function ZakatScreen() {
             <Text style={styles.totalValue}>{fmtPKR(data.currentYearTotal)}</Text>
           </View>
           <View style={styles.totalIcon}>
-            <Ionicons name="heart" size={24} color={Colors.success} />
+            <MaterialCommunityIcons name="heart" size={24} color={Colors.success} />
           </View>
         </View>
       )}
@@ -118,7 +119,7 @@ export default function ZakatScreen() {
             <Card style={styles.entry}>
               <View style={styles.entryRow}>
                 <View style={styles.entryIconWrap}>
-                  <Ionicons name="heart-outline" size={20} color={Colors.success} />
+                  <MaterialCommunityIcons name="heart" size={20} color={Colors.success} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.entryAmount}>{fmtPKR(item.amount)}</Text>
@@ -126,7 +127,7 @@ export default function ZakatScreen() {
                   {item.description && <Text style={styles.entryDesc}>{item.description}</Text>}
                 </View>
                 <TouchableOpacity onPress={() => handleDelete(item.id)}>
-                  <Ionicons name="trash-outline" size={16} color={Colors.danger} />
+                  <MaterialCommunityIcons name="trash-can" size={16} color={Colors.danger} />
                 </TouchableOpacity>
               </View>
             </Card>
@@ -141,12 +142,12 @@ export default function ZakatScreen() {
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Add Zakat</Text>
             <TouchableOpacity onPress={() => setShowModal(false)}>
-              <Ionicons name="close" size={24} color={Colors.text} />
+              <MaterialCommunityIcons name="close" size={24} color={Colors.text} />
             </TouchableOpacity>
           </View>
           <View style={{ padding: 20 }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <Text style={styles.label}>Amount (PKR) *</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 12, gap: 12 }}>
+              <View style={{ flex: 1 }} />
               <Button
                 title={calculating ? '' : 'Auto Calculate'}
                 variant="secondary"
@@ -157,28 +158,28 @@ export default function ZakatScreen() {
               />
             </View>
             <TextInput
-              style={styles.input}
+              label="Amount (PKR) *"
+              mode="outlined"
               value={amount}
               onChangeText={setAmount}
               keyboardType="numeric"
               placeholder="0"
-              placeholderTextColor={Colors.textTertiary}
             />
-            <Text style={styles.label}>Date (YYYY-MM-DD)</Text>
             <TextInput
-              style={styles.input}
+              label="Date (YYYY-MM-DD)"
+              mode="outlined"
               value={date}
               onChangeText={setDate}
               placeholder={todayISO()}
-              placeholderTextColor={Colors.textTertiary}
+              style={{ marginTop: 12 }}
             />
-            <Text style={styles.label}>Description</Text>
             <TextInput
-              style={styles.input}
+              label="Description"
+              mode="outlined"
               value={description}
               onChangeText={setDescription}
               placeholder="Optional"
-              placeholderTextColor={Colors.textTertiary}
+              style={{ marginTop: 12 }}
             />
             <TouchableOpacity style={styles.saveBtn} onPress={handleAdd} disabled={createZakat.isPending}>
               {createZakat.isPending

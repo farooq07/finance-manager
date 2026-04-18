@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
-  Modal, TextInput, ActivityIndicator, ScrollView, Alert,
+  Modal, ActivityIndicator, ScrollView, Alert,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { TextInput } from 'react-native-paper';
 import Toast from 'react-native-toast-message';
 import { Colors } from '../../constants/colors';
 import { useBrokers, useCreateBroker, useDeleteBroker } from '../../hooks/useBrokers';
@@ -64,7 +65,7 @@ export default function BrokerScreen() {
           <Card key={b.id} style={styles.card}>
             <View style={styles.cardHeader}>
               <View style={styles.cardIcon}>
-                <Ionicons name="briefcase-outline" size={20} color={Colors.primary} />
+                <MaterialCommunityIcons name="briefcase" size={20} color={Colors.primary} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.cardTitle}>{b.account_title}</Text>
@@ -73,7 +74,7 @@ export default function BrokerScreen() {
                 {b.cdc_sub_acc_no && <Text style={styles.cardSub}>CDC Sub: {b.cdc_sub_acc_no}</Text>}
               </View>
               <TouchableOpacity onPress={() => handleDelete(b.id)}>
-                <Ionicons name="trash-outline" size={18} color={Colors.danger} />
+                <MaterialCommunityIcons name="trash-can" size={18} color={Colors.danger} />
               </TouchableOpacity>
             </View>
           </Card>
@@ -87,7 +88,7 @@ export default function BrokerScreen() {
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Add Broker Account</Text>
             <TouchableOpacity onPress={() => setShowModal(false)}>
-              <Ionicons name="close" size={24} color={Colors.text} />
+              <MaterialCommunityIcons name="close" size={24} color={Colors.text} />
             </TouchableOpacity>
           </View>
           <ScrollView style={{ padding: 20 }} keyboardShouldPersistTaps="handled">
@@ -97,17 +98,16 @@ export default function BrokerScreen() {
               { label: 'Participant Account No', value: participantAccNo, onChange: setParticipantAccNo, placeholder: 'Optional' },
               { label: 'CDC Sub Account No', value: cdcSubAccNo, onChange: setCdcSubAccNo, placeholder: 'Optional' },
               { label: 'Stock PIN Code', value: stockPinCode, onChange: setStockPinCode, placeholder: 'Optional' },
-            ].map((f) => (
-              <View key={f.label}>
-                <Text style={styles.label}>{f.label}</Text>
-                <TextInput
-                  style={styles.input}
-                  value={f.value}
-                  onChangeText={f.onChange}
-                  placeholder={f.placeholder}
-                  placeholderTextColor={Colors.textTertiary}
-                />
-              </View>
+            ].map((f, idx) => (
+              <TextInput
+                key={f.label}
+                label={f.label}
+                mode="outlined"
+                value={f.value}
+                onChangeText={f.onChange}
+                placeholder={f.placeholder}
+                style={{ marginTop: idx === 0 ? 12 : 16 }}
+              />
             ))}
             <TouchableOpacity style={styles.saveBtn} onPress={handleAdd} disabled={createBroker.isPending}>
               {createBroker.isPending

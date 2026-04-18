@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
-  Modal, TextInput, ActivityIndicator, Alert, RefreshControl,
+  Modal, ActivityIndicator, Alert, RefreshControl,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { TextInput } from 'react-native-paper';
 import Toast from 'react-native-toast-message';
 import { Colors } from '../../constants/colors';
 import { fmtPKR } from '../../utils/currency';
@@ -100,7 +101,7 @@ export default function DuesScreen() {
                     <Text style={styles.balanceLabel}>{item.netBalance >= 0 ? 'owes you' : 'you owe'}</Text>
                   </View>
                   <TouchableOpacity onPress={() => handleDelete(item.id, item.name)} style={{ marginLeft: 8 }}>
-                    <Ionicons name="trash-outline" size={16} color={Colors.danger} />
+                    <MaterialCommunityIcons name="trash-can" size={16} color={Colors.danger} />
                   </TouchableOpacity>
                 </View>
               </Card>
@@ -116,27 +117,26 @@ export default function DuesScreen() {
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Add Person</Text>
             <TouchableOpacity onPress={() => setShowModal(false)}>
-              <Ionicons name="close" size={24} color={Colors.text} />
+              <MaterialCommunityIcons name="close" size={24} color={Colors.text} />
             </TouchableOpacity>
           </View>
           <View style={{ padding: 20 }}>
-            <Text style={styles.label}>Name *</Text>
             <TextInput
-              style={styles.input}
+              label="Name *"
+              mode="outlined"
               value={name}
               onChangeText={setName}
               placeholder="e.g. Ahmad"
-              placeholderTextColor={Colors.textTertiary}
             />
-            <Text style={styles.label}>Email (optional)</Text>
             <TextInput
-              style={styles.input}
+              label="Email (optional)"
+              mode="outlined"
               value={email}
               onChangeText={setEmail}
               placeholder="email@example.com"
-              placeholderTextColor={Colors.textTertiary}
               keyboardType="email-address"
               autoCapitalize="none"
+              style={{ marginTop: 16 }}
             />
             <TouchableOpacity style={styles.saveBtn} onPress={handleAdd} disabled={createPerson.isPending}>
               {createPerson.isPending

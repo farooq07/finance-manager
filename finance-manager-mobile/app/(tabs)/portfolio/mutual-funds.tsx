@@ -4,7 +4,7 @@ import {
   Modal, ScrollView, ActivityIndicator, Alert, RefreshControl,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import Toast from 'react-native-toast-message';
 import { useForm, Controller } from 'react-hook-form';
@@ -76,7 +76,7 @@ export default function MutualFundsScreen() {
         showBack
         right={
           <TouchableOpacity onPress={handleUpload} style={styles.uploadBtn}>
-            {uploadCSV.isPending ? <ActivityIndicator size="small" color={Colors.primary} /> : <Ionicons name="cloud-upload-outline" size={22} color={Colors.primary} />}
+            {uploadCSV.isPending ? <ActivityIndicator size="small" color={Colors.primary} /> : <MaterialCommunityIcons name="cloud-upload" size={22} color={Colors.primary} />}
           </TouchableOpacity>
         }
       />
@@ -122,7 +122,7 @@ export default function MutualFundsScreen() {
                     <Text style={styles.fundSymbol}>{item.fund_symbol} · {item.status}</Text>
                   </View>
                   <TouchableOpacity onPress={() => handleDelete(item.id, item.fund_name)}>
-                    <Ionicons name="trash-outline" size={18} color={Colors.danger} />
+                    <MaterialCommunityIcons name="trash-can" size={18} color={Colors.danger} />
                   </TouchableOpacity>
                 </View>
                 <View style={styles.fundGrid}>
@@ -143,7 +143,7 @@ export default function MutualFundsScreen() {
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Add Mutual Fund</Text>
-            <TouchableOpacity onPress={() => setShowModal(false)}><Ionicons name="close" size={24} color={Colors.text} /></TouchableOpacity>
+            <TouchableOpacity onPress={() => setShowModal(false)}><MaterialCommunityIcons name="close" size={24} color={Colors.text} /></TouchableOpacity>
           </View>
           <ScrollView style={{ padding: 20 }} keyboardShouldPersistTaps="handled">
             {[

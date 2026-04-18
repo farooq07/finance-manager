@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
-  Modal, ScrollView, ActivityIndicator, Alert, RefreshControl, TextInput,
+  Modal, ScrollView, ActivityIndicator, Alert, RefreshControl,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { TextInput } from 'react-native-paper';
 import Toast from 'react-native-toast-message';
 import { Colors } from '../../../constants/colors';
 import { fmtPKR, fmtGL, glColor } from '../../../utils/currency';
@@ -69,7 +70,7 @@ export default function StocksScreen() {
         showBack
         right={
           <TouchableOpacity onPress={handleSync} style={styles.syncBtn}>
-            {syncPrices.isPending ? <ActivityIndicator size="small" color={Colors.primary} /> : <Ionicons name="sync-outline" size={22} color={Colors.primary} />}
+            {syncPrices.isPending ? <ActivityIndicator size="small" color={Colors.primary} /> : <MaterialCommunityIcons name="sync" size={22} color={Colors.primary} />}
           </TouchableOpacity>
         }
       />
@@ -115,7 +116,7 @@ export default function StocksScreen() {
                       <Text style={styles.company}>{item.company_name ?? '—'}</Text>
                     </View>
                     <TouchableOpacity onPress={() => handleDelete(item.id, item.stock_symbol)}>
-                      <Ionicons name="trash-outline" size={18} color={Colors.danger} />
+                      <MaterialCommunityIcons name="trash-can" size={18} color={Colors.danger} />
                     </TouchableOpacity>
                   </View>
                   <View style={styles.stockGrid}>
@@ -137,13 +138,25 @@ export default function StocksScreen() {
         <View style={styles.modal}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Add Stock</Text>
-            <TouchableOpacity onPress={() => setShowModal(false)}><Ionicons name="close" size={24} color={Colors.text} /></TouchableOpacity>
+            <TouchableOpacity onPress={() => setShowModal(false)}><MaterialCommunityIcons name="close" size={24} color={Colors.text} /></TouchableOpacity>
           </View>
           <View style={{ padding: 20 }}>
-            <Text style={styles.label}>Stock Symbol</Text>
-            <TextInput style={styles.input} value={symbol} onChangeText={(t) => setSymbol(t.toUpperCase())} placeholder="e.g. ENGRO" placeholderTextColor={Colors.textTertiary} autoCapitalize="characters" />
-            <Text style={styles.label}>Company Name (optional)</Text>
-            <TextInput style={styles.input} value={companyName} onChangeText={setCompanyName} placeholder="e.g. Engro Corporation" placeholderTextColor={Colors.textTertiary} />
+            <TextInput
+              label="Stock Symbol"
+              mode="outlined"
+              value={symbol}
+              onChangeText={(t) => setSymbol(t.toUpperCase())}
+              placeholder="e.g. ENGRO"
+              autoCapitalize="characters"
+            />
+            <TextInput
+              label="Company Name (optional)"
+              mode="outlined"
+              value={companyName}
+              onChangeText={setCompanyName}
+              placeholder="e.g. Engro Corporation"
+              style={{ marginTop: 16 }}
+            />
             <TouchableOpacity style={styles.saveBtn} onPress={handleAdd} disabled={createStock.isPending}>
               {createStock.isPending ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>Add Stock</Text>}
             </TouchableOpacity>

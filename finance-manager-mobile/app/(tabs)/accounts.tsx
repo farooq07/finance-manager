@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import {
   View, TouchableOpacity, StyleSheet,
-  Modal, ScrollView, Alert, RefreshControl, TextInput,
+  Modal, ScrollView, Alert, RefreshControl,
 } from 'react-native';
+import { TextInput } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Text } from 'react-native-paper';
@@ -198,18 +199,17 @@ export default function AccountsScreen() {
               { label: 'Account Number *', value: accountNo, onChange: setAccountNo, placeholder: '1234567890' },
               { label: 'IBAN *', value: iban, onChange: setIban, placeholder: 'PK00XXXX...' },
               { label: 'Starting Balance', value: startBalance, onChange: setStartBalance, placeholder: '0', numeric: true },
-            ].map((f) => (
-              <View key={f.label}>
-                <Text style={styles.label}>{f.label}</Text>
-                <TextInput
-                  style={styles.input}
-                  value={f.value}
-                  onChangeText={f.onChange}
-                  placeholder={f.placeholder}
-                  placeholderTextColor={Colors.textTertiary}
-                  keyboardType={f.numeric ? 'numeric' : 'default'}
-                />
-              </View>
+            ].map((f, idx) => (
+              <TextInput
+                key={f.label}
+                label={f.label}
+                mode="outlined"
+                value={f.value}
+                onChangeText={f.onChange}
+                placeholder={f.placeholder}
+                keyboardType={f.numeric ? 'numeric' : 'default'}
+                style={{ marginTop: idx === 0 ? 12 : 16 }}
+              />
             ))}
             <TouchableOpacity style={styles.saveBtn} onPress={handleAddBank} disabled={createBank.isPending}>
               {createBank.isPending ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>Add Bank</Text>}
@@ -233,18 +233,17 @@ export default function AccountsScreen() {
               { label: 'Institution *', value: institution, onChange: setInstitution, placeholder: 'e.g. Jazz' },
               { label: 'Balance', value: walletBalance, onChange: setWalletBalance, placeholder: '0', numeric: true },
               { label: 'Account Number', value: accountNum, onChange: setAccountNum, placeholder: 'Optional' },
-            ].map((f) => (
-              <View key={f.label}>
-                <Text style={styles.label}>{f.label}</Text>
-                <TextInput
-                  style={styles.input}
-                  value={f.value}
-                  onChangeText={f.onChange}
-                  placeholder={f.placeholder}
-                  placeholderTextColor={Colors.textTertiary}
-                  keyboardType={f.numeric ? 'numeric' : 'default'}
-                />
-              </View>
+            ].map((f, idx) => (
+              <TextInput
+                key={f.label}
+                label={f.label}
+                mode="outlined"
+                value={f.value}
+                onChangeText={f.onChange}
+                placeholder={f.placeholder}
+                keyboardType={f.numeric ? 'numeric' : 'default'}
+                style={{ marginTop: idx === 0 ? 12 : 16 }}
+              />
             ))}
             <TouchableOpacity style={styles.saveBtn} onPress={handleAddWallet} disabled={createWallet.isPending}>
               {createWallet.isPending ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>Add Wallet</Text>}

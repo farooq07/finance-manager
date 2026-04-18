@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
-  Modal, TextInput, ActivityIndicator, ScrollView, Alert, RefreshControl,
+  Modal, ActivityIndicator, ScrollView, Alert, RefreshControl,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { TextInput } from 'react-native-paper';
 import Toast from 'react-native-toast-message';
 import { Colors } from '../../constants/colors';
 import { fmtPKR } from '../../utils/currency';
@@ -16,14 +17,14 @@ import { EmptyState } from '../../components/ui/EmptyState';
 import { FAB } from '../../components/ui/FAB';
 import { Skeleton } from '../../components/ui/Skeleton';
 
-const ASSET_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
-  Property: 'home-outline',
-  Gold: 'diamond-outline',
-  Vehicle: 'car-outline',
-  Electronics: 'laptop-outline',
-  Jewelry: 'sparkles-outline',
-  Business: 'briefcase-outline',
-  Other: 'cube-outline',
+const ASSET_ICONS: Record<string, string> = {
+  Property: 'home',
+  Gold: 'diamond',
+  Vehicle: 'car',
+  Electronics: 'laptop',
+  Jewelry: 'sparkles',
+  Business: 'briefcase',
+  Other: 'cube',
 };
 
 export default function AssetsScreen() {
@@ -90,7 +91,7 @@ export default function AssetsScreen() {
             <Card style={styles.assetCard}>
               <View style={styles.assetRow}>
                 <View style={styles.assetIcon}>
-                  <Ionicons name={ASSET_ICONS[item.type] ?? 'cube-outline'} size={22} color="#F59E0B" />
+                  <MaterialCommunityIcons name={ASSET_ICONS[item.type] ?? 'cube'} size={22} color="#F59E0B" />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.assetName}>{item.name}</Text>
@@ -102,7 +103,7 @@ export default function AssetsScreen() {
                 <View style={{ alignItems: 'flex-end', gap: 6 }}>
                   <Text style={styles.assetValue}>{fmtPKR(item.value)}</Text>
                   <TouchableOpacity onPress={() => handleDelete(item.id, item.name)}>
-                    <Ionicons name="trash-outline" size={16} color={Colors.danger} />
+                    <MaterialCommunityIcons name="trash-can" size={16} color={Colors.danger} />
                   </TouchableOpacity>
                 </View>
               </View>
@@ -118,17 +119,16 @@ export default function AssetsScreen() {
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Add Asset</Text>
             <TouchableOpacity onPress={() => setShowModal(false)}>
-              <Ionicons name="close" size={24} color={Colors.text} />
+              <MaterialCommunityIcons name="close" size={24} color={Colors.text} />
             </TouchableOpacity>
           </View>
           <ScrollView style={{ padding: 20 }} keyboardShouldPersistTaps="handled">
-            <Text style={styles.label}>Asset Name *</Text>
             <TextInput
-              style={styles.input}
+              label="Asset Name *"
+              mode="outlined"
               value={name}
               onChangeText={setName}
               placeholder="e.g. House in Karachi"
-              placeholderTextColor={Colors.textTertiary}
             />
 
             <Text style={styles.label}>Type</Text>
@@ -144,28 +144,29 @@ export default function AssetsScreen() {
               ))}
             </ScrollView>
 
-            <Text style={styles.label}>Current Value (PKR)</Text>
             <TextInput
-              style={styles.input}
+              label="Current Value (PKR)"
+              mode="outlined"
               value={value}
               onChangeText={setValue}
               keyboardType="numeric"
               placeholder="0"
-              placeholderTextColor={Colors.textTertiary}
+              style={{ marginTop: 16 }}
             />
 
-            <Text style={styles.label}>Purchase Date (YYYY-MM-DD)</Text>
             <TextInput
-              style={styles.input}
+              label="Purchase Date (YYYY-MM-DD)"
+              mode="outlined"
               value={purchaseDate}
               onChangeText={setPurchaseDate}
               placeholder="Optional"
-              placeholderTextColor={Colors.textTertiary}
+              style={{ marginTop: 16 }}
             />
 
-            <Text style={styles.label}>Description</Text>
             <TextInput
-              style={[styles.input, { height: 80, textAlignVertical: 'top' }]}
+              label="Description"
+              mode="outlined"
+              style={{ marginTop: 16 }}
               value={description}
               onChangeText={setDescription}
               placeholder="Optional"
