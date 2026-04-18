@@ -112,7 +112,7 @@ export default function ForgotPasswordScreen() {
 
               <TouchableOpacity style={styles.proceedBtn} onPress={() => router.push('/(auth)/reset-password')}>
                 <Text style={styles.proceedText}>Proceed to Reset Password</Text>
-                <Ionicons name="arrow-forward" size={16} color={Colors.primary} />
+                <MaterialCommunityIcons name="arrow-right" size={16} color={Colors.primary} />
               </TouchableOpacity>
             </View>
           )}

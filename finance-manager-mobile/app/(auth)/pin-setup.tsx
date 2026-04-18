@@ -101,7 +101,7 @@ export default function PinSetupScreen() {
                   activeOpacity={k ? 0.7 : 1}
                 >
                   {k === '⌫' ? (
-                    <Ionicons name="backspace-outline" size={22} color={Colors.danger} />
+                    <MaterialCommunityIcons name="backspace" size={22} color={Colors.danger} />
                   ) : (
                     <Text style={[styles.keyText, !k && styles.keyTextHidden]}>{k}</Text>
                   )}

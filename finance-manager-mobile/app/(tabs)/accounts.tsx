@@ -134,7 +134,7 @@ export default function AccountsScreen() {
             <Card key={bank.id} style={styles.accountCard}>
               <View style={styles.accountRow}>
                 <View style={styles.iconWrap}>
-                  <Ionicons name="business-outline" size={20} color={Colors.primary} />
+                  <MaterialCommunityIcons name="bank" size={20} color={Colors.primary} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.accountName}>{bank.name}</Text>
@@ -143,7 +143,7 @@ export default function AccountsScreen() {
                 <View style={{ alignItems: 'flex-end', gap: 6 }}>
                   <MaskedBalance value={fmtPKR(bank.current_balance)} fontSize={15} />
                   <TouchableOpacity onPress={() => confirmDeleteBank(bank.id, bank.name)}>
-                    <Ionicons name="trash-outline" size={16} color={Colors.danger} />
+                    <MaterialCommunityIcons name="trash-can" size={16} color={Colors.danger} />
                   </TouchableOpacity>
                 </View>
               </View>
@@ -164,7 +164,7 @@ export default function AccountsScreen() {
               <Card key={wallet.id} style={[styles.accountCard, { borderLeftColor: clr, borderLeftWidth: 4 }]}>
                 <View style={styles.accountRow}>
                   <View style={[styles.iconWrap, { backgroundColor: clr + '20' }]}>
-                    <Ionicons name="wallet-outline" size={20} color={clr} />
+                    <MaterialCommunityIcons name="wallet" size={20} color={clr} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.accountName}>{wallet.name}</Text>
@@ -173,7 +173,7 @@ export default function AccountsScreen() {
                   <View style={{ alignItems: 'flex-end', gap: 6 }}>
                     <MaskedBalance value={fmtPKR(wallet.balance)} fontSize={15} />
                     <TouchableOpacity onPress={() => confirmDeleteWallet(wallet.id, wallet.name)}>
-                      <Ionicons name="trash-outline" size={16} color={Colors.danger} />
+                      <MaterialCommunityIcons name="trash-can" size={16} color={Colors.danger} />
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -189,7 +189,7 @@ export default function AccountsScreen() {
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Add Bank</Text>
             <TouchableOpacity onPress={() => setShowBankModal(false)}>
-              <Ionicons name="close" size={24} color={Colors.text} />
+              <MaterialCommunityIcons name="close" size={24} color={Colors.text} />
             </TouchableOpacity>
           </View>
           <ScrollView style={{ padding: 20 }} keyboardShouldPersistTaps="handled">
@@ -224,7 +224,7 @@ export default function AccountsScreen() {
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Add Wallet</Text>
             <TouchableOpacity onPress={() => setShowWalletModal(false)}>
-              <Ionicons name="close" size={24} color={Colors.text} />
+              <MaterialCommunityIcons name="close" size={24} color={Colors.text} />
             </TouchableOpacity>
           </View>
           <ScrollView style={{ padding: 20 }} keyboardShouldPersistTaps="handled">

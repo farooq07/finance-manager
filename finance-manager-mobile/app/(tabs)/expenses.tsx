@@ -4,7 +4,7 @@ import {
   TextInput, Modal, ScrollView, ActivityIndicator, RefreshControl, Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -109,7 +109,7 @@ export default function ExpensesScreen() {
 
       {/* Search */}
       <View style={styles.searchRow}>
-        <Ionicons name="search-outline" size={18} color={Colors.textTertiary} style={styles.searchIcon} />
+        <MaterialCommunityIcons name="magnify" size={18} color={Colors.textTertiary} style={styles.searchIcon} />
         <TextInput
           style={styles.searchInput}
           placeholder="Search expenses..."
@@ -147,7 +147,7 @@ export default function ExpensesScreen() {
           renderItem={({ item }) => (
             <TouchableOpacity style={styles.row} onPress={() => openEdit(item)} activeOpacity={0.7}>
               <View style={[styles.rowIcon, { backgroundColor: categoryColor(item.category) + '20' }]}>
-                <Ionicons name={categoryIcon(item.category) as any} size={20} color={categoryColor(item.category)} />
+                <MaterialCommunityIcons name={categoryIcon(item.category) as any} size={20} color={categoryColor(item.category)} />
               </View>
               <View style={styles.rowInfo}>
                 <Text style={styles.rowCat}>{item.category}</Text>
@@ -157,7 +157,7 @@ export default function ExpensesScreen() {
               <View style={styles.rowRight}>
                 <Text style={styles.rowAmount}>{fmtPKR(item.amount)}</Text>
                 <TouchableOpacity onPress={() => handleDelete(item.id)} style={styles.deleteBtn}>
-                  <Ionicons name="trash-outline" size={16} color={Colors.danger} />
+                  <MaterialCommunityIcons name="trash-can" size={16} color={Colors.danger} />
                 </TouchableOpacity>
               </View>
             </TouchableOpacity>
@@ -173,7 +173,7 @@ export default function ExpensesScreen() {
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>{editing ? 'Edit Expense' : 'Add Expense'}</Text>
             <TouchableOpacity onPress={() => setShowModal(false)}>
-              <Ionicons name="close" size={24} color={Colors.text} />
+              <MaterialCommunityIcons name="close" size={24} color={Colors.text} />
             </TouchableOpacity>
           </View>
           <ScrollView style={styles.modalBody} keyboardShouldPersistTaps="handled">
@@ -194,7 +194,7 @@ export default function ExpensesScreen() {
                     style={[styles.catChip, value === cat.name && { backgroundColor: cat.color, borderColor: cat.color }]}
                     onPress={() => onChange(cat.name)}
                   >
-                    <Ionicons name={cat.icon as any} size={14} color={value === cat.name ? '#fff' : cat.color} />
+                    <MaterialCommunityIcons name={cat.icon as any} size={14} color={value === cat.name ? '#fff' : cat.color} />
                     <Text style={[styles.catChipText, value === cat.name && { color: '#fff' }]}>{cat.name}</Text>
                   </TouchableOpacity>
                 )} />

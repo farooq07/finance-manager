@@ -1,7 +1,7 @@
 import { ScrollView, View, Text, TouchableOpacity, StyleSheet, RefreshControl } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Colors } from '../../../constants/colors';
 import { fmtPKR, fmtGL, glColor, pctChange } from '../../../utils/currency';
 import { useMutualFunds } from '../../../hooks/useMutualFunds';
@@ -75,9 +75,9 @@ export default function PortfolioIndexScreen() {
             <Card elevated style={styles.tile}>
               <View style={styles.tileTop}>
                 <View style={[styles.tileIcon, { backgroundColor: tile.color + '18' }]}>
-                  <Ionicons name={tile.icon as any} size={22} color={tile.color} />
+                  <MaterialCommunityIcons name={tile.icon as any} size={22} color={tile.color} />
                 </View>
-                <Ionicons name="chevron-forward" size={18} color={Colors.textTertiary} />
+                <MaterialCommunityIcons name="chevron-right" size={18} color={Colors.textTertiary} />
               </View>
               <Text style={styles.tileLabel}>{tile.label}</Text>
               {isLoading ? <Skeleton width={120} height={22} borderRadius={6} style={{ marginTop: 8 }} /> : (
@@ -99,9 +99,9 @@ export default function PortfolioIndexScreen() {
             { label: 'PSX Snapshots', icon: 'camera-outline', route: '/(tabs)/portfolio/psx-snapshots', color: '#8B5CF6' },
           ].map((item) => (
             <TouchableOpacity key={item.label} style={styles.snapTile} onPress={() => router.push(item.route as any)}>
-              <Ionicons name={item.icon as any} size={24} color={item.color} />
+              <MaterialCommunityIcons name={item.icon as any} size={24} color={item.color} />
               <Text style={styles.snapLabel}>{item.label}</Text>
-              <Ionicons name="chevron-forward" size={14} color={Colors.textTertiary} />
+              <MaterialCommunityIcons name="chevron-right" size={14} color={Colors.textTertiary} />
             </TouchableOpacity>
           ))}
         </View>
