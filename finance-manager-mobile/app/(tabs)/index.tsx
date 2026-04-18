@@ -1,7 +1,7 @@
-import { ScrollView, View, StyleSheet, RefreshControl, Modal, TextInput } from 'react-native';
+import { ScrollView, View, StyleSheet, RefreshControl, Modal, TextInput, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { Text, TouchableOpacity } from 'react-native-paper';
+import { Text } from 'react-native-paper';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 import Toast from 'react-native-toast-message';
