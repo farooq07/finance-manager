@@ -1,14 +1,16 @@
 import { useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet,
-  KeyboardAvoidingView, Platform, ActivityIndicator, ScrollView,
+  View, TouchableOpacity, StyleSheet,
+  KeyboardAvoidingView, Platform, ScrollView,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import Toast from 'react-native-toast-message';
-import { Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { TextInput, Text } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import api, { getApiError } from '../../services/api';
 import { Colors } from '../../constants/colors';
+import { Button } from '../../components/ui/Button';
 
 export default function ResetPasswordScreen() {
   const router = useRouter();
@@ -40,59 +42,63 @@ export default function ResetPasswordScreen() {
     <KeyboardAvoidingView style={[styles.container, { paddingTop: insets.top }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView keyboardShouldPersistTaps="handled">
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={22} color={Colors.text} />
+          <MaterialCommunityIcons name="arrow-left" size={22} color={Colors.text} />
         </TouchableOpacity>
 
         <View style={styles.content}>
           <View style={styles.iconCircle}>
-            <Ionicons name="key-outline" size={32} color={Colors.primary} />
+            <MaterialCommunityIcons name="key" size={32} color={Colors.primary} />
           </View>
 
           <Text style={styles.title}>Reset Password</Text>
           <Text style={styles.subtitle}>Enter the OTP sent to your email and set a new password</Text>
 
-          <Text style={styles.label}>Email Address</Text>
           <TextInput
-            style={styles.input}
+            label="Email Address"
             placeholder="you@example.com"
-            placeholderTextColor="#9CA3AF"
+            mode="outlined"
             value={email}
             onChangeText={setEmail}
             autoCapitalize="none"
             keyboardType="email-address"
+            style={styles.input}
           />
 
-          <Text style={styles.label}>OTP Code</Text>
           <TextInput
-            style={styles.input}
+            label="OTP Code"
             placeholder="6-digit code"
-            placeholderTextColor="#9CA3AF"
+            mode="outlined"
             value={otp}
             onChangeText={setOtp}
             keyboardType="number-pad"
             maxLength={6}
+            style={styles.input}
           />
 
-          <Text style={styles.label}>New Password</Text>
-          <View style={styles.pwWrap}>
-            <TextInput
-              style={[styles.input, styles.pwInput]}
-              placeholder="Min 6 characters"
-              placeholderTextColor="#9CA3AF"
-              value={newPassword}
-              onChangeText={setNewPassword}
-              secureTextEntry={!showPassword}
-            />
-            <TouchableOpacity style={styles.eyeBtn} onPress={() => setShowPassword(!showPassword)}>
-              <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={20} color={Colors.textSecondary} />
-            </TouchableOpacity>
-          </View>
+          <TextInput
+            label="New Password"
+            placeholder="Min 6 characters"
+            mode="outlined"
+            value={newPassword}
+            onChangeText={setNewPassword}
+            secureTextEntry={!showPassword}
+            right={
+              <TextInput.Icon
+                icon={showPassword ? 'eye-off' : 'eye'}
+                onPress={() => setShowPassword(!showPassword)}
+              />
+            }
+            style={styles.input}
+          />
 
-          <TouchableOpacity style={styles.btn} onPress={handleReset} disabled={loading}>
-            {loading
-              ? <ActivityIndicator color="#fff" />
-              : <Text style={styles.btnText}>RESET PASSWORD</Text>}
-          </TouchableOpacity>
+          <Button
+            title="RESET PASSWORD"
+            variant="primary"
+            onPress={handleReset}
+            disabled={loading}
+            loading={loading}
+            style={styles.btn}
+          />
         </View>
       </ScrollView>
     </KeyboardAvoidingView>

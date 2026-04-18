@@ -1,12 +1,13 @@
 import { useState, useRef, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  KeyboardAvoidingView, Platform, ActivityIndicator,
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import Toast from 'react-native-toast-message';
 import * as SecureStore from 'expo-secure-store';
-import { Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { Button } from '../../components/ui/Button';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import api, { getApiError } from '../../services/api';
 import { useAuthStore } from '../../stores/authStore';
@@ -72,12 +73,12 @@ export default function OtpVerificationScreen() {
   return (
     <KeyboardAvoidingView style={[styles.container, { paddingTop: insets.top }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-        <Ionicons name="arrow-back" size={22} color={Colors.text} />
+        <MaterialCommunityIcons name="arrow-left" size={22} color={Colors.text} />
       </TouchableOpacity>
 
       <View style={styles.content}>
         <View style={styles.iconCircle}>
-          <Ionicons name="mail-outline" size={32} color={Colors.primary} />
+          <MaterialCommunityIcons name="email" size={32} color={Colors.primary} />
         </View>
 
         <Text style={styles.title}>Check your email</Text>
@@ -102,11 +103,14 @@ export default function OtpVerificationScreen() {
 
         <Text style={styles.timer}>Time remaining: {formatTime(timeLeft)}</Text>
 
-        <TouchableOpacity style={styles.verifyBtn} onPress={handleVerify} disabled={loading}>
-          {loading
-            ? <ActivityIndicator color="#fff" />
-            : <Text style={styles.verifyText}>VERIFY OTP</Text>}
-        </TouchableOpacity>
+        <Button
+          title="VERIFY OTP"
+          variant="primary"
+          onPress={handleVerify}
+          disabled={loading}
+          loading={loading}
+          style={styles.verifyBtn}
+        />
 
         <View style={styles.resendRow}>
           <Text style={styles.resendLabel}>Didn't receive the code? </Text>

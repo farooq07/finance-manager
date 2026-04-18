@@ -1,14 +1,16 @@
 import { useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet,
-  KeyboardAvoidingView, Platform, ActivityIndicator, ScrollView,
+  View, TouchableOpacity, StyleSheet,
+  KeyboardAvoidingView, Platform, ScrollView,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import Toast from 'react-native-toast-message';
-import { Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { TextInput, Text, Button as RNPButton } from 'react-native-paper';
 import api, { getApiError } from '../../services/api';
 import { Colors } from '../../constants/colors';
+import { Button } from '../../components/ui/Button';
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
@@ -35,7 +37,7 @@ export default function ForgotPasswordScreen() {
     <KeyboardAvoidingView style={[styles.container, { paddingTop: insets.top }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={22} color={Colors.text} />
+          <MaterialCommunityIcons name="arrow-left" size={22} color={Colors.text} />
         </TouchableOpacity>
 
         <View style={styles.content}>
@@ -63,27 +65,26 @@ export default function ForgotPasswordScreen() {
           <Text style={styles.title}>Forgot Password?</Text>
           <Text style={styles.subtitle}>Enter your email to receive a reset code</Text>
 
-          <Text style={styles.label}>Email Address</Text>
           <TextInput
-            style={[styles.input, email && styles.inputActive]}
+            label="Email Address"
             placeholder="you@example.com"
-            placeholderTextColor={Colors.textTertiary}
+            mode="outlined"
             value={email}
             onChangeText={setEmail}
             autoCapitalize="none"
             keyboardType="email-address"
             editable={!sent}
+            style={styles.input}
           />
 
-          <TouchableOpacity
-            style={[styles.btn, sent && styles.btnSent]}
+          <Button
+            title={sent ? '✓ OTP SENT' : 'SEND OTP'}
+            variant="primary"
             onPress={handleSubmit}
             disabled={loading || sent}
-          >
-            {loading
-              ? <ActivityIndicator color="#fff" />
-              : <Text style={styles.btnText}>{sent ? '✓ OTP SENT' : 'SEND OTP'}</Text>}
-          </TouchableOpacity>
+            loading={loading}
+            style={[styles.btn, sent && styles.btnSent]}
+          />
 
           {sent && (
             <View style={styles.nextStepsSection}>

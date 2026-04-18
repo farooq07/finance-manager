@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'rea
 import { useRouter } from 'expo-router';
 import Toast from 'react-native-toast-message';
 import * as Haptics from 'expo-haptics';
-import { Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import api, { getApiError } from '../../services/api';
 import { useAuthStore } from '../../stores/authStore';
@@ -70,7 +70,7 @@ export default function PinSetupScreen() {
     <View style={[styles.container, { paddingTop: insets.top + 16 }]}>
       <View style={styles.topSection}>
         <View style={styles.iconCircle}>
-          <Ionicons name="shield-checkmark-outline" size={32} color={Colors.primary} />
+          <MaterialCommunityIcons name="shield-check" size={32} color={Colors.primary} />
         </View>
         <Text style={styles.title}>Secure your app</Text>
         <Text style={styles.subtitle}>Set a PIN to protect your financial data</Text>
