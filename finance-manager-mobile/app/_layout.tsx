@@ -8,8 +8,11 @@ import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { View } from 'react-native';
+import { PaperProvider } from 'react-native-paper';
 import { useAuthStore } from '../stores/authStore';
+import { useThemeStore } from '../stores/themeStore';
 import { Colors } from '../constants/colors';
+import { lightTheme, darkTheme } from '../constants/rnpTheme';
 import api from '../services/api';
 
 const queryClient = new QueryClient({
@@ -65,29 +68,34 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 }
 
 export default function RootLayout() {
+  const { isDark } = useThemeStore();
+  const theme = isDark ? darkTheme : lightTheme;
+
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaProvider>
-        <QueryClientProvider client={queryClient}>
-          <AuthGuard>
-            <Stack screenOptions={{ headerShown: false }}>
-              <Stack.Screen name="(auth)" />
-              <Stack.Screen name="(tabs)" />
-              <Stack.Screen name="dues" />
-              <Stack.Screen name="stocks" />
-              <Stack.Screen name="banks" />
-              <Stack.Screen name="rent" />
-              <Stack.Screen name="zakat" />
-              <Stack.Screen name="assets" />
-              <Stack.Screen name="broker" />
-              <Stack.Screen name="change-pin" />
-              <Stack.Screen name="pin-entry" options={{ presentation: 'modal' }} />
-            </Stack>
-          </AuthGuard>
-          <StatusBar style="auto" />
-          <Toast />
-        </QueryClientProvider>
-      </SafeAreaProvider>
-    </GestureHandlerRootView>
+    <PaperProvider theme={theme}>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <SafeAreaProvider>
+          <QueryClientProvider client={queryClient}>
+            <AuthGuard>
+              <Stack screenOptions={{ headerShown: false }}>
+                <Stack.Screen name="(auth)" />
+                <Stack.Screen name="(tabs)" />
+                <Stack.Screen name="dues" />
+                <Stack.Screen name="stocks" />
+                <Stack.Screen name="banks" />
+                <Stack.Screen name="rent" />
+                <Stack.Screen name="zakat" />
+                <Stack.Screen name="assets" />
+                <Stack.Screen name="broker" />
+                <Stack.Screen name="change-pin" />
+                <Stack.Screen name="pin-entry" options={{ presentation: 'modal' }} />
+              </Stack>
+            </AuthGuard>
+            <StatusBar style="auto" />
+            <Toast />
+          </QueryClientProvider>
+        </SafeAreaProvider>
+      </GestureHandlerRootView>
+    </PaperProvider>
   );
 }

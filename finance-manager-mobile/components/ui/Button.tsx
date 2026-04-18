@@ -1,6 +1,5 @@
-import { TouchableOpacity, Text, StyleSheet, ActivityIndicator, ViewStyle, TextStyle } from 'react-native';
-import { Colors } from '../../constants/colors';
-import { Typography, Spacing, BorderRadius, Elevation } from '../../constants/typography';
+import { Button as RNPButton, ActivityIndicator, useTheme } from 'react-native-paper';
+import { ViewStyle, TextStyle } from 'react-native';
 
 interface Props {
   title: string;
@@ -23,126 +22,49 @@ export function Button({
   style,
   textStyle,
 }: Props) {
-  const btnStyle = [
-    styles.base,
-    size === 'small' && styles.sizeSmall,
-    size === 'medium' && styles.sizeMedium,
-    size === 'large' && styles.sizeLarge,
-    variant === 'primary' && styles.primary,
-    variant === 'secondary' && styles.secondary,
-    variant === 'tertiary' && styles.tertiary,
-    variant === 'danger' && styles.danger,
-    variant === 'ghost' && styles.ghost,
-    (disabled || loading) && styles.disabled,
-    style,
-  ];
+  const theme = useTheme();
+  const isDisabled = disabled || loading;
 
-  const txtStyle = [
-    Typography.labelLarge,
-    variant === 'secondary' && styles.textSecondary,
-    variant === 'tertiary' && styles.textTertiary,
-    variant === 'ghost' && styles.textGhost,
-    variant === 'danger' && styles.textDanger,
-    textStyle,
-  ];
+  // Map custom variants to RNP button modes
+  const getMode = (): 'text' | 'outlined' | 'contained' | 'elevated' | 'contained-tonal' => {
+    if (variant === 'ghost') return 'text';
+    if (variant === 'tertiary') return 'outlined';
+    if (variant === 'secondary') return 'contained-tonal';
+    return 'contained'; // primary, danger
+  };
 
-  const indicatorColor = variant === 'primary' || variant === 'danger' ? Colors.onPrimary : Colors.primary;
+  // Get button color based on variant
+  const getButtonColor = () => {
+    if (variant === 'danger') return theme.colors.error;
+    return undefined; // Use theme default
+  };
+
+  // Get text color based on variant
+  const getTextColor = () => {
+    if (variant === 'ghost' || variant === 'tertiary') return theme.colors.primary;
+    return undefined; // Use theme default
+  };
 
   return (
-    <TouchableOpacity
-      style={btnStyle}
+    <RNPButton
+      mode={getMode()}
       onPress={onPress}
-      disabled={disabled || loading}
-      activeOpacity={0.8}
+      disabled={isDisabled}
+      loading={loading}
+      buttonColor={getButtonColor()}
+      textColor={getTextColor()}
+      contentStyle={{
+        paddingVertical: size === 'small' ? 4 : size === 'large' ? 12 : 8,
+      }}
+      style={[
+        {
+          minHeight: size === 'small' ? 32 : size === 'large' ? 48 : 40,
+        },
+        style,
+      ]}
+      labelStyle={textStyle}
     >
-      {loading ? (
-        <ActivityIndicator color={indicatorColor} />
-      ) : (
-        <Text style={txtStyle}>{title}</Text>
-      )}
-    </TouchableOpacity>
+      {title}
+    </RNPButton>
   );
 }
-
-const styles = StyleSheet.create({
-  // ═══════════════════════════════════════════════════════════════
-  // Base Button Styles (M3 Compliant)
-  // ═══════════════════════════════════════════════════════════════
-  base: {
-    borderRadius: BorderRadius.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-    paddingHorizontal: Spacing.lg,
-  },
-
-  // Size Variants
-  sizeSmall: {
-    paddingVertical: Spacing.sm,
-    minHeight: 32,
-  },
-  sizeMedium: {
-    paddingVertical: Spacing.md,
-    minHeight: 40,
-  },
-  sizeLarge: {
-    paddingVertical: Spacing.lg,
-    minHeight: 48,
-  },
-
-  // ═══════════════════════════════════════════════════════════════
-  // Button Style Variants (M3 Filled, Outlined, Text)
-  // ═══════════════════════════════════════════════════════════════
-
-  // Primary (Filled) - High emphasis
-  primary: {
-    backgroundColor: Colors.primary,
-  },
-
-  // Secondary (Tonal) - Medium emphasis
-  secondary: {
-    backgroundColor: Colors.primaryContainer,
-    borderWidth: 0,
-  },
-
-  // Tertiary (Outlined) - Medium emphasis, alternative
-  tertiary: {
-    backgroundColor: Colors.surface,
-    borderWidth: 1.5,
-    borderColor: Colors.outline,
-  },
-
-  // Danger (Error Filled)
-  danger: {
-    backgroundColor: Colors.error,
-  },
-
-  // Ghost (Text only)
-  ghost: {
-    backgroundColor: 'transparent',
-    paddingVertical: Spacing.sm,
-  },
-
-  // ═══════════════════════════════════════════════════════════════
-  // Disabled State (M3: 38% opacity on surface)
-  // ═══════════════════════════════════════════════════════════════
-  disabled: {
-    opacity: 0.38,
-  },
-
-  // ═══════════════════════════════════════════════════════════════
-  // Text Styles
-  // ═══════════════════════════════════════════════════════════════
-  textSecondary: {
-    color: Colors.onPrimaryContainer,
-  },
-  textTertiary: {
-    color: Colors.primary,
-  },
-  textGhost: {
-    color: Colors.primary,
-  },
-  textDanger: {
-    color: Colors.onError,
-  },
-});

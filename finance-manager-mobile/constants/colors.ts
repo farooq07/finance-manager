@@ -40,6 +40,7 @@ export const Colors = {
   success: '#10B981',           // Success state
   warning: '#F59E0B',           // Warning state
   info: '#3B82F6',              // Info state
+  danger: '#B3261E',            // Danger/destructive state (same as error)
 
   // ═══════════════════════════════════════════════════════════════
   // M3 NEUTRAL COLOR PALETTE (Surfaces & text)

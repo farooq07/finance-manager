@@ -1,6 +1,5 @@
-import { View, StyleSheet, ViewStyle } from 'react-native';
-import { Colors } from '../../constants/colors';
-import { BorderRadius, Spacing, Elevation } from '../../constants/typography';
+import { Card as RNPCard } from 'react-native-paper';
+import { ViewStyle } from 'react-native';
 
 interface Props {
   children: React.ReactNode;
@@ -9,46 +8,20 @@ interface Props {
 }
 
 export function Card({ children, style, variant = 'outlined' }: Props) {
+  // Map custom variant to RNP mode
+  const getMode = (): 'elevated' | 'outlined' => {
+    if (variant === 'filled' || variant === 'elevated') return 'elevated';
+    return 'outlined';
+  };
+
   return (
-    <View style={[styles.base, styles[variant], style]}>
-      {children}
-    </View>
+    <RNPCard
+      mode={getMode()}
+      style={[{ marginBottom: 12 }, style]}
+    >
+      <RNPCard.Content style={{ paddingVertical: 8, paddingHorizontal: 12 }}>
+        {children}
+      </RNPCard.Content>
+    </RNPCard>
   );
 }
-
-const styles = StyleSheet.create({
-  // ═══════════════════════════════════════════════════════════════
-  // Base Card Styles (M3)
-  // ═══════════════════════════════════════════════════════════════
-  base: {
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.lg,
-    overflow: 'hidden',
-  },
-
-  // ═══════════════════════════════════════════════════════════════
-  // Card Variants (M3: Elevated, Outlined, Filled)
-  // ═══════════════════════════════════════════════════════════════
-
-  // Elevated Card - Subtle shadow for surface variation
-  elevated: {
-    backgroundColor: Colors.surface,
-    ...Elevation.elevation1,
-    borderWidth: 0,
-  },
-
-  // Outlined Card - Border for clear distinction (default)
-  outlined: {
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.outline,
-    ...Elevation.none,
-  },
-
-  // Filled Card - Colored background for emphasis
-  filled: {
-    backgroundColor: Colors.surfaceVariant,
-    borderWidth: 0,
-    ...Elevation.none,
-  },
-});

@@ -1,6 +1,7 @@
-import { ScrollView, View, Text, TouchableOpacity, StyleSheet, RefreshControl, Modal, TextInput, ActivityIndicator } from 'react-native';
+import { ScrollView, View, StyleSheet, RefreshControl, Modal, TextInput } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { Text, TouchableOpacity } from 'react-native-paper';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 import Toast from 'react-native-toast-message';
@@ -37,14 +38,14 @@ export default function DashboardScreen() {
 
   const metrics = m
     ? [
-        { label: 'Banks', value: fmtPKR(m.totalBankBalance), icon: 'business-outline', color: Colors.primary },
-        { label: 'Wallets', value: fmtPKR(m.totalWalletBalance), icon: 'wallet-outline', color: '#8B5CF6' },
-        { label: 'Investments', value: fmtPKR(m.totalInvestments), icon: 'trending-up-outline', color: Colors.success },
-        { label: 'Assets', value: fmtPKR(m.totalAssetValue), icon: 'home-outline', color: '#F59E0B' },
-        { label: 'Receivable', value: fmtPKR(m.totalReceivable), icon: 'arrow-down-circle-outline', color: Colors.success },
-        { label: 'Payable', value: fmtPKR(m.totalPayable), icon: 'arrow-up-circle-outline', color: Colors.danger },
-        { label: 'Monthly Exp.', value: fmtPKR(m.currentMonthExpenses), icon: 'cash-outline', color: '#F97316' },
-        { label: 'Total Exp.', value: fmtPKR(m.totalExpenses), icon: 'receipt-outline', color: '#64748B' },
+        { label: 'Banks', value: fmtPKR(m.totalBankBalance), icon: 'bank', color: Colors.primary },
+        { label: 'Wallets', value: fmtPKR(m.totalWalletBalance), icon: 'wallet', color: '#8B5CF6' },
+        { label: 'Investments', value: fmtPKR(m.totalInvestments), icon: 'trending-up', color: Colors.success },
+        { label: 'Assets', value: fmtPKR(m.totalAssetValue), icon: 'home', color: '#F59E0B' },
+        { label: 'Receivable', value: fmtPKR(m.totalReceivable), icon: 'arrow-down-circle', color: Colors.success },
+        { label: 'Payable', value: fmtPKR(m.totalPayable), icon: 'arrow-up-circle', color: Colors.danger },
+        { label: 'Monthly Exp.', value: fmtPKR(m.currentMonthExpenses), icon: 'cash', color: '#F97316' },
+        { label: 'Total Exp.', value: fmtPKR(m.totalExpenses), icon: 'receipt', color: '#64748B' },
       ]
     : [];
 
@@ -74,8 +75,8 @@ export default function DashboardScreen() {
               }
             }}
           >
-            <Ionicons
-              name={amountsVisible ? 'eye-outline' : 'eye-off-outline'}
+            <MaterialCommunityIcons
+              name={amountsVisible ? 'eye' : 'eye-off'}
               size={20}
               color={Colors.primary}
             />
@@ -86,7 +87,7 @@ export default function DashboardScreen() {
             onPress={() => sendSummary.mutate()}
             disabled={sendSummary.isPending}
           >
-            <Ionicons name="mail-outline" size={20} color={Colors.primary} />
+            <MaterialCommunityIcons name="email" size={20} color={Colors.primary} />
           </TouchableOpacity>
         </View>
       </View>
@@ -122,7 +123,7 @@ export default function DashboardScreen() {
             {metrics.map((item) => (
               <Card key={item.label} style={styles.metricCard}>
                 <View style={[styles.metricIcon, { backgroundColor: item.color + '18' }]}>
-                  <Ionicons name={item.icon as any} size={20} color={item.color} />
+                  <MaterialCommunityIcons name={item.icon as any} size={20} color={item.color} />
                 </View>
                 <Text style={styles.metricValue}>{item.value}</Text>
                 <Text style={styles.metricLabel}>{item.label}</Text>
