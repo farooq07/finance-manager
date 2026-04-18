@@ -1,9 +1,10 @@
 import { useState, useCallback } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
-  Modal, ScrollView, ActivityIndicator, RefreshControl, Alert,
+  ActivityIndicator, RefreshControl, Alert,
 } from 'react-native';
 import { TextInput } from 'react-native-paper';
+import { BottomDrawer } from '../../components/ui/BottomDrawer';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useForm, Controller } from 'react-hook-form';
@@ -142,7 +143,7 @@ export default function ExpensesScreen() {
         <FlatList
           data={filtered}
           keyExtractor={(i) => i.id}
-          contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
+          contentContainerStyle={{ padding: 8, paddingBottom: 100 }}
           refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={Colors.primary} />}
           ListEmptyComponent={<EmptyState icon="receipt-outline" title="No expenses found" subtitle="Tap + to add your first expense" />}
           renderItem={({ item }) => (
@@ -168,16 +169,12 @@ export default function ExpensesScreen() {
 
       <FAB onPress={openAdd} />
 
-      {/* Add/Edit Modal */}
-      <Modal visible={showModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowModal(false)}>
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>{editing ? 'Edit Expense' : 'Add Expense'}</Text>
-            <TouchableOpacity onPress={() => setShowModal(false)}>
-              <MaterialCommunityIcons name="close" size={24} color={Colors.text} />
-            </TouchableOpacity>
-          </View>
-          <ScrollView style={styles.modalBody} keyboardShouldPersistTaps="handled">
+      {/* Add/Edit Drawer */}
+      <BottomDrawer
+        visible={showModal}
+        title={editing ? 'Edit Expense' : 'Add Expense'}
+        onClose={() => setShowModal(false)}
+      >
             <Controller control={control} name="amount" render={({ field: { onChange, value } }) => (
               <TextInput
                 label="Amount (PKR)"
@@ -255,9 +252,7 @@ export default function ExpensesScreen() {
                 ? <ActivityIndicator color="#fff" />
                 : <Text style={styles.saveBtnText}>{editing ? 'Save Changes' : 'Add Expense'}</Text>}
             </TouchableOpacity>
-          </ScrollView>
-        </View>
-      </Modal>
+      </BottomDrawer>
     </View>
   );
 }
@@ -270,11 +265,11 @@ const styles = StyleSheet.create({
   searchRow: { flexDirection: 'row', alignItems: 'center', margin: 16, backgroundColor: Colors.surface, borderRadius: 10, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: 12 },
   searchIcon: { marginRight: 8 },
   searchInput: { flex: 1, paddingVertical: 10, fontSize: 14, color: Colors.text },
-  filterBar: { maxHeight: 44, marginBottom: 4 },
-  filterChip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface, marginRight: 0 },
-  filterChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  filterText: { fontSize: 13, color: Colors.textSecondary, fontWeight: '500' },
-  filterTextActive: { color: '#fff' },
+  filterBar: { maxHeight: 50, marginBottom: 8, paddingVertical: 8 },
+  filterChip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 24, borderWidth: 1.5, borderColor: Colors.border, backgroundColor: Colors.surface, marginRight: 0, elevation: 0 },
+  filterChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary, elevation: 2 },
+  filterText: { fontSize: 14, color: Colors.textSecondary, fontWeight: '600' },
+  filterTextActive: { color: '#fff', fontWeight: '700' },
   row: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: Colors.border },
   rowIcon: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
   rowInfo: { flex: 1 },

@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import {
   View, TouchableOpacity, StyleSheet,
-  Modal, ScrollView, Alert, RefreshControl,
+  Alert, RefreshControl,
 } from 'react-native';
 import { TextInput } from 'react-native-paper';
+import { BottomDrawer } from '../../components/ui/BottomDrawer';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Text } from 'react-native-paper';
@@ -184,73 +185,53 @@ export default function AccountsScreen() {
         )}
       </ScrollView>
 
-      {/* Bank Modal */}
-      <Modal visible={showBankModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowBankModal(false)}>
-        <View style={styles.modal}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Add Bank</Text>
-            <TouchableOpacity onPress={() => setShowBankModal(false)}>
-              <MaterialCommunityIcons name="close" size={24} color={Colors.text} />
-            </TouchableOpacity>
-          </View>
-          <ScrollView style={{ padding: 20 }} keyboardShouldPersistTaps="handled">
-            {[
-              { label: 'Bank Name *', value: bankName, onChange: setBankName, placeholder: 'e.g. HBL' },
-              { label: 'Account Number *', value: accountNo, onChange: setAccountNo, placeholder: '1234567890' },
-              { label: 'IBAN *', value: iban, onChange: setIban, placeholder: 'PK00XXXX...' },
-              { label: 'Starting Balance', value: startBalance, onChange: setStartBalance, placeholder: '0', numeric: true },
-            ].map((f, idx) => (
-              <TextInput
-                key={f.label}
-                label={f.label}
-                mode="outlined"
-                value={f.value}
-                onChangeText={f.onChange}
-                placeholder={f.placeholder}
-                keyboardType={f.numeric ? 'numeric' : 'default'}
-                style={{ marginTop: idx === 0 ? 12 : 16 }}
-              />
-            ))}
-            <TouchableOpacity style={styles.saveBtn} onPress={handleAddBank} disabled={createBank.isPending}>
-              {createBank.isPending ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>Add Bank</Text>}
-            </TouchableOpacity>
-          </ScrollView>
-        </View>
-      </Modal>
+      {/* Bank Drawer */}
+      <BottomDrawer visible={showBankModal} title="Add Bank" onClose={() => setShowBankModal(false)}>
+        {[
+          { label: 'Bank Name *', value: bankName, onChange: setBankName, placeholder: 'e.g. HBL' },
+          { label: 'Account Number *', value: accountNo, onChange: setAccountNo, placeholder: '1234567890' },
+          { label: 'IBAN *', value: iban, onChange: setIban, placeholder: 'PK00XXXX...' },
+          { label: 'Starting Balance', value: startBalance, onChange: setStartBalance, placeholder: '0', numeric: true },
+        ].map((f, idx) => (
+          <TextInput
+            key={f.label}
+            label={f.label}
+            mode="outlined"
+            value={f.value}
+            onChangeText={f.onChange}
+            placeholder={f.placeholder}
+            keyboardType={f.numeric ? 'numeric' : 'default'}
+            style={{ marginTop: idx === 0 ? 0 : 16 }}
+          />
+        ))}
+        <TouchableOpacity style={styles.saveBtn} onPress={handleAddBank} disabled={createBank.isPending}>
+          {createBank.isPending ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>Add Bank</Text>}
+        </TouchableOpacity>
+      </BottomDrawer>
 
-      {/* Wallet Modal */}
-      <Modal visible={showWalletModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowWalletModal(false)}>
-        <View style={styles.modal}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Add Wallet</Text>
-            <TouchableOpacity onPress={() => setShowWalletModal(false)}>
-              <MaterialCommunityIcons name="close" size={24} color={Colors.text} />
-            </TouchableOpacity>
-          </View>
-          <ScrollView style={{ padding: 20 }} keyboardShouldPersistTaps="handled">
-            {[
-              { label: 'Name *', value: walletName, onChange: setWalletName, placeholder: 'e.g. JazzCash' },
-              { label: 'Institution *', value: institution, onChange: setInstitution, placeholder: 'e.g. Jazz' },
-              { label: 'Balance', value: walletBalance, onChange: setWalletBalance, placeholder: '0', numeric: true },
-              { label: 'Account Number', value: accountNum, onChange: setAccountNum, placeholder: 'Optional' },
-            ].map((f, idx) => (
-              <TextInput
-                key={f.label}
-                label={f.label}
-                mode="outlined"
-                value={f.value}
-                onChangeText={f.onChange}
-                placeholder={f.placeholder}
-                keyboardType={f.numeric ? 'numeric' : 'default'}
-                style={{ marginTop: idx === 0 ? 12 : 16 }}
-              />
-            ))}
-            <TouchableOpacity style={styles.saveBtn} onPress={handleAddWallet} disabled={createWallet.isPending}>
-              {createWallet.isPending ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>Add Wallet</Text>}
-            </TouchableOpacity>
-          </ScrollView>
-        </View>
-      </Modal>
+      {/* Wallet Drawer */}
+      <BottomDrawer visible={showWalletModal} title="Add Wallet" onClose={() => setShowWalletModal(false)}>
+        {[
+          { label: 'Name *', value: walletName, onChange: setWalletName, placeholder: 'e.g. JazzCash' },
+          { label: 'Institution *', value: institution, onChange: setInstitution, placeholder: 'e.g. Jazz' },
+          { label: 'Balance', value: walletBalance, onChange: setWalletBalance, placeholder: '0', numeric: true },
+          { label: 'Account Number', value: accountNum, onChange: setAccountNum, placeholder: 'Optional' },
+        ].map((f, idx) => (
+          <TextInput
+            key={f.label}
+            label={f.label}
+            mode="outlined"
+            value={f.value}
+            onChangeText={f.onChange}
+            placeholder={f.placeholder}
+            keyboardType={f.numeric ? 'numeric' : 'default'}
+            style={{ marginTop: idx === 0 ? 0 : 16 }}
+          />
+        ))}
+        <TouchableOpacity style={styles.saveBtn} onPress={handleAddWallet} disabled={createWallet.isPending}>
+          {createWallet.isPending ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>Add Wallet</Text>}
+        </TouchableOpacity>
+      </BottomDrawer>
     </View>
   );
 }
