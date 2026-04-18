@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
-  Modal, ScrollView, ActivityIndicator, Alert, RefreshControl,
+  ScrollView, ActivityIndicator, Alert, RefreshControl,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { BottomDrawer } from '../../../components/ui/BottomDrawer';
 import * as DocumentPicker from 'expo-document-picker';
 import Toast from 'react-native-toast-message';
 import { useForm, Controller } from 'react-hook-form';
@@ -139,13 +140,7 @@ export default function MutualFundsScreen() {
 
       <FAB onPress={() => setShowModal(true)} />
 
-      <Modal visible={showModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowModal(false)}>
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Add Mutual Fund</Text>
-            <TouchableOpacity onPress={() => setShowModal(false)}><MaterialCommunityIcons name="close" size={24} color={Colors.text} /></TouchableOpacity>
-          </View>
-          <ScrollView style={{ padding: 20 }} keyboardShouldPersistTaps="handled">
+      <BottomDrawer visible={showModal} title="Add Mutual Fund" onClose={() => setShowModal(false)}>
             {[
               { name: 'fund_name' as const, label: 'Fund Name', placeholder: 'e.g. Meezan Islamic Fund' },
               { name: 'fund_symbol' as const, label: 'Symbol', placeholder: 'e.g. MIF' },
@@ -177,9 +172,7 @@ export default function MutualFundsScreen() {
             <TouchableOpacity style={styles.saveBtn} onPress={handleSubmit(onSubmit)} disabled={createFund.isPending}>
               {createFund.isPending ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>Add Fund</Text>}
             </TouchableOpacity>
-          </ScrollView>
-        </View>
-      </Modal>
+      </BottomDrawer>
     </View>
   );
 }

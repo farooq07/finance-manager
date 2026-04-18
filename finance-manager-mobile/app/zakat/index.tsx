@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
-  Modal, ActivityIndicator, Alert, RefreshControl,
+  ActivityIndicator, Alert, RefreshControl,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { TextInput } from 'react-native-paper';
+import { BottomDrawer } from '../../components/ui/BottomDrawer';
 import { useQuery } from '@tanstack/react-query';
 import Toast from 'react-native-toast-message';
 import { Colors } from '../../constants/colors';
@@ -137,15 +138,7 @@ export default function ZakatScreen() {
 
       <FAB onPress={() => setShowModal(true)} icon="add" />
 
-      <Modal visible={showModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowModal(false)}>
-        <View style={styles.modal}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Add Zakat</Text>
-            <TouchableOpacity onPress={() => setShowModal(false)}>
-              <MaterialCommunityIcons name="close" size={24} color={Colors.text} />
-            </TouchableOpacity>
-          </View>
-          <View style={{ padding: 20 }}>
+      <BottomDrawer visible={showModal} title="Add Zakat" onClose={() => setShowModal(false)}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 12, gap: 12 }}>
               <View style={{ flex: 1 }} />
               <Button
@@ -186,9 +179,7 @@ export default function ZakatScreen() {
                 ? <ActivityIndicator color="#fff" />
                 : <Text style={styles.saveBtnText}>Add Entry</Text>}
             </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+      </BottomDrawer>
     </View>
   );
 }

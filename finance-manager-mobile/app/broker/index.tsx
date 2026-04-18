@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
-  Modal, ActivityIndicator, ScrollView, Alert,
+  ActivityIndicator, ScrollView, Alert,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { TextInput } from 'react-native-paper';
+import { BottomDrawer } from '../../components/ui/BottomDrawer';
 import Toast from 'react-native-toast-message';
 import { Colors } from '../../constants/colors';
 import { useBrokers, useCreateBroker, useDeleteBroker } from '../../hooks/useBrokers';
@@ -83,15 +84,7 @@ export default function BrokerScreen() {
 
       <FAB onPress={() => setShowModal(true)} />
 
-      <Modal visible={showModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowModal(false)}>
-        <View style={styles.modal}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Add Broker Account</Text>
-            <TouchableOpacity onPress={() => setShowModal(false)}>
-              <MaterialCommunityIcons name="close" size={24} color={Colors.text} />
-            </TouchableOpacity>
-          </View>
-          <ScrollView style={{ padding: 20 }} keyboardShouldPersistTaps="handled">
+      <BottomDrawer visible={showModal} title="Add Broker Account" onClose={() => setShowModal(false)}>
             {[
               { label: 'Account Title *', value: accountTitle, onChange: setAccountTitle, placeholder: 'e.g. Farooq - Arif Habib' },
               { label: 'Client Code *', value: clientCode, onChange: setClientCode, placeholder: 'e.g. AH12345' },
@@ -114,9 +107,7 @@ export default function BrokerScreen() {
                 ? <ActivityIndicator color="#fff" />
                 : <Text style={styles.saveBtnText}>Save Account</Text>}
             </TouchableOpacity>
-          </ScrollView>
-        </View>
-      </Modal>
+      </BottomDrawer>
     </View>
   );
 }

@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
-  Modal, ActivityIndicator, ScrollView, Alert, RefreshControl,
+  ActivityIndicator, ScrollView, Alert, RefreshControl,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { TextInput } from 'react-native-paper';
+import { BottomDrawer } from '../../components/ui/BottomDrawer';
 import Toast from 'react-native-toast-message';
 import { Colors } from '../../constants/colors';
 import { fmtPKR } from '../../utils/currency';
@@ -114,15 +115,7 @@ export default function AssetsScreen() {
 
       <FAB onPress={() => setShowModal(true)} />
 
-      <Modal visible={showModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowModal(false)}>
-        <View style={styles.modal}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Add Asset</Text>
-            <TouchableOpacity onPress={() => setShowModal(false)}>
-              <MaterialCommunityIcons name="close" size={24} color={Colors.text} />
-            </TouchableOpacity>
-          </View>
-          <ScrollView style={{ padding: 20 }} keyboardShouldPersistTaps="handled">
+      <BottomDrawer visible={showModal} title="Add Asset" onClose={() => setShowModal(false)}>
             <TextInput
               label="Asset Name *"
               mode="outlined"
@@ -179,9 +172,7 @@ export default function AssetsScreen() {
                 ? <ActivityIndicator color="#fff" />
                 : <Text style={styles.saveBtnText}>Add Asset</Text>}
             </TouchableOpacity>
-          </ScrollView>
-        </View>
-      </Modal>
+      </BottomDrawer>
     </View>
   );
 }

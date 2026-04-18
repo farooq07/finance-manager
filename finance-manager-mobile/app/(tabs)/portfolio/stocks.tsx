@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
-  Modal, ScrollView, ActivityIndicator, Alert, RefreshControl,
+  ScrollView, ActivityIndicator, Alert, RefreshControl,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { TextInput } from 'react-native-paper';
+import { BottomDrawer } from '../../../components/ui/BottomDrawer';
 import Toast from 'react-native-toast-message';
 import { Colors } from '../../../constants/colors';
 import { fmtPKR, fmtGL, glColor } from '../../../utils/currency';
@@ -134,13 +135,7 @@ export default function StocksScreen() {
 
       <FAB onPress={() => setShowModal(true)} />
 
-      <Modal visible={showModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowModal(false)}>
-        <View style={styles.modal}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Add Stock</Text>
-            <TouchableOpacity onPress={() => setShowModal(false)}><MaterialCommunityIcons name="close" size={24} color={Colors.text} /></TouchableOpacity>
-          </View>
-          <View style={{ padding: 20 }}>
+      <BottomDrawer visible={showModal} title="Add Stock" onClose={() => setShowModal(false)}>
             <TextInput
               label="Stock Symbol"
               mode="outlined"
@@ -160,9 +155,7 @@ export default function StocksScreen() {
             <TouchableOpacity style={styles.saveBtn} onPress={handleAdd} disabled={createStock.isPending}>
               {createStock.isPending ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>Add Stock</Text>}
             </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+      </BottomDrawer>
     </View>
   );
 }

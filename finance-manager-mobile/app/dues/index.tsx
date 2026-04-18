@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
-  Modal, ActivityIndicator, Alert, RefreshControl,
+  ActivityIndicator, Alert, RefreshControl,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { TextInput } from 'react-native-paper';
+import { BottomDrawer } from '../../components/ui/BottomDrawer';
 import Toast from 'react-native-toast-message';
 import { Colors } from '../../constants/colors';
 import { fmtPKR } from '../../utils/currency';
@@ -112,15 +113,7 @@ export default function DuesScreen() {
 
       <FAB onPress={() => setShowModal(true)} />
 
-      <Modal visible={showModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowModal(false)}>
-        <View style={styles.modal}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Add Person</Text>
-            <TouchableOpacity onPress={() => setShowModal(false)}>
-              <MaterialCommunityIcons name="close" size={24} color={Colors.text} />
-            </TouchableOpacity>
-          </View>
-          <View style={{ padding: 20 }}>
+      <BottomDrawer visible={showModal} title="Add Person" onClose={() => setShowModal(false)}>
             <TextInput
               label="Name *"
               mode="outlined"
@@ -143,9 +136,7 @@ export default function DuesScreen() {
                 ? <ActivityIndicator color="#fff" />
                 : <Text style={styles.saveBtnText}>Add Person</Text>}
             </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+      </BottomDrawer>
     </View>
   );
 }

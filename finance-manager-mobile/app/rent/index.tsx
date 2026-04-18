@@ -2,11 +2,12 @@ import { useState, useEffect, useCallback } from 'react';
 import React from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
-  Modal, ActivityIndicator, ScrollView, Alert, RefreshControl,
+  ActivityIndicator, ScrollView, Alert, RefreshControl,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { TextInput } from 'react-native-paper';
+import { BottomDrawer } from '../../components/ui/BottomDrawer';
 import Toast from 'react-native-toast-message';
 import { Colors } from '../../constants/colors';
 import { fmtPKR } from '../../utils/currency';
@@ -122,15 +123,7 @@ export default function RentScreen() {
 
       <FAB onPress={() => setShowModal(true)} />
 
-      <Modal visible={showModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowModal(false)}>
-        <View style={styles.modal}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Add Rent Entry</Text>
-            <TouchableOpacity onPress={() => setShowModal(false)}>
-              <MaterialCommunityIcons name="close" size={24} color={Colors.text} />
-            </TouchableOpacity>
-          </View>
-          <ScrollView style={{ padding: 20 }} keyboardShouldPersistTaps="handled">
+      <BottomDrawer visible={showModal} title="Add Rent Entry" onClose={() => setShowModal(false)}>
             <Text style={styles.label}>Month</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
               {MONTHS.map((m) => (
@@ -169,9 +162,7 @@ export default function RentScreen() {
                 ? <ActivityIndicator color="#fff" />
                 : <Text style={styles.saveBtnText}>Add Entry</Text>}
             </TouchableOpacity>
-          </ScrollView>
-        </View>
-      </Modal>
+      </BottomDrawer>
     </View>
   );
 }
