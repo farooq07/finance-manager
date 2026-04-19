@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import {
   View, TouchableOpacity, StyleSheet,
-  Alert, RefreshControl,
+  Alert, RefreshControl, ScrollView, ActivityIndicator,
 } from 'react-native';
+import { Text } from 'react-native-paper';
 import { TextInput } from 'react-native-paper';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { BottomDrawer } from '../../components/ui/BottomDrawer';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';

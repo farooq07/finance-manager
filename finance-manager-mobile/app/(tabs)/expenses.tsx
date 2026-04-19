@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
-  ActivityIndicator, RefreshControl, Alert,
+  ActivityIndicator, RefreshControl, Alert, ScrollView,
 } from 'react-native';
 import { TextInput } from 'react-native-paper';
 import { BottomDrawer } from '../../components/ui/BottomDrawer';

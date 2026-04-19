@@ -137,7 +137,7 @@ export default function DashboardScreen() {
       {m && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Investments</Text>
-          <Card elevated>
+          <Card variant="elevated">
             <View style={styles.invRow}>
               <View style={styles.invItem}>
                 <Text style={styles.invLabel}>Mutual Funds</Text>
@@ -163,7 +163,7 @@ export default function DashboardScreen() {
       {data?.charts?.assetAllocation && data.charts.assetAllocation.length > 0 && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Asset Allocation</Text>
-          <Card elevated>
+          <Card variant="elevated">
             {data.charts.assetAllocation.map((item, i) => {
               const total = data.charts.assetAllocation.reduce((a, b) => a + b.value, 0);
               const pct = total > 0 ? ((item.value / total) * 100).toFixed(1) : '0';
@@ -186,7 +186,7 @@ export default function DashboardScreen() {
       {data?.charts?.monthlyExpenses && data.charts.monthlyExpenses.length > 0 && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Monthly Expenses</Text>
-          <Card elevated>
+          <Card variant="elevated">
             {data.charts.monthlyExpenses.map((item) => {
               const max = Math.max(...data.charts.monthlyExpenses.map((e) => e.amount), 1);
               const pct = (item.amount / max) * 100;
