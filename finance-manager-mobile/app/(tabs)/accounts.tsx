@@ -3,13 +3,10 @@ import {
   View, TouchableOpacity, StyleSheet,
   Alert, RefreshControl, ScrollView, ActivityIndicator,
 } from 'react-native';
-import { Text } from 'react-native-paper';
-import { TextInput } from 'react-native-paper';
+import { Text, TextInput } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { BottomDrawer } from '../../components/ui/BottomDrawer';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { Text } from 'react-native-paper';
+import { BottomDrawer } from '../../components/ui/BottomDrawer';
 import Toast from 'react-native-toast-message';
 import { Colors } from '../../constants/colors';
 import { fmtPKR } from '../../utils/currency';
