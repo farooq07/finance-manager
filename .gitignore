@@ -28,3 +28,8 @@ prisma/migrations/dev.db
 # Misc
 *.tgz
 .cache/
+
+# App Builds & Temp Folders
+temp_download/
+*.apk
+*.aab
