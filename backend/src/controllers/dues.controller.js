@@ -63,6 +63,38 @@ export const createPerson = async (req, res) => {
     }
 };
 
+export const getPerson = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const person = await prisma.person.findUnique({
+            where: { id },
+            include: { 
+                transactions: {
+                    orderBy: { transaction_date: 'desc' }
+                } 
+            }
+        });
+
+        if (!person || person.user_id !== req.user.id) {
+            return res.status(404).json({ message: 'Person not found' });
+        }
+
+        let netBalance = 0;
+        person.transactions.forEach(t => {
+            if (t.transaction_type === 'receivable') {
+                netBalance += Number(t.amount);
+            } else if (t.transaction_type === 'payable') {
+                netBalance -= Number(t.amount);
+            }
+        });
+
+        res.json({ ...person, netBalance });
+    } catch (error) {
+        console.error("Dues Person GET Error:", error);
+        res.status(500).json({ message: 'Error fetching person' });
+    }
+};
+
 export const updatePerson = async (req, res) => {
     try {
         const { id } = req.params;

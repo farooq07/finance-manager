@@ -7,7 +7,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import Toast from 'react-native-toast-message';
 import * as SecureStore from 'expo-secure-store';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { Button } from '../../components/ui/Button';
+import { Button } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import api, { getApiError } from '../../services/api';
 import { useAuthStore } from '../../stores/authStore';
@@ -104,17 +104,18 @@ export default function OtpVerificationScreen() {
         <Text style={styles.timer}>Time remaining: {formatTime(timeLeft)}</Text>
 
         <Button
-          title="VERIFY OTP"
-          variant="primary"
+          mode="contained"
           onPress={handleVerify}
           disabled={loading}
           loading={loading}
           style={styles.verifyBtn}
-        />
+        >
+          VERIFY OTP
+        </Button>
 
         <View style={styles.resendRow}>
           <Text style={styles.resendLabel}>Didn't receive the code? </Text>
-          <TouchableOpacity onPress={() => { setTimeLeft(600); setOtp(['','','','','','']); }}>
+          <TouchableOpacity onPress={() => { setTimeLeft(600); setOtp(['', '', '', '', '', '']); }}>
             <Text style={styles.resendLink}>Resend OTP</Text>
           </TouchableOpacity>
         </View>
@@ -125,11 +126,11 @@ export default function OtpVerificationScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  backBtn: { padding: 16 },
+  backBtn: { padding: 26 },
   content: { flex: 1, alignItems: 'center', paddingHorizontal: 32, paddingTop: 16 },
   iconCircle: {
     width: 80, height: 80, borderRadius: 40,
-    backgroundColor: Colors.primary + '33', justifyContent: 'center', alignItems: 'center', marginBottom: 24,
+    backgroundColor: Colors.primary + '16', justifyContent: 'center', alignItems: 'center', marginBottom: 24,
   },
   title: { fontSize: 24, fontWeight: '700', color: Colors.text, marginBottom: 8, textAlign: 'center' },
   subtitle: { fontSize: 14, color: Colors.textSecondary, textAlign: 'center' },
@@ -143,8 +144,8 @@ const styles = StyleSheet.create({
   otpBoxFilled: { borderColor: Colors.primary, backgroundColor: Colors.primary + '1A' },
   timer: { fontSize: 13, color: Colors.textSecondary, marginBottom: 28 },
   verifyBtn: {
-    backgroundColor: Colors.primary, borderRadius: 14, paddingVertical: 15,
-    alignItems: 'center', width: '100%', marginBottom: 20,
+    backgroundColor: Colors.primary, borderRadius: 12,
+    alignItems: 'center', width: '100%', marginBottom: 16,
   },
   verifyText: { color: '#fff', fontSize: 15, fontWeight: '800', letterSpacing: 1.2 },
   resendRow: { flexDirection: 'row', alignItems: 'center' },

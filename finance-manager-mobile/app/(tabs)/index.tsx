@@ -1,7 +1,7 @@
 import { ScrollView, View, StyleSheet, RefreshControl, Modal, TextInput, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { Text } from 'react-native-paper';
+import { Text, Button } from 'react-native-paper';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 import Toast from 'react-native-toast-message';
@@ -10,7 +10,6 @@ import { fmtPKR, fmtGL, glColor, pctChange } from '../../utils/currency';
 import { MaskedBalance } from '../../components/ui/MaskedBalance';
 import { Card } from '../../components/ui/Card';
 import { Skeleton } from '../../components/ui/Skeleton';
-import { Button } from '../../components/ui/Button';
 import { useAuthStore } from '../../stores/authStore';
 import { usePinVerification } from '../../hooks/usePinVerification';
 import api from '../../services/api';
@@ -38,15 +37,15 @@ export default function DashboardScreen() {
 
   const metrics = m
     ? [
-        { label: 'Banks', value: fmtPKR(m.totalBankBalance), icon: 'bank', color: Colors.primary },
-        { label: 'Wallets', value: fmtPKR(m.totalWalletBalance), icon: 'wallet', color: '#8B5CF6' },
-        { label: 'Investments', value: fmtPKR(m.totalInvestments), icon: 'trending-up', color: Colors.success },
-        { label: 'Assets', value: fmtPKR(m.totalAssetValue), icon: 'home', color: '#F59E0B' },
-        { label: 'Receivable', value: fmtPKR(m.totalReceivable), icon: 'arrow-down-circle', color: Colors.success },
-        { label: 'Payable', value: fmtPKR(m.totalPayable), icon: 'arrow-up-circle', color: Colors.danger },
-        { label: 'Monthly Exp.', value: fmtPKR(m.currentMonthExpenses), icon: 'cash', color: '#F97316' },
-        { label: 'Total Exp.', value: fmtPKR(m.totalExpenses), icon: 'receipt', color: '#64748B' },
-      ]
+      { label: 'Banks', value: fmtPKR(m.totalBankBalance), icon: 'bank', color: Colors.primary },
+      { label: 'Wallets', value: fmtPKR(m.totalWalletBalance), icon: 'wallet', color: '#8B5CF6' },
+      { label: 'Investments', value: fmtPKR(m.totalInvestments), icon: 'trending-up', color: Colors.success },
+      { label: 'Assets', value: fmtPKR(m.totalAssetValue), icon: 'home', color: '#F59E0B' },
+      { label: 'Receivable', value: fmtPKR(m.totalReceivable), icon: 'arrow-down-circle', color: Colors.success },
+      { label: 'Payable', value: fmtPKR(m.totalPayable), icon: 'arrow-up-circle', color: Colors.danger },
+      { label: 'Monthly Exp.', value: fmtPKR(m.currentMonthExpenses), icon: 'cash', color: '#F97316' },
+      { label: 'Total Exp.', value: fmtPKR(m.totalExpenses), icon: 'receipt', color: '#64748B' },
+    ]
     : [];
 
   const investmentGL = m ? pctChange(m.totalInvestments, m.mutualFundCost + m.stockCost) : 0;
@@ -115,7 +114,7 @@ export default function DashboardScreen() {
         {isLoading ? (
           <View style={styles.grid}>
             {Array.from({ length: 8 }).map((_, i) => (
-              <Skeleton key={i} width="47%" height={80} borderRadius={12} style={{ marginBottom: 12 }} />
+              <Skeleton key={i} width="48%" height={80} borderRadius={8} style={{ marginBottom: 4 }} />
             ))}
           </View>
         ) : (
@@ -232,17 +231,17 @@ export default function DashboardScreen() {
 
             <View style={styles.pinButtonRow}>
               <Button
-                title="Cancel"
-                variant="secondary"
+                mode="outlined"
                 onPress={() => {
                   setShowPinModal(false);
                   setPinInput('');
                 }}
                 style={{ flex: 1 }}
-              />
+              >
+                Cancel
+              </Button>
               <Button
-                title={verifying ? '' : 'Verify'}
-                variant="primary"
+                mode="contained"
                 onPress={async () => {
                   const success = await handleVerify();
                   if (success) {
@@ -253,7 +252,9 @@ export default function DashboardScreen() {
                 loading={verifying}
                 disabled={!pinInput.trim() || verifying}
                 style={{ flex: 1, marginLeft: 12 }}
-              />
+              >
+                {verifying ? '' : 'Verify'}
+              </Button>
             </View>
           </View>
         </View>
@@ -266,42 +267,44 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   header: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
-    paddingHorizontal: 20, paddingBottom: 16,
+    paddingHorizontal: 20, paddingBottom: 20,
     backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border,
   },
-  greeting: { fontSize: 20, fontWeight: '700', color: Colors.text },
-  headerSub: { fontSize: 13, color: Colors.textSecondary, marginTop: 2 },
-  headerActions: { flexDirection: 'row', gap: 12, alignItems: 'center' },
-  headerBtn: { padding: 8, backgroundColor: Colors.primaryTint, borderRadius: 10 },
+  greeting: { fontSize: 22, fontWeight: '700', color: Colors.text },
+  headerSub: { fontSize: 13, color: Colors.textSecondary, marginTop: 4 },
+  headerActions: { flexDirection: 'row', gap: 10, alignItems: 'center' },
+  headerBtn: { padding: 10, backgroundColor: Colors.primaryTint, borderRadius: 12 },
   netWorthCard: {
-    marginHorizontal: 16, marginTop: 16, marginBottom: 8,
-    backgroundColor: Colors.primary, borderRadius: 20, padding: 24,
+    marginHorizontal: 16, marginTop: 20, marginBottom: 24,
+    backgroundColor: Colors.primary, borderRadius: 24, padding: 28,
+    shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8,
+    elevation: 6,
   },
-  netWorthLabel: { fontSize: 14, color: 'rgba(255,255,255,0.8)', fontWeight: '500', marginBottom: 4 },
-  glRow: { marginTop: 8 },
+  netWorthLabel: { fontSize: 14, color: 'rgba(255,255,255,0.75)', fontWeight: '500', marginBottom: 8 },
+  glRow: { marginTop: 12 },
   glText: { fontSize: 13, fontWeight: '500' },
-  section: { paddingHorizontal: 16, marginTop: 20 },
+  section: { paddingHorizontal: 16, marginTop: 16, marginBottom: 8 },
   sectionTitle: { fontSize: 18, fontWeight: '700', color: Colors.text, marginBottom: 12 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  metricCard: { width: '47%', padding: 14 },
-  metricIcon: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
-  metricValue: { fontSize: 14, fontWeight: '700', color: Colors.text, marginBottom: 2 },
-  metricLabel: { fontSize: 12, color: Colors.textSecondary },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'space-between' },
+  metricCard: { width: '48%', padding: 16 },
+  metricIcon: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
+  metricValue: { fontSize: 15, fontWeight: '700', color: Colors.text, marginBottom: 4 },
+  metricLabel: { fontSize: 12, color: Colors.textSecondary, fontWeight: '500' },
   invRow: { flexDirection: 'row', alignItems: 'center' },
   invItem: { flex: 1, alignItems: 'center' },
-  divider: { width: 1, height: 60, backgroundColor: Colors.border },
-  invLabel: { fontSize: 13, color: Colors.textSecondary, marginBottom: 4 },
-  invValue: { fontSize: 16, fontWeight: '700', color: Colors.text },
-  invGL: { fontSize: 13, fontWeight: '500', marginTop: 2 },
-  allocRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: Colors.borderLight ?? '#F1F5F9' },
-  allocDot: { width: 10, height: 10, borderRadius: 5, marginRight: 10 },
+  divider: { width: 1, height: 70, backgroundColor: Colors.border },
+  invLabel: { fontSize: 13, color: Colors.textSecondary, marginBottom: 6 },
+  invValue: { fontSize: 17, fontWeight: '700', color: Colors.text },
+  invGL: { fontSize: 12, fontWeight: '600', marginTop: 4 },
+  allocRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: Colors.borderLight ?? '#F1F5F9' },
+  allocDot: { width: 12, height: 12, borderRadius: 6, marginRight: 12 },
   allocName: { flex: 1, fontSize: 14, color: Colors.text, fontWeight: '500' },
-  allocPct: { fontSize: 13, color: Colors.textSecondary, marginRight: 12, width: 40, textAlign: 'right' },
+  allocPct: { fontSize: 13, color: Colors.textSecondary, marginRight: 16, width: 40, textAlign: 'right' },
   allocValue: { fontSize: 13, fontWeight: '600', color: Colors.text, width: 100, textAlign: 'right' },
-  barRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6 },
-  barMonth: { fontSize: 12, color: Colors.textSecondary, width: 36 },
-  barTrack: { flex: 1, height: 8, backgroundColor: Colors.border, borderRadius: 4, marginHorizontal: 10, overflow: 'hidden' },
-  barFill: { height: 8, backgroundColor: Colors.primary, borderRadius: 4 },
+  barRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10 },
+  barMonth: { fontSize: 12, color: Colors.textSecondary, width: 36, fontWeight: '500' },
+  barTrack: { flex: 1, height: 6, backgroundColor: Colors.border, borderRadius: 3, marginHorizontal: 12, overflow: 'hidden' },
+  barFill: { height: 6, backgroundColor: Colors.primary, borderRadius: 3 },
   barValue: { fontSize: 12, color: Colors.text, fontWeight: '600', width: 90, textAlign: 'right' },
 
   // PIN Modal Styles
@@ -313,8 +316,8 @@ const styles = StyleSheet.create({
   },
   pinModal: {
     backgroundColor: Colors.surface,
-    borderRadius: 16,
-    padding: 24,
+    borderRadius: 20,
+    padding: 28,
     width: '80%',
     maxWidth: 320,
   },
@@ -322,14 +325,14 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
     color: Colors.text,
-    marginBottom: 4,
+    marginBottom: 6,
     textAlign: 'center',
   },
   pinSubtitle: {
     fontSize: 13,
     color: Colors.textSecondary,
     textAlign: 'center',
-    marginBottom: 20,
+    marginBottom: 24,
   },
   pinInput: {
     borderWidth: 1,
@@ -342,7 +345,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
     textAlign: 'center',
     letterSpacing: 8,
-    marginBottom: 20,
+    marginBottom: 24,
     fontWeight: '600',
   },
   pinButtonRow: {

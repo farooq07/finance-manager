@@ -111,8 +111,8 @@ export default function PersonLedgerScreen() {
         <View style={styles.modal}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Add Transaction</Text>
-            <TouchableOpacity onPress={() => setShowModal(false)}>
-              <Ionicons name="close" size={24} color={Colors.text} />
+            <TouchableOpacity onPress={() => setShowModal(false)} hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }} style={{ padding: 4 }}>
+              <Ionicons name="close" size={26} color={Colors.text} />
             </TouchableOpacity>
           </View>
           <ScrollView style={{ padding: 20 }} keyboardShouldPersistTaps="handled">

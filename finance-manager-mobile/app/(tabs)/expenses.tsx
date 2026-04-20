@@ -175,83 +175,83 @@ export default function ExpensesScreen() {
         title={editing ? 'Edit Expense' : 'Add Expense'}
         onClose={() => setShowModal(false)}
       >
-            <Controller control={control} name="amount" render={({ field: { onChange, value } }) => (
-              <TextInput
-                label="Amount (PKR)"
-                mode="outlined"
-                placeholder="0"
-                keyboardType="numeric"
-                value={value ? String(value) : ''}
-                onChangeText={(t) => onChange(parseFloat(t) || 0)}
-                error={!!errors.amount}
-              />
+        <Controller control={control} name="amount" render={({ field: { onChange, value } }) => (
+          <TextInput
+            label="Amount (PKR)"
+            mode="outlined"
+            placeholder="0"
+            keyboardType="numeric"
+            value={value ? String(value) : ''}
+            onChangeText={(t) => onChange(parseFloat(t) || 0)}
+            error={!!errors.amount}
+          />
+        )} />
+        {errors.amount && <Text style={styles.err}>{errors.amount.message}</Text>}
+
+        <Text style={styles.label}>Category</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }} contentContainerStyle={{ gap: 8 }}>
+          {EXPENSE_CATEGORIES.map((cat) => (
+            <Controller key={cat.name} control={control} name="category" render={({ field: { onChange, value } }) => (
+              <TouchableOpacity
+                style={[styles.catChip, value === cat.name && { backgroundColor: cat.color, borderColor: cat.color }]}
+                onPress={() => onChange(cat.name)}
+              >
+                <MaterialCommunityIcons name={cat.icon as any} size={14} color={value === cat.name ? '#fff' : cat.color} />
+                <Text style={[styles.catChipText, value === cat.name && { color: '#fff' }]}>{cat.name}</Text>
+              </TouchableOpacity>
             )} />
-            {errors.amount && <Text style={styles.err}>{errors.amount.message}</Text>}
+          ))}
+        </ScrollView>
+        {errors.category && <Text style={styles.err}>{errors.category.message}</Text>}
 
-            <Text style={styles.label}>Category</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
-              {EXPENSE_CATEGORIES.map((cat) => (
-                <Controller key={cat.name} control={control} name="category" render={({ field: { onChange, value } }) => (
-                  <TouchableOpacity
-                    style={[styles.catChip, value === cat.name && { backgroundColor: cat.color, borderColor: cat.color }]}
-                    onPress={() => onChange(cat.name)}
-                  >
-                    <MaterialCommunityIcons name={cat.icon as any} size={14} color={value === cat.name ? '#fff' : cat.color} />
-                    <Text style={[styles.catChipText, value === cat.name && { color: '#fff' }]}>{cat.name}</Text>
-                  </TouchableOpacity>
-                )} />
-              ))}
-            </ScrollView>
-            {errors.category && <Text style={styles.err}>{errors.category.message}</Text>}
+        <Controller control={control} name="expense_date" render={({ field: { onChange, value } }) => (
+          <TextInput
+            label="Date (YYYY-MM-DD)"
+            mode="outlined"
+            placeholder={todayISO()}
+            value={value}
+            onChangeText={onChange}
+            error={!!errors.expense_date}
+            style={{ marginTop: 16 }}
+          />
+        )} />
 
-            <Controller control={control} name="expense_date" render={({ field: { onChange, value } }) => (
-              <TextInput
-                label="Date (YYYY-MM-DD)"
-                mode="outlined"
-                placeholder={todayISO()}
-                value={value}
-                onChangeText={onChange}
-                error={!!errors.expense_date}
-                style={{ marginTop: 16 }}
-              />
+        <Text style={styles.label}>Payment Method</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }} contentContainerStyle={{ gap: 8 }}>
+          {PAYMENT_METHODS.map((m) => (
+            <Controller key={m} control={control} name="payment_method" render={({ field: { onChange, value } }) => (
+              <TouchableOpacity
+                style={[styles.filterChip, value === m && styles.filterChipActive]}
+                onPress={() => onChange(m)}
+              >
+                <Text style={[styles.filterText, value === m && styles.filterTextActive]}>{m}</Text>
+              </TouchableOpacity>
             )} />
+          ))}
+        </ScrollView>
 
-            <Text style={styles.label}>Payment Method</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
-              {PAYMENT_METHODS.map((m) => (
-                <Controller key={m} control={control} name="payment_method" render={({ field: { onChange, value } }) => (
-                  <TouchableOpacity
-                    style={[styles.filterChip, value === m && styles.filterChipActive]}
-                    onPress={() => onChange(m)}
-                  >
-                    <Text style={[styles.filterText, value === m && styles.filterTextActive]}>{m}</Text>
-                  </TouchableOpacity>
-                )} />
-              ))}
-            </ScrollView>
+        <Controller control={control} name="notes" render={({ field: { onChange, value } }) => (
+          <TextInput
+            label="Notes"
+            mode="outlined"
+            placeholder="Optional notes..."
+            value={value ?? ''}
+            onChangeText={onChange}
+            multiline
+            numberOfLines={4}
+            style={{ marginTop: 16 }}
+          />
+        )} />
 
-            <Controller control={control} name="notes" render={({ field: { onChange, value } }) => (
-              <TextInput
-                label="Notes"
-                mode="outlined"
-                placeholder="Optional notes..."
-                value={value ?? ''}
-                onChangeText={onChange}
-                multiline
-                numberOfLines={4}
-                style={{ marginTop: 16 }}
-              />
-            )} />
-
-            <TouchableOpacity
-              style={styles.saveBtn}
-              onPress={handleSubmit(onSubmit)}
-              disabled={createExpense.isPending || updateExpense.isPending}
-            >
-              {(createExpense.isPending || updateExpense.isPending)
-                ? <ActivityIndicator color="#fff" />
-                : <Text style={styles.saveBtnText}>{editing ? 'Save Changes' : 'Add Expense'}</Text>}
-            </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.saveBtn}
+          onPress={handleSubmit(onSubmit)}
+          disabled={createExpense.isPending || updateExpense.isPending}
+        >
+          {(createExpense.isPending || updateExpense.isPending)
+            ? <ActivityIndicator color="#fff" />
+            : <Text style={styles.saveBtnText}>{editing ? 'Save Changes' : 'Add Expense'}</Text>}
+        </TouchableOpacity>
       </BottomDrawer>
     </View>
   );
@@ -265,10 +265,10 @@ const styles = StyleSheet.create({
   searchRow: { flexDirection: 'row', alignItems: 'center', margin: 16, backgroundColor: Colors.surface, borderRadius: 10, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: 12 },
   searchIcon: { marginRight: 8 },
   searchInput: { flex: 1, paddingVertical: 10, fontSize: 14, color: Colors.text },
-  filterBar: { maxHeight: 50, marginBottom: 8, paddingVertical: 8 },
-  filterChip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 24, borderWidth: 1.5, borderColor: Colors.border, backgroundColor: Colors.surface, marginRight: 0, elevation: 0 },
-  filterChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary, elevation: 2 },
-  filterText: { fontSize: 14, color: Colors.textSecondary, fontWeight: '600' },
+  filterBar: { flexGrow: 0, flexShrink: 0, marginBottom: 8, paddingVertical: 4 },
+  filterChip: { minHeight: 36, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 24, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface },
+  filterChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  filterText: { fontSize: 14, color: Colors.textSecondary, fontWeight: '500' },
   filterTextActive: { color: '#fff', fontWeight: '700' },
   row: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: Colors.border },
   rowIcon: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
@@ -287,7 +287,7 @@ const styles = StyleSheet.create({
   input: { borderWidth: 1, borderColor: Colors.border, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: Colors.text, backgroundColor: Colors.surface, marginBottom: 4 },
   inputError: { borderColor: Colors.danger },
   err: { color: Colors.danger, fontSize: 12, marginBottom: 8 },
-  catChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5, borderColor: Colors.border, marginRight: 8, backgroundColor: Colors.surface },
+  catChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface },
   catChipText: { fontSize: 12, fontWeight: '600', color: Colors.textSecondary },
   saveBtn: { backgroundColor: Colors.primary, borderRadius: 10, paddingVertical: 14, alignItems: 'center', marginTop: 24, marginBottom: 40 },
   saveBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },

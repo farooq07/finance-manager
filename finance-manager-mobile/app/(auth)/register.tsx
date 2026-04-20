@@ -9,12 +9,12 @@ import { z } from 'zod';
 import Toast from 'react-native-toast-message';
 import * as SecureStore from 'expo-secure-store';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { TextInput, Text } from 'react-native-paper';
+import { TextInput, Text, Button } from 'react-native-paper';
 import api, { getApiError } from '../../services/api';
 import { registerSchema } from '../../utils/schemas';
 import { useAuthStore } from '../../stores/authStore';
 import { Colors } from '../../constants/colors';
-import { Button } from '../../components/ui/Button';
+
 
 type RegisterForm = z.infer<typeof registerSchema>;
 
@@ -120,13 +120,14 @@ export default function RegisterScreen() {
           {errors.password && <Text style={styles.err}>{errors.password.message}</Text>}
 
           <Button
-            title="CREATE ACCOUNT"
-            variant="primary"
+            mode="contained"
             onPress={handleSubmit(onSubmit)}
             disabled={loading}
             loading={loading}
             style={styles.registerBtn}
-          />
+          >
+            CREATE ACCOUNT
+          </Button>
 
           <View style={styles.dividerRow}>
             <View style={styles.dividerLine} />

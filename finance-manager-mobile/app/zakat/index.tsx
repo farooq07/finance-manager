@@ -4,7 +4,7 @@ import {
   ActivityIndicator, Alert, RefreshControl,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { TextInput } from 'react-native-paper';
+import { TextInput, Button } from 'react-native-paper';
 import { BottomDrawer } from '../../components/ui/BottomDrawer';
 import { useQuery } from '@tanstack/react-query';
 import Toast from 'react-native-toast-message';
@@ -17,7 +17,6 @@ import { Card } from '../../components/ui/Card';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { FAB } from '../../components/ui/FAB';
 import { Skeleton } from '../../components/ui/Skeleton';
-import { Button } from '../../components/ui/Button';
 import api from '../../services/api';
 import { DashboardResponse } from '../../types/api';
 import { QUERY_KEYS } from '../../constants/queryKeys';
@@ -142,13 +141,13 @@ export default function ZakatScreen() {
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 12, gap: 12 }}>
               <View style={{ flex: 1 }} />
               <Button
-                title={calculating ? '' : 'Auto Calculate'}
-                variant="secondary"
-                size="small"
+                mode="outlined"
                 onPress={handleAutoCalculate}
                 loading={calculating}
                 disabled={!dashboardData?.metrics?.netWorth || calculating}
-              />
+              >
+                {calculating ? '' : 'Auto Calculate'}
+              </Button>
             </View>
             <TextInput
               label="Amount (PKR) *"

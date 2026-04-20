@@ -7,10 +7,9 @@ import { useRouter } from 'expo-router';
 import Toast from 'react-native-toast-message';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { TextInput, Text, Button as RNPButton } from 'react-native-paper';
+import { TextInput, Text, Button } from 'react-native-paper';
 import api, { getApiError } from '../../services/api';
 import { Colors } from '../../constants/colors';
-import { Button } from '../../components/ui/Button';
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
@@ -78,13 +77,14 @@ export default function ForgotPasswordScreen() {
           />
 
           <Button
-            title={sent ? '✓ OTP SENT' : 'SEND OTP'}
-            variant="primary"
+            mode="contained"
             onPress={handleSubmit}
             disabled={loading || sent}
             loading={loading}
             style={[styles.btn, sent && styles.btnSent]}
-          />
+          >
+            {sent ? '✓ OTP SENT' : 'SEND OTP'}
+          </Button>
 
           {sent && (
             <View style={styles.nextStepsSection}>

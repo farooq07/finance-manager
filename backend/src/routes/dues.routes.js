@@ -1,7 +1,7 @@
 import express from 'express';
 import multer from 'multer';
 import prisma from '../utils/prisma.js';
-import { getPeopleWithLedgers, createPerson, createDuesTransaction, deletePerson, uploadDuesCSV, deleteTransactions, updateTransaction, bulkUpdateType, updatePerson, sendReminderEmailHandler } from '../controllers/dues.controller.js';
+import { getPeopleWithLedgers, getPerson, createPerson, createDuesTransaction, deletePerson, uploadDuesCSV, deleteTransactions, updateTransaction, bulkUpdateType, updatePerson, sendReminderEmailHandler } from '../controllers/dues.controller.js';
 import verifyToken from '../middleware/auth.middleware.js';
 import validate, { duesTransactionSchema } from '../middleware/validate.js';
 
@@ -46,6 +46,7 @@ router.post('/transactions/bulk-type', bulkUpdateType);
 router.put('/transactions/:txId', updateTransaction);
 
 // Parametric paths second
+router.get('/:id', getPerson);
 router.put('/:id', updatePerson);
 router.post('/:id/reminder', sendReminderEmailHandler);
 router.post('/:id/transactions', validate(duesTransactionSchema), createDuesTransaction);

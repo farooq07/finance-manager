@@ -6,11 +6,11 @@ import {
 import { useRouter } from 'expo-router';
 import Toast from 'react-native-toast-message';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { TextInput, Text } from 'react-native-paper';
+import { TextInput, Text, Button } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import api, { getApiError } from '../../services/api';
 import { Colors } from '../../constants/colors';
-import { Button } from '../../components/ui/Button';
+
 
 export default function ResetPasswordScreen() {
   const router = useRouter();
@@ -92,13 +92,14 @@ export default function ResetPasswordScreen() {
           />
 
           <Button
-            title="RESET PASSWORD"
-            variant="primary"
+            mode="contained"
             onPress={handleReset}
             disabled={loading}
             loading={loading}
             style={styles.btn}
-          />
+          >
+            RESET PASSWORD
+          </Button>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
