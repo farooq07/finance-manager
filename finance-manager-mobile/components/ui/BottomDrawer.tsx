@@ -1,77 +1,100 @@
-import { ReactNode } from 'react';
-import { View, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import { StyleSheet, View, TouchableOpacity } from 'react-native';
 import { Text } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import {
+  BottomSheetModal,
+  BottomSheetBackdrop,
+  BottomSheetScrollView,
+  BottomSheetBackdropProps,
+} from '@gorhom/bottom-sheet';
 import { Colors } from '../../constants/colors';
 
 interface Props {
   visible: boolean;
   title: string;
   onClose: () => void;
-  children: ReactNode;
+  children: React.ReactNode;
   maxHeight?: number;
 }
 
 export function BottomDrawer({ visible, title, onClose, children, maxHeight = 0.85 }: Props) {
-  if (!visible) return null;
+  const bottomSheetModalRef = useRef<BottomSheetModal>(null);
+  
+  // Snap points: Initial height and Maximum height
+  // Using percentages as strings as requested by @gorhom/bottom-sheet
+  const snapPoints = useMemo(() => {
+    const max = Math.min(Math.max(maxHeight, 0.5), 0.95);
+    return ['50%', `${max * 100}%`];
+  }, [maxHeight]);
+
+  useEffect(() => {
+    if (visible) {
+      bottomSheetModalRef.current?.present();
+    } else {
+      bottomSheetModalRef.current?.dismiss();
+    }
+  }, [visible]);
+
+  const renderBackdrop = useCallback(
+    (props: BottomSheetBackdropProps) => (
+      <BottomSheetBackdrop
+        {...props}
+        appearsOnIndex={0}
+        disappearsOnIndex={-1}
+        pressBehavior="close"
+      />
+    ),
+    []
+  );
+
+  const handleDismiss = useCallback(() => {
+    if (visible) {
+      onClose();
+    }
+  }, [onClose, visible]);
 
   return (
-    <View style={StyleSheet.absoluteFill}>
-      {/* Overlay */}
-      <TouchableOpacity style={styles.overlay} onPress={onClose} activeOpacity={1} />
-
-      {/* Drawer */}
-      <View style={[styles.drawer, { maxHeight: `${maxHeight * 100}%` }]}>
-        {/* Handle */}
-        <View style={styles.handle}>
-          <View style={styles.handleBar} />
-        </View>
-
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.title}>{title}</Text>
-          <TouchableOpacity onPress={onClose} hitSlop={8}>
-            <MaterialCommunityIcons name="close" size={24} color={Colors.text} />
-          </TouchableOpacity>
-        </View>
-
-        {/* Content */}
-        <ScrollView
-          style={styles.content}
-          contentContainerStyle={styles.contentContainer}
-          keyboardShouldPersistTaps="handled"
-          scrollEnabled={true}
-        >
-          {children}
-        </ScrollView>
+    <BottomSheetModal
+      ref={bottomSheetModalRef}
+      index={1} // Start at the second snap point (index 1) which is the maximum height
+      snapPoints={snapPoints}
+      onDismiss={handleDismiss}
+      backdropComponent={renderBackdrop}
+      backgroundStyle={styles.drawer}
+      handleIndicatorStyle={styles.handleBar}
+      keyboardBehavior="interactive"
+      keyboardBlurBehavior="restore"
+      enablePanDownToClose={true}
+    >
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.title}>{title}</Text>
+        <TouchableOpacity onPress={onClose} hitSlop={8}>
+          <MaterialCommunityIcons name="close" size={24} color={Colors.text} />
+        </TouchableOpacity>
       </View>
-    </View>
+
+      {/* Content */}
+      <BottomSheetScrollView
+        style={styles.content}
+        contentContainerStyle={styles.contentContainer}
+        keyboardShouldPersistTaps="handled"
+      >
+        {children}
+      </BottomSheetScrollView>
+    </BottomSheetModal>
   );
 }
 
 const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-  },
   drawer: {
     backgroundColor: Colors.background,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  handle: {
-    alignItems: 'center',
-    paddingVertical: 12,
   },
   handleBar: {
     width: 40,
-    height: 4,
-    borderRadius: 2,
     backgroundColor: Colors.border,
   },
   header: {

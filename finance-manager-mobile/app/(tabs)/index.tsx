@@ -1,4 +1,4 @@
-import { ScrollView, View, StyleSheet, RefreshControl, Modal, TextInput, TouchableOpacity } from 'react-native';
+import { ScrollView, View, StyleSheet, RefreshControl, TextInput, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Text, Button } from 'react-native-paper';
@@ -9,6 +9,7 @@ import { Colors } from '../../constants/colors';
 import { fmtPKR, fmtGL, glColor, pctChange } from '../../utils/currency';
 import { MaskedBalance } from '../../components/ui/MaskedBalance';
 import { Card } from '../../components/ui/Card';
+import { BottomDrawer } from '../../components/ui/BottomDrawer';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { useAuthStore } from '../../stores/authStore';
 import { usePinVerification } from '../../hooks/usePinVerification';
@@ -136,7 +137,7 @@ export default function DashboardScreen() {
       {m && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Investments</Text>
-          <Card variant="elevated">
+          <Card variant="outlined">
             <View style={styles.invRow}>
               <View style={styles.invItem}>
                 <Text style={styles.invLabel}>Mutual Funds</Text>
@@ -162,7 +163,7 @@ export default function DashboardScreen() {
       {data?.charts?.assetAllocation && data.charts.assetAllocation.length > 0 && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Asset Allocation</Text>
-          <Card variant="elevated">
+          <Card variant="outlined">
             {data.charts.assetAllocation.map((item, i) => {
               const total = data.charts.assetAllocation.reduce((a, b) => a + b.value, 0);
               const pct = total > 0 ? ((item.value / total) * 100).toFixed(1) : '0';
@@ -185,7 +186,7 @@ export default function DashboardScreen() {
       {data?.charts?.monthlyExpenses && data.charts.monthlyExpenses.length > 0 && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Monthly Expenses</Text>
-          <Card variant="elevated">
+          <Card variant="outlined">
             {data.charts.monthlyExpenses.map((item) => {
               const max = Math.max(...data.charts.monthlyExpenses.map((e) => e.amount), 1);
               const pct = (item.amount / max) * 100;
@@ -203,62 +204,60 @@ export default function DashboardScreen() {
         </View>
       )}
 
-      {/* PIN Verification Modal for Amount Privacy */}
-      <Modal
+      {/* PIN Verification Drawer for Amount Privacy */}
+      <BottomDrawer
         visible={showPinModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => {
+        title="Enter PIN"
+        onClose={() => {
           setShowPinModal(false);
           setPinInput('');
         }}
+        maxHeight={0.4}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.pinModal}>
-            <Text style={styles.pinTitle}>Enter PIN</Text>
-            <Text style={styles.pinSubtitle}>Verify PIN to view amounts</Text>
+        <View style={styles.pinModalContent}>
+          <Text style={styles.pinSubtitle}>Verify PIN to view amounts</Text>
 
-            <TextInput
-              style={styles.pinInput}
-              value={pinInput}
-              onChangeText={setPinInput}
-              placeholder="0000"
-              placeholderTextColor={Colors.textTertiary}
-              keyboardType="numeric"
-              secureTextEntry
-              maxLength={4}
-            />
+          <TextInput
+            style={styles.pinInput}
+            value={pinInput}
+            onChangeText={setPinInput}
+            placeholder="0000"
+            placeholderTextColor={Colors.textTertiary}
+            keyboardType="numeric"
+            secureTextEntry
+            maxLength={4}
+            autoFocus={true}
+          />
 
-            <View style={styles.pinButtonRow}>
-              <Button
-                mode="outlined"
-                onPress={() => {
+          <View style={styles.pinButtonRow}>
+            <Button
+              mode="outlined"
+              onPress={() => {
+                setShowPinModal(false);
+                setPinInput('');
+              }}
+              style={{ flex: 1 }}
+            >
+              Cancel
+            </Button>
+            <Button
+              mode="contained"
+              onPress={async () => {
+                const success = await handleVerify();
+                if (success) {
+                  setAmountsVisible(false); // Hide amounts when unlocked
                   setShowPinModal(false);
-                  setPinInput('');
-                }}
-                style={{ flex: 1 }}
-              >
-                Cancel
-              </Button>
-              <Button
-                mode="contained"
-                onPress={async () => {
-                  const success = await handleVerify();
-                  if (success) {
-                    setAmountsVisible(false); // Hide amounts when unlocked
-                    setShowPinModal(false);
-                  }
-                }}
-                loading={verifying}
-                disabled={!pinInput.trim() || verifying}
-                style={{ flex: 1, marginLeft: 12 }}
-              >
-                {verifying ? '' : 'Verify'}
-              </Button>
-            </View>
+                }
+              }}
+              loading={verifying}
+              disabled={!pinInput.trim() || verifying}
+              style={{ flex: 1, marginLeft: 12 }}
+            >
+              {verifying ? '' : 'Verify'}
+            </Button>
           </View>
         </View>
-      </Modal>
+      </BottomDrawer>
     </ScrollView>
   );
 }
@@ -308,26 +307,10 @@ const styles = StyleSheet.create({
   barValue: { fontSize: 12, color: Colors.text, fontWeight: '600', width: 90, textAlign: 'right' },
 
   // PIN Modal Styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
+  pinModalContent: {
+    paddingBottom: 20,
   },
-  pinModal: {
-    backgroundColor: Colors.surface,
-    borderRadius: 20,
-    padding: 28,
-    width: '80%',
-    maxWidth: 320,
-  },
-  pinTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: Colors.text,
-    marginBottom: 6,
-    textAlign: 'center',
-  },
+
   pinSubtitle: {
     fontSize: 13,
     color: Colors.textSecondary,

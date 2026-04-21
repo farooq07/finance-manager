@@ -10,6 +10,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { View } from 'react-native';
 import { PaperProvider } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { useAuthStore } from '../stores/authStore';
 import { useThemeStore } from '../stores/themeStore';
 import { Colors } from '../constants/colors';
@@ -78,19 +79,21 @@ export default function RootLayout() {
         <SafeAreaProvider>
           <QueryClientProvider client={queryClient}>
             <AuthGuard>
-              <Stack screenOptions={{ headerShown: false }}>
-                <Stack.Screen name="(auth)" />
-                <Stack.Screen name="(tabs)" />
-                <Stack.Screen name="dues" />
-                <Stack.Screen name="stocks" />
-                <Stack.Screen name="banks" />
-                <Stack.Screen name="rent" />
-                <Stack.Screen name="zakat" />
-                <Stack.Screen name="assets" />
-                <Stack.Screen name="broker" />
-                <Stack.Screen name="change-pin" />
-                <Stack.Screen name="pin-entry" options={{ presentation: 'modal' }} />
-              </Stack>
+              <BottomSheetModalProvider>
+                <Stack screenOptions={{ headerShown: false }}>
+                  <Stack.Screen name="(auth)" />
+                  <Stack.Screen name="(tabs)" />
+                  <Stack.Screen name="dues" />
+                  <Stack.Screen name="stocks" />
+                  <Stack.Screen name="banks" />
+                  <Stack.Screen name="rent" />
+                  <Stack.Screen name="zakat" />
+                  <Stack.Screen name="assets" />
+                  <Stack.Screen name="broker" />
+                  <Stack.Screen name="change-pin" />
+                  <Stack.Screen name="pin-entry" options={{ presentation: 'modal' }} />
+                </Stack>
+              </BottomSheetModalProvider>
             </AuthGuard>
             <StatusBar style="auto" />
             <Toast />

@@ -13,6 +13,14 @@ export default function TabLayout() {
         <BottomNavigation.Bar
           navigationState={state}
           safeAreaInsets={insets}
+          activeColor={Colors.primary}
+          inactiveColor={Colors.textSecondary}
+          style={{ backgroundColor: Colors.surface }}
+          theme={{
+            colors: {
+              secondaryContainer: Colors.primaryContainer,
+            },
+          }}
           onTabPress={({ route, preventDefault }) => {
             const event = navigation.emit({
               type: 'tabPress',
@@ -70,6 +78,13 @@ export default function TabLayout() {
         options={{
           title: 'Accounts',
           tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="credit-card" size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="rent-tracker"
+        options={{
+          title: 'Rent Tracker',
+          tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="home-city" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
