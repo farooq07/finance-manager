@@ -1,6 +1,6 @@
 /**
  * Material Design 3 Color System
- * Based on your brand teal (#1f4741) as the primary color
+ * Based on your brand teal (#0F6E57) as the primary color
  * Generated M3 tokens for semantic colors
  */
 
@@ -8,7 +8,7 @@ export const Colors = {
   // ═══════════════════════════════════════════════════════════════
   // M3 PRIMARY COLOR PALETTE (Teal-based)
   // ═══════════════════════════════════════════════════════════════
-  primary: '#1f4741',           // M3 Primary (your brand teal)
+  primary: '#0F6E57',           // M3 Primary (your brand teal)
   onPrimary: '#FFFFFF',         // Text/icons on primary
   primaryContainer: '#A3F0D8',   // M3 Light primary variant
   onPrimaryContainer: '#002018', // Text on primary container

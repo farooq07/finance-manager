@@ -71,27 +71,46 @@ export default function ZakatScreen() {
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 100 }} refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={Colors.primary} />}>
           <Card style={styles.metricCard}>
             <Card.Content style={{ padding: 16 }}>
-              <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
                 <View style={{ flex: 1 }}>
-                  <Text variant="labelMedium" style={{ color: Colors.textSecondary }}>ESTIMATED (2.5%)</Text>
-                  <Text variant="displaySmall" style={{ color: Colors.tertiary }}>{fmtPKR(estimatedZakat)}</Text>
+                  <Text variant="labelMedium" style={{ color: Colors.textSecondary }}>ESTIMATED ZAKAT (2.5%)</Text>
+                  <Text variant="displaySmall" style={{ color: Colors.tertiary, marginTop: 8 }}>{fmtPKR(estimatedZakat)}</Text>
+                  <Text variant="bodySmall" style={{ color: Colors.textSecondary, marginTop: 8 }}>
+                    Based on Net Worth minus Receivables ({fmtPKR((metrics?.netWorth ?? 0) - (metrics?.totalReceivable ?? 0))})
+                  </Text>
                 </View>
-                <MaterialCommunityIcons name="calculator" size={28} color={Colors.tertiary} />
+                <MaterialCommunityIcons name="calculator" size={32} color={Colors.tertiary} style={{ marginLeft: 12 }} />
               </View>
             </Card.Content>
           </Card>
 
           <Card style={[styles.metricCard, { marginTop: 12 }]}>
             <Card.Content style={{ padding: 16 }}>
-              <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
                 <View style={{ flex: 1 }}>
-                  <Text variant="labelMedium" style={{ color: Colors.textSecondary }}>GIVEN ({CURRENT_YEAR})</Text>
-                  <Text variant="displaySmall" style={{ color: Colors.success }}>{fmtPKR(currentYearTotal)}</Text>
+                  <Text variant="labelMedium" style={{ color: Colors.textSecondary }}>TOTAL ZAKAT GIVEN ({CURRENT_YEAR})</Text>
+                  <Text variant="displaySmall" style={{ color: Colors.success, marginTop: 8 }}>{fmtPKR(currentYearTotal)}</Text>
+                  <Text variant="bodySmall" style={{ color: Colors.textSecondary, marginTop: 8 }}>Sum of all entries this calendar year</Text>
                 </View>
-                <MaterialCommunityIcons name="heart-handshake" size={28} color={Colors.success} />
+                <MaterialCommunityIcons name="hand-heart" size={32} color={Colors.success} style={{ marginLeft: 12 }} />
               </View>
             </Card.Content>
           </Card>
+
+          {estimatedZakat > currentYearTotal && (
+            <Card style={[styles.metricCard, { marginTop: 12 }]}>
+              <Card.Content style={{ padding: 16 }}>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
+                  <View style={{ flex: 1 }}>
+                    <Text variant="labelMedium" style={{ color: Colors.textSecondary }}>REMAINING ({CURRENT_YEAR})</Text>
+                    <Text variant="displaySmall" style={{ color: Colors.warning, marginTop: 8 }}>{fmtPKR(estimatedZakat - currentYearTotal)}</Text>
+                    <Text variant="bodySmall" style={{ color: Colors.textSecondary, marginTop: 8 }}>Amount yet to be fulfilled</Text>
+                  </View>
+                  <MaterialCommunityIcons name="alert-circle" size={32} color={Colors.warning} style={{ marginLeft: 12 }} />
+                </View>
+              </Card.Content>
+            </Card>
+          )}
 
           <View style={{ marginTop: 24 }}>
             <Text variant="titleMedium">Entries ({currentYearEntries.length})</Text>

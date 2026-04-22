@@ -14,13 +14,14 @@ export default function TabLayout() {
           navigationState={state}
           safeAreaInsets={insets}
           activeColor={Colors.primary}
-          inactiveColor={Colors.textSecondary}
-          style={{ backgroundColor: Colors.surface }}
-          theme={{
-            colors: {
-              secondaryContainer: Colors.primaryContainer,
-            },
+          inactiveColor={Colors.textTertiary}
+          style={{
+            backgroundColor: Colors.surface,
+            borderTopWidth: 1,
+            borderTopColor: Colors.border,
           }}
+          activeIndicatorStyle={{ backgroundColor: 'transparent' }}
+          labeled={true}
           onTabPress={({ route, preventDefault }) => {
             const event = navigation.emit({
               type: 'tabPress',
@@ -56,35 +57,28 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Dashboard',
-          tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="home" size={size} color={color} />,
+          tabBarIcon: ({ color, size, focused }) => <MaterialCommunityIcons name={focused ? 'home' : 'home-outline'} size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="expenses"
         options={{
           title: 'Expenses',
-          tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="receipt" size={size} color={color} />,
+          tabBarIcon: ({ color, size, focused }) => <MaterialCommunityIcons name={focused ? 'receipt' : 'receipt-outline'} size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="portfolio"
         options={{
           title: 'Portfolio',
-          tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="trending-up" size={size} color={color} />,
+          tabBarIcon: ({ color, size, focused }) => <MaterialCommunityIcons name={focused ? 'trending-up' : 'trending-up'} size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="accounts"
         options={{
           title: 'Accounts',
-          tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="credit-card" size={size} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="rent-tracker"
-        options={{
-          title: 'Rent Tracker',
-          tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="home-city" size={size} color={color} />,
+          tabBarIcon: ({ color, size, focused }) => <MaterialCommunityIcons name={focused ? 'credit-card' : 'credit-card-outline'} size={size} color={color} />,
         }}
       />
       <Tabs.Screen

@@ -48,15 +48,15 @@ export default function MoreScreen() {
         },
         {
           label: 'Rental Income',
-          icon: 'home' as const,
+          icon: 'home-city' as const,
           color: '#F59E0B',
-          route: '/rent',
+          route: '/rent-tracker',
           badge: rent?.entries?.length ? fmtPKR(rent.totalReceived) : undefined,
         },
         {
           label: 'Zakat',
           icon: 'heart' as const,
-          color: '#10B981',
+          color: '#0F6E57',
           route: '/zakat',
           badge: zakat ? fmtPKR(zakat.currentYearTotal) : undefined,
         },
