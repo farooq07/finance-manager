@@ -587,10 +587,19 @@ export default function Stocks() {
             {/* Top Stat Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4">
                 {(() => {
-                    const computedTotalCost = latestSnapshot?.holdings_data?.reduce((sum, h) => sum + (h.total_cost || (h.holding * (h.cost_per_unit || 0))), 0) || 0;
-                    const totalMarketValue = currentCustody;
-                    const totalGL = totalMarketValue - computedTotalCost;
+                    const totalMarketValue = liveStocks.reduce((sum, s) => {
+                        return sum + (Number(s.price) * Number(s.volume));
+                    }, 0);
+                    const computedTotalCost = liveStocks.reduce((sum, s) => {
+                        const prevPrice = Number(s.price) - Number(s.change);
+                        return sum + (prevPrice * Number(s.volume));
+                    }, 0);
+                    const totalGL = liveStocks.reduce((sum, s) => {
+                        return sum + (Number(s.change) * Number(s.volume));
+                    }, 0);
                     const totalGLPct = computedTotalCost > 0 ? (totalGL / computedTotalCost) * 100 : 0;
+                    const liveCoverageCount = liveStocks.length;
+                    const holdings = liveStocks;
 
                     return (
                         <>
@@ -622,8 +631,10 @@ export default function Stocks() {
                                         className="text-3xl font-bold text-gray-900 dark:text-gray-100"
                                     />
                                 </div>
-                                {latestSnapshot && (
-                                    <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">As of {fmtDateLong(latestSnapshot.snapshot_date)}</p>
+                                {liveCoverageCount > 0 && (
+                                    <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                                        Live · {liveCoverageCount} tickers · price × volume
+                                    </p>
                                 )}
                             </div>
 
