@@ -46,6 +46,7 @@ export default function Sidebar() {
                     alt="WealthAxis"
                     className={clsx("object-contain transition-all duration-300", isExpanded ? "h-8" : "h-7 w-7")}
                 />
+                <h1 className="text-lg font-bold ml-2 text-gray-900 dark:text-white">Mywealth <span className="text-emerald-500">Axis</span></h1>
             </div>
 
             {/* Navigation */}
