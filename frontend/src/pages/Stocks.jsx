@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Papa from 'papaparse';
 import ReactECharts from 'echarts-for-react';
-import { Upload, Plus, Trash2, TrendingUp, DollarSign, Calendar, Clock, Database, ChevronDown, ChevronRight, Activity, Percent, Eye, EyeOff, Briefcase, Loader2, RefreshCw } from 'lucide-react';
+import { Upload, Plus, Trash2, TrendingUp, DollarSign, Calendar, Clock, Database, ChevronDown, ChevronRight, Activity, Percent, Eye, EyeOff, Briefcase, Loader2, RefreshCw, Gift } from 'lucide-react';
 import { usePin } from '../context/PinContext';
 import { usePsxSnapshots, useUploadPsxSnapshot, useBankInvestments, useAddBankInvestment, useDeleteBankInvestment, useUpdatePsxSummary } from '../hooks/usePsx';
+import { useDividends, useSyncDividends, useDeleteDividend } from '../hooks/useDividends';
 import { useBrokerAccounts } from '../hooks/useBrokerAccounts';
 import { fmtPKR, pctChange, glColor, fmtGL } from '../utils/currency';
 import { fmtDate, fmtDateLong } from '../utils/dates';
@@ -38,6 +39,9 @@ export default function Stocks() {
     const deleteSymbol = useDeleteSymbolFromSnapshot();
     const syncData = useSyncPsxData();
     const syncLiveStocks = useSyncPsxStocks();
+    const { data: dividends = [] } = useDividends();
+    const syncDividendsMutation = useSyncDividends();
+    const deleteDividendMutation = useDeleteDividend();
 
     // ---- Merged Data Logic (Top level to avoid ReferenceErrors) ----
     const targetSymbols = ['FFC', 'FFL', 'HUBC', 'MEBL', 'OGDC'];
@@ -86,6 +90,9 @@ export default function Stocks() {
     const [isSyncing, setIsSyncing] = useState(false);
     const [showHistory, setShowHistory] = useState(false);
     const [openSnapshotId, setOpenSnapshotId] = useState(null);
+    const [showDividendsModal, setShowDividendsModal] = useState(false);
+    const [divHtmlContent, setDivHtmlContent] = useState('');
+    const [isSyncingDividends, setIsSyncingDividends] = useState(false);
     const [deleteModal, setDeleteModal] = useState({ isOpen: false, title: '', description: '', onConfirm: null, isLoading: false });
 
     // Security States
@@ -368,6 +375,65 @@ export default function Stocks() {
         }
     };
 
+    const handleDividendSync = async () => {
+        if (!divHtmlContent.trim()) return;
+        setIsSyncingDividends(true);
+
+        try {
+            const parser = new DOMParser();
+            // Wrap in table to ensure it's valid HTML for parser if only rows are pasted
+            const doc = parser.parseFromString(`<table>${divHtmlContent}</table>`, 'text/html');
+            const rows = doc.querySelectorAll('tr.mat-row');
+
+            const parsedDividends = Array.from(rows).map(row => {
+                const cells = row.querySelectorAll('td');
+                if (cells.length < 9) return null;
+
+                const eventId = cells[0].textContent.trim();
+                const symbol = cells[1].textContent.trim();
+                const securityName = cells[2].textContent.trim();
+                const iban = cells[3].textContent.trim();
+                const financialYear = cells[4].textContent.trim();
+                const grossAmount = parseFloat(cells[5].textContent.trim().replace(/,/g, ''));
+                const netAmount = parseFloat(cells[6].textContent.trim().replace(/,/g, ''));
+                const status = cells[7].textContent.trim();
+                
+                // Parse date DD/MM/YYYY to YYYY-MM-DD
+                const dateParts = cells[8].textContent.trim().split('/');
+                const paymentDate = dateParts.length === 3 ? `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}` : null;
+
+                const reason = cells[9]?.textContent.trim() || '';
+
+                return {
+                    event_id: eventId,
+                    security_symbol: symbol,
+                    security_name: securityName,
+                    iban,
+                    financial_year: financialYear,
+                    gross_dividend_amount: grossAmount,
+                    net_dividend_amount: netAmount,
+                    status,
+                    payment_date: paymentDate,
+                    reason
+                };
+            }).filter(d => d !== null);
+
+            if (parsedDividends.length === 0) {
+                toast.error('No dividend records found in the pasted HTML');
+                return;
+            }
+
+            await syncDividendsMutation.mutateAsync(parsedDividends);
+            toast.success(`Successfully synced ${parsedDividends.length} dividend records`);
+            setDivHtmlContent('');
+        } catch (error) {
+            console.error('Dividend Sync Error:', error);
+            toast.error('Failed to parse dividend HTML');
+        } finally {
+            setIsSyncingDividends(false);
+        }
+    };
+
     const handleDeleteSnapshot = (id, date) => {
         setDeleteModal({
             isOpen: true,
@@ -477,6 +543,14 @@ export default function Stocks() {
                         className="h-10 px-4 bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300 border-neutral-200 dark:border-neutral-700 shadow-sm w-full sm:w-auto"
                     >
                         <Database className="w-4 h-4 mr-2 text-neutral-500" /> Paste HTML
+                    </Button>
+
+                    <Button
+                        variant="ghost"
+                        onClick={() => setShowDividendsModal(true)}
+                        className="h-10 px-4 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/50 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 shadow-sm w-full sm:w-auto"
+                    >
+                        <Gift className="w-4 h-4 mr-2" /> Dividends
                     </Button>
                 </div>
             </div>
@@ -1096,6 +1170,130 @@ export default function Stocks() {
                                     Sync Data
                                 </Button>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Dividends Modal */}
+            {showDividendsModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                    <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200">
+                        <div className="p-6 border-b border-gray-100 dark:border-neutral-800 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg">
+                                    <Gift className="w-6 h-6 text-emerald-600 dark:text-emerald-500" />
+                                </div>
+                                <div>
+                                    <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Stock Dividends</h2>
+                                    <p className="text-sm text-gray-500 dark:text-gray-400">Manage and sync your dividend payouts</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setShowDividendsModal(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                                <Plus className="w-6 h-6 rotate-45" />
+                            </button>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto p-6">
+                            {/* Summary Cards */}
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+                                <div className="bg-emerald-50/50 dark:bg-emerald-900/10 p-4 rounded-xl border border-emerald-100 dark:border-emerald-900/20">
+                                    <p className="text-xs text-emerald-600 dark:text-emerald-400 uppercase tracking-wider font-bold mb-1">Total Dividends</p>
+                                    <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">
+                                        {fmtPKR(dividends.reduce((sum, d) => sum + Number(d.net_dividend_amount), 0))}
+                                    </p>
+                                    <p className="text-[10px] text-emerald-500 mt-1">{dividends.length} Records Total</p>
+                                </div>
+                                {Array.from(new Set(dividends.map(d => d.security_symbol))).slice(0, 3).map(symbol => {
+                                    const symbolDivs = dividends.filter(d => d.security_symbol === symbol);
+                                    const symbolTotal = symbolDivs.reduce((sum, d) => sum + Number(d.net_dividend_amount), 0);
+                                    return (
+                                        <div key={symbol} className="bg-white dark:bg-neutral-800 p-4 rounded-xl border border-gray-100 dark:border-neutral-700">
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider font-bold mb-1">{symbol}</p>
+                                            <p className="text-xl font-bold text-gray-900 dark:text-gray-100">{fmtPKR(symbolTotal)}</p>
+                                            <p className="text-[10px] text-gray-400 mt-1">{symbolDivs.length} Payouts</p>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+
+                            {/* Sync Area */}
+                            <div className="bg-gray-50 dark:bg-neutral-800/50 p-6 rounded-2xl border border-dashed border-gray-200 dark:border-neutral-700 mb-8">
+                                <h3 className="text-sm font-bold text-gray-900 dark:text-gray-100 mb-2">Sync New Dividends</h3>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">Paste the dividends table HTML from your broker portal to sync records.</p>
+                                <textarea
+                                    className="w-full h-32 p-3 border border-gray-200 dark:border-neutral-700 rounded-xl bg-white dark:bg-neutral-900 text-xs font-mono dark:text-gray-300 focus:ring-2 focus:ring-emerald-500 transition-colors mb-3"
+                                    placeholder="Paste <tr>...</tr> or <table> content here..."
+                                    value={divHtmlContent}
+                                    onChange={(e) => setDivHtmlContent(e.target.value)}
+                                />
+                                <div className="flex justify-end">
+                                    <Button
+                                        onClick={handleDividendSync}
+                                        processing={isSyncingDividends}
+                                        size="sm"
+                                        className="px-6"
+                                    >
+                                        <RefreshCw className="w-4 h-4 mr-2" /> Sync Records
+                                    </Button>
+                                </div>
+                            </div>
+
+                            {/* Dividends Table */}
+                            <div className="bg-white dark:bg-neutral-900 rounded-xl border border-gray-100 dark:border-neutral-800 overflow-hidden">
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-xs text-left whitespace-nowrap">
+                                        <thead>
+                                            <tr className="bg-gray-50 dark:bg-neutral-800/50 text-gray-500 dark:text-gray-400 uppercase tracking-wider font-bold">
+                                                <th className="px-4 py-3">Event ID</th>
+                                                <th className="px-4 py-3">Symbol</th>
+                                                <th className="px-4 py-3">Year</th>
+                                                <th className="px-4 py-3 text-right">Gross (PKR)</th>
+                                                <th className="px-4 py-3 text-right">Net (PKR)</th>
+                                                <th className="px-4 py-3">Status</th>
+                                                <th className="px-4 py-3">Payment Date</th>
+                                                <th className="px-4 py-3 text-center">Action</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-100 dark:divide-neutral-800">
+                                            {dividends.map((div) => (
+                                                <tr key={div.id} className="hover:bg-gray-50 dark:hover:bg-neutral-800/50 transition-colors">
+                                                    <td className="px-4 py-3 font-mono text-gray-500">{div.event_id}</td>
+                                                    <td className="px-4 py-3 font-bold text-gray-900 dark:text-gray-100">{div.security_symbol}</td>
+                                                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{div.financial_year}</td>
+                                                    <td className="px-4 py-3 text-right text-gray-600 dark:text-gray-400">{fmtPKR(div.gross_dividend_amount)}</td>
+                                                    <td className="px-4 py-3 text-right font-bold text-emerald-600 dark:text-emerald-400">{fmtPKR(div.net_dividend_amount)}</td>
+                                                    <td className="px-4 py-3">
+                                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${div.status?.toLowerCase() === 'paid' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20' : 'bg-amber-50 text-amber-600 dark:bg-amber-900/20'}`}>
+                                                            {div.status}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{fmtDate(div.payment_date)}</td>
+                                                    <td className="px-4 py-3 text-center">
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            onClick={() => deleteDividendMutation.mutate(div.id)}
+                                                            className="h-8 w-8 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </Button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                            {dividends.length === 0 && (
+                                                <tr>
+                                                    <td colSpan={8} className="px-4 py-8 text-center text-gray-400 italic">No dividend records found. Paste HTML to sync.</td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="p-6 border-t border-gray-100 dark:border-neutral-800 bg-gray-50 dark:bg-neutral-800/30 flex justify-end">
+                            <Button onClick={() => setShowDividendsModal(false)} variant="outline">Close</Button>
                         </div>
                     </div>
                 </div>
