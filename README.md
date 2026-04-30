@@ -143,6 +143,20 @@ npm run test:watch    # Watch mode
 
 ---
 
+## 📱 Mobile App (React Native)
+
+The project includes a professional mobile app built with Expo and React Native Paper.
+
+- **Build Guide**: [ANDROID_BUILD_GUIDE.md](file:///d:/Vibe-coding/Finance-manager/ANDROID_BUILD_GUIDE.md)
+- **EAS Workflows**: [EAS_WORKFLOWS_GUIDE.md](file:///d:/Vibe-coding/Finance-manager/EAS_WORKFLOWS_GUIDE.md)
+
+To run a production build:
+```bash
+npx eas-cli@latest workflow:run create-production-builds.yml
+```
+
+---
+
 ## Best Practices Implemented
 
 - **Safe Math** — `currency.js` prevents floating point errors (`0.1 + 0.2 = 0.3`, not `0.30000...04`)

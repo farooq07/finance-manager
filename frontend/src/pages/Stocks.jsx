@@ -39,6 +39,45 @@ export default function Stocks() {
     const syncData = useSyncPsxData();
     const syncLiveStocks = useSyncPsxStocks();
 
+    // ---- Merged Data Logic (Top level to avoid ReferenceErrors) ----
+    const targetSymbols = ['FFC', 'FFL', 'HUBC', 'MEBL', 'OGDC'];
+    const latestSnapshot = snapshots.length > 0 ? snapshots[0] : null;
+    const currentHoldings = latestSnapshot?.holdings_data || [];
+    
+    // Create a set of all symbols to show: actual holdings + mandatory targets
+    const allSymbols = Array.from(new Set([
+        ...currentHoldings.map(h => h.symbol),
+        ...targetSymbols
+    ]));
+
+    const consolidatedHoldings = allSymbols.map(sym => {
+        const h = currentHoldings.find(holding => holding.symbol === sym) || {
+            symbol: sym,
+            holding: 0,
+            cost_per_unit: 0,
+            total_cost: 0,
+            market_rate: 0,
+            custody_val: 0,
+            today_gl: 0
+        };
+        
+        const live = liveStocks.find(ls => ls.ticker === sym);
+        const marketPrice = live ? Number(live.price) : Number(h.market_rate);
+        const totalCost = h.total_cost || (Number(h.holding) * (Number(h.cost_per_unit) || 0));
+        const custodyVal = Number(h.holding) * marketPrice;
+        const todayGl = live ? Number(live.change) * Number(h.holding) : (Number(h.today_gl) || 0);
+
+        return {
+            ...h,
+            market_rate: marketPrice,
+            custody_val: custodyVal,
+            total_cost: totalCost,
+            today_gl: todayGl,
+            live_data: live,
+            isTarget: targetSymbols.includes(sym)
+        };
+    });
+
     // ---- Local State ----
     const [showBankModal, setShowBankModal] = useState(false);
     const [showSummaryModal, setShowSummaryModal] = useState(false);
@@ -86,7 +125,6 @@ export default function Stocks() {
     );
 
     const totalInvested = bankData?.total_invested || 0;
-    const latestSnapshot = snapshots.length > 0 ? snapshots[0] : null;
     const currentCustody = latestSnapshot ? Number(latestSnapshot.total_custody) : 0;
 
     // Lifetime ROI
@@ -399,6 +437,7 @@ export default function Stocks() {
         ]
     };
 
+
     return (
         <div className="">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-5">
@@ -502,104 +541,15 @@ export default function Stocks() {
                 </div>
             )}
 
-            {/* Live Tracked Stocks Table */}
-            <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-sm border border-gray-100 dark:border-neutral-800 overflow-hidden text-sm transition-colors mb-8">
-                <div className="px-6 py-5 border-b border-gray-100 dark:border-neutral-800 flex justify-between items-center bg-blue-50 dark:bg-blue-900/20 transition-colors">
-                    <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 flex items-center">
-                        <Activity className="w-5 h-5 mr-2 text-blue-600 dark:text-blue-400" /> Live PSX Tracked Stocks
-                    </h3>
-                    {liveStocks.length === 0 && (
-                        <span className="text-xs font-semibold text-blue-700 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/40 px-3 py-1 rounded-full animate-pulse border border-blue-200 dark:border-blue-800">
-                            Awaiting initial manual sync
-                        </span>
-                    )}
-                </div>
-
-                <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200 dark:divide-neutral-800 transition-colors">
-                        <thead className="bg-white dark:bg-neutral-900 tracking-wider text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase text-left transition-colors">
-                            <tr>
-                                <th className="px-6 py-4">Symbol</th>
-                                <th className="px-6 py-4">Company</th>
-                                <th className="px-6 py-4 text-right">Price</th>
-                                <th className="px-6 py-4 text-right">Change</th>
-                                <th className="px-6 py-4 text-right">Volume</th>
-                                <th className="px-6 py-4 text-right">High / Low</th>
-                                <th className="px-6 py-4 text-right">Last Updated</th>
-                            </tr>
-                        </thead>
-                        <tbody className="bg-white dark:bg-neutral-900 divide-y divide-gray-100 dark:divide-neutral-800 transition-colors">
-                            {liveStocks.length > 0 ? liveStocks.map((stock, idx) => {
-                                return (
-                                    <tr
-                                        key={idx}
-                                        onClick={() => navigate(`/stocks/${stock.ticker}`)}
-                                        className="hover:bg-blue-50/50 dark:hover:bg-blue-900/10 cursor-pointer transition-colors"
-                                    >
-                                        <td className="px-6 py-3 whitespace-nowrap font-bold text-blue-600 dark:text-blue-400 underline underline-offset-2">
-                                            {stock.ticker}
-                                        </td>
-                                        <td className="px-6 py-3 whitespace-nowrap text-gray-600 dark:text-gray-300 font-medium">
-                                            {stock.companyName}
-                                        </td>
-                                        <td className="px-6 py-3 whitespace-nowrap text-right font-medium text-gray-900 dark:text-gray-100">
-                                            {fmtPKR(stock.price)}
-                                        </td>
-                                        <td className="px-6 py-3 whitespace-nowrap text-right">
-                                            <div className={`font-medium ${glColor(stock.change)} flex flex-col items-end`}>
-                                                <span>{fmtPKR(stock.change)}</span>
-                                                <span className="text-[10px] opacity-80">{stock.changePct > 0 ? '+' : ''}{stock.changePct}%</span>
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-3 whitespace-nowrap text-right text-gray-600 dark:text-gray-300">
-                                            {Number(stock.volume).toLocaleString()}
-                                        </td>
-                                        <td className="px-6 py-3 whitespace-nowrap text-right text-gray-600 dark:text-gray-300">
-                                            {fmtPKR(stock.high)} / {fmtPKR(stock.low)}
-                                        </td>
-                                        <td className="px-6 py-3 whitespace-nowrap text-right text-gray-500 dark:text-gray-400 text-xs">
-                                            {fmtDateLong(stock.lastUpdated)}
-                                        </td>
-                                    </tr>
-                                );
-                            }) : DEFAULT_TARGETS.map(ticker => (
-                                <tr
-                                    key={ticker}
-                                    onClick={() => navigate(`/stocks/${ticker}`)}
-                                    className="hover:bg-blue-50/50 dark:hover:bg-blue-900/10 cursor-pointer transition-colors opacity-70"
-                                >
-                                    <td className="px-6 py-4 whitespace-nowrap font-bold text-blue-600 dark:text-blue-400 underline underline-offset-2">
-                                        {ticker}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-gray-400 dark:text-gray-500 italic">Target Company</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-right text-gray-400">—</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-right text-gray-400">—</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-right text-gray-400">—</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-right text-gray-400">—</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-right text-gray-400 italic text-xs">Awaiting sync...</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
 
             {/* Top Stat Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4">
                 {(() => {
-                    const totalMarketValue = liveStocks.reduce((sum, s) => {
-                        return sum + (Number(s.price) * Number(s.volume));
-                    }, 0);
-                    const computedTotalCost = liveStocks.reduce((sum, s) => {
-                        const prevPrice = Number(s.price) - Number(s.change);
-                        return sum + (prevPrice * Number(s.volume));
-                    }, 0);
-                    const totalGL = liveStocks.reduce((sum, s) => {
-                        return sum + (Number(s.change) * Number(s.volume));
-                    }, 0);
+                    const totalMarketValue = consolidatedHoldings.reduce((sum, h) => sum + h.custody_val, 0);
+                    const computedTotalCost = consolidatedHoldings.reduce((sum, h) => sum + h.total_cost, 0);
+                    const totalGL = totalMarketValue - computedTotalCost;
                     const totalGLPct = computedTotalCost > 0 ? (totalGL / computedTotalCost) * 100 : 0;
                     const liveCoverageCount = liveStocks.length;
-                    const holdings = liveStocks;
 
                     return (
                         <>
@@ -689,51 +639,66 @@ export default function Stocks() {
                                 </tr>
                             </thead>
                             <tbody className="bg-white dark:bg-neutral-900 divide-y divide-gray-100 dark:divide-neutral-800 transition-colors">
-                                {latestSnapshot.holdings_data.map((stock, idx) => {
-                                    const computedTotalCost = stock.total_cost || (stock.holding * (stock.cost_per_unit || 0));
-                                    const computedChange = stock.custody_val - computedTotalCost;
-                                    const changePct = computedTotalCost > 0 ? (computedChange / computedTotalCost) * 100 : 0;
+                                {consolidatedHoldings.map((stock, idx) => {
+                                    const computedChange = stock.custody_val - stock.total_cost;
+                                    const changePct = stock.total_cost > 0 ? (computedChange / stock.total_cost) * 100 : 0;
                                     const todayGl = stock.today_gl || 0;
                                     const prevVal = stock.custody_val - todayGl;
                                     const todayPct = prevVal > 0 ? (todayGl / prevVal) * 100 : 0;
                                     return (
-                                        <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-neutral-800/50 transition-colors">
-                                            <td className="px-6 py-2 whitespace-nowrap font-bold text-gray-900 dark:text-gray-100">
-                                                {stock.symbol}
-                                            </td>
-                                            <td className="px-6 py-2 whitespace-nowrap text-right text-gray-600 dark:text-gray-300 font-medium">
-                                                {Number(stock.holding).toLocaleString()}
-                                            </td>
-                                            <td className="px-6 py-2 whitespace-nowrap text-right text-gray-500 dark:text-gray-400">
-                                                {stock.cost_per_unit ? fmtPKR(stock.cost_per_unit) : '—'}
-                                            </td>
-                                            <td className="px-6 py-2 whitespace-nowrap text-right text-gray-600 dark:text-gray-300">
-                                                {stock.total_cost ? fmtPKR(stock.total_cost) : '—'}
-                                            </td>
-                                            <td className="px-6 py-2 whitespace-nowrap text-right text-gray-600 dark:text-gray-300">
-                                                {fmtPKR(stock.market_rate)}
-                                            </td>
-                                            <td className="px-6 py-2 whitespace-nowrap text-right">
-                                                <div className={`font-medium ${glColor(computedChange)} flex flex-col items-end`}>
-                                                    <span>{fmtPKR(computedChange)}</span>
-                                                    <span className="text-[10px] opacity-80">{changePct > 0 ? '+' : ''}{changePct.toFixed(2)}%</span>
+                                        <tr 
+                                            key={idx} 
+                                            onClick={() => navigate(`/stocks/${stock.symbol}`)}
+                                            className={`hover:bg-blue-50/50 dark:hover:bg-blue-900/10 cursor-pointer transition-colors ${stock.holding === 0 ? 'opacity-60 grayscale-[0.5]' : ''}`}
+                                        >
+                                            <td className="px-6 py-3 whitespace-nowrap">
+                                                <div className="flex flex-col">
+                                                    <span className="font-bold text-blue-600 dark:text-blue-400 underline underline-offset-2">{stock.symbol}</span>
+                                                    {stock.live_data?.companyName && (
+                                                        <span className="text-[10px] text-gray-500 dark:text-gray-400 truncate max-w-[150px]">
+                                                            {stock.live_data.companyName}
+                                                        </span>
+                                                    )}
                                                 </div>
                                             </td>
-                                            <td className="px-6 py-2 whitespace-nowrap text-right font-semibold text-emerald-700 dark:text-emerald-400">
+                                            <td className="px-6 py-3 whitespace-nowrap text-right text-gray-600 dark:text-gray-300 font-medium">
+                                                {Number(stock.holding).toLocaleString()}
+                                            </td>
+                                            <td className="px-6 py-3 whitespace-nowrap text-right text-gray-500 dark:text-gray-400">
+                                                {fmtPKR(stock.cost_per_unit)}
+                                            </td>
+                                            <td className="px-6 py-3 whitespace-nowrap text-right text-gray-600 dark:text-gray-300">
+                                                {fmtPKR(stock.total_cost)}
+                                            </td>
+                                            <td className="px-6 py-3 whitespace-nowrap text-right font-bold text-gray-900 dark:text-gray-100">
+                                                {fmtPKR(stock.market_rate)}
+                                                {stock.live_data && (
+                                                    <div className="flex items-center justify-end gap-1">
+                                                        <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                                                        <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-normal uppercase tracking-tighter">Live</span>
+                                                    </div>
+                                                )}
+                                            </td>
+                                            <td className="px-6 py-3 whitespace-nowrap text-right">
+                                                <div className={`font-medium ${glColor(computedChange)} flex flex-col items-end`}>
+                                                    <span>{fmtPKR(computedChange)}</span>
+                                                    <span className="text-[10px] opacity-80">{changePct > 0 ? '+' : ''}{changePct.toFixed(2)}% Total</span>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-3 whitespace-nowrap text-right font-semibold text-emerald-700 dark:text-emerald-400">
                                                 {fmtPKR(stock.custody_val)}
                                             </td>
-                                            <td className="px-6 py-2 whitespace-nowrap text-right font-medium">
+                                            <td className="px-6 py-3 whitespace-nowrap text-right font-medium">
                                                 <div className="flex flex-col items-end">
-                                                    <MaskedBalance
-                                                        value={todayGl}
-                                                        className={`text-sm font-semibold ${glColor(todayGl)}`}
-                                                    />
+                                                    <span className={`text-sm font-semibold ${glColor(todayGl)}`}>
+                                                        {todayGl > 0 ? '+' : ''}{fmtPKR(todayGl)}
+                                                    </span>
                                                     <span className={`text-[10px] ${glColor(todayGl)} opacity-80`}>
-                                                        {isUnlocked ? `${todayPct > 0 ? '+' : ''}${todayPct.toFixed(2)}%` : '•••%'}
+                                                        {todayPct > 0 ? '+' : ''}{todayPct.toFixed(2)}% Today
                                                     </span>
                                                 </div>
                                             </td>
-                                            <td className="px-6 py-2 whitespace-nowrap text-center">
+                                            <td className="px-6 py-3 whitespace-nowrap text-center">
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
@@ -751,15 +716,14 @@ export default function Stocks() {
                             <tfoot className="bg-gray-50 dark:bg-neutral-800/50 font-bold text-gray-900 dark:text-gray-100 text-xs text-right">
                                 <tr>
                                     <td colSpan={3} className="px-6 py-3 uppercase tracking-wider">Total Cost</td>
-                                    <td className="px-6 py-3">{fmtPKR(latestSnapshot.holdings_data.reduce((sum, h) => sum + (h.total_cost || (h.holding * (h.cost_per_unit || 0))), 0))}</td>
+                                    <td className="px-6 py-3">{fmtPKR(consolidatedHoldings.reduce((sum, h) => sum + h.total_cost, 0))}</td>
                                     <td colSpan={2} className="px-6 py-3 uppercase tracking-wider">Total Market Value</td>
-                                    <td className="px-6 py-3 text-emerald-700 dark:text-emerald-400">{fmtPKR(latestSnapshot.total_custody)}</td>
+                                    <td className="px-6 py-3 text-emerald-700 dark:text-emerald-400">{fmtPKR(consolidatedHoldings.reduce((sum, h) => sum + h.custody_val, 0))}</td>
                                     <td className="px-6 py-3 text-right">
                                         <div className="flex justify-end">
-                                            <MaskedBalance
-                                                value={latestSnapshot.holdings_data.reduce((sum, h) => sum + (h.today_gl || 0), 0)}
-                                                className={`font-bold ${glColor(latestSnapshot.holdings_data.reduce((sum, h) => sum + (h.today_gl || 0), 0))}`}
-                                            />
+                                            <span className={`font-bold ${glColor(consolidatedHoldings.reduce((sum, h) => sum + h.today_gl, 0))}`}>
+                                                {fmtPKR(consolidatedHoldings.reduce((sum, h) => sum + h.today_gl, 0))}
+                                            </span>
                                         </div>
                                     </td>
                                     <td className="px-6 py-3 text-center">

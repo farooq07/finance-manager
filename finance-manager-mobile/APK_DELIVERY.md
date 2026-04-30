@@ -15,12 +15,12 @@ finance-manager-mobile/android/app/build/outputs/apk/release/
 
 | File | Size | Device Type | Status |
 |------|------|-------------|--------|
-| **app-arm64-v8a-release.apk** ⭐ | 37 MB | Modern phones (Recommended) | ✅ READY |
+| **fswealth.apk** ⭐ | 37 MB | Modern phones (Recommended) | ✅ READY |
 | app-armeabi-v7a-release.apk | 29 MB | Older/Budget phones | ✅ READY |
 | app-x86-release.apk | 38 MB | Android emulator | ✅ READY |
 | app-x86_64-release.apk | 39 MB | Android emulator (64-bit) | ✅ READY |
 
-### **⭐ Recommended: Use `app-arm64-v8a-release.apk`**
+### **⭐ Recommended: Use `fswealth.apk`**
 - Works on 99% of devices
 - Latest technology (ARM 64-bit)
 - Optimized performance
@@ -38,7 +38,7 @@ finance-manager-mobile/android/app/build/outputs/apk/release/
 5. Launch app
 
 ### **Method 2: Via Email**
-1. Email `app-arm64-v8a-release.apk` to yourself
+1. Email `fswealth.apk` to yourself
 2. Open email on phone
 3. Download attachment
 4. Tap to install
