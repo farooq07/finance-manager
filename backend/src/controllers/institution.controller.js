@@ -1,7 +1,5 @@
-import { PrismaClient } from '@prisma/client';
+import prisma from '../utils/prisma.js';
 import { z } from 'zod';
-
-const prisma = new PrismaClient();
 
 // Validation Schema
 const institutionSchema = z.object({

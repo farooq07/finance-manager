@@ -38,7 +38,7 @@ export const register = async (req, res) => {
 
         const token = jwt.sign(
             { id: user.id, email: user.email },
-            process.env.JWT_SECRET || 'fallback_secret',
+            process.env.JWT_SECRET,
             { expiresIn: '7d' }
         );
 
@@ -78,8 +78,7 @@ export const login = async (req, res) => {
         }
 
         // 3. Generate 6-digit OTP
-        // const otpCode = crypto.randomInt(100000, 999999).toString();
-        const otpCode = '123456'; // HARDCODED for testing purposes
+        const otpCode = crypto.randomInt(100000, 999999).toString();
         const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
         // 4. Save OTP to user record
@@ -174,7 +173,7 @@ export const verifyOtp = async (req, res) => {
         // 5. Generate and send JWT
         const token = jwt.sign(
             { id: user.id, email: user.email },
-            process.env.JWT_SECRET || 'fallback_secret',
+            process.env.JWT_SECRET,
             { expiresIn: '7d' }
         );
 
@@ -289,8 +288,7 @@ export const forgotPassword = async (req, res) => {
         }
 
         // Generate 6-digit OTP
-        // const otpCode = crypto.randomInt(100000, 999999).toString();
-        const otpCode = '123456'; // HARDCODED for testing purposes
+        const otpCode = crypto.randomInt(100000, 999999).toString();
         const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
         await prisma.user.update({

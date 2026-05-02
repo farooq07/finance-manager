@@ -6,6 +6,9 @@ import { fmtPKR } from '../utils/currency';
 import { StatSkeleton, ChartSkeleton } from '../components/Skeleton';
 import MaskedBalance from '../components/MaskedBalance';
 import { toast } from 'sonner';
+import { Button } from '../components/ui/button';
+import { Skeleton } from '../components/ui/skeleton';
+import { Card, CardContent } from '../components/ui/card';
 
 export default function Dashboard() {
     const [data, setData] = useState(null);
@@ -40,20 +43,20 @@ export default function Dashboard() {
     };
 
     if (loading) return (
-        <div className="space-y-3">
+        <div className="flex flex-col gap-3">
             <div className="flex justify-between items-center">
                 <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 transition-colors">Dashboard Overview</h1>
             </div>
-            <div className="bg-gradient-to-r from-gray-200 to-gray-300 dark:from-neutral-800 dark:to-neutral-700 rounded-2xl p-8 h-48 animate-pulse shadow-sm" />
+            <Skeleton className="h-48 w-full rounded-2xl shadow-sm" />
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <StatSkeleton />
-                <StatSkeleton />
-                <StatSkeleton />
-                <StatSkeleton />
+                <Skeleton className="h-24 rounded-xl" />
+                <Skeleton className="h-24 rounded-xl" />
+                <Skeleton className="h-24 rounded-xl" />
+                <Skeleton className="h-24 rounded-xl" />
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <ChartSkeleton />
-                <ChartSkeleton />
+                <Skeleton className="h-96 rounded-xl" />
+                <Skeleton className="h-96 rounded-xl" />
             </div>
         </div>
     );
@@ -121,15 +124,20 @@ export default function Dashboard() {
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 transition-colors">Dashboard Overview</h1>
                 <div className="flex items-center gap-4">
-                    <button
+                    <Button
+                        variant="default"
                         onClick={handleSendEmail}
                         disabled={sendingEmail}
-                        className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                        className="shadow-sm"
                         title="Send Weekly Summary Email Now"
                     >
-                        {sendingEmail ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
+                        {sendingEmail ? (
+                            <Loader2 data-icon="inline-start" className="animate-spin" />
+                        ) : (
+                            <Mail data-icon="inline-start" />
+                        )}
                         Email Summary
-                    </button>
+                    </Button>
                     <div className="text-sm text-gray-500 dark:text-gray-400 hidden sm:block">
                         Last Updated: {new Date().toLocaleTimeString()}
                     </div>
@@ -238,23 +246,25 @@ export default function Dashboard() {
         const themeClasses = colorClasses[color] || colorClasses.blue;
 
         return (
-            <div className="bg-white dark:bg-neutral-900 p-2 rounded-xl shadow-sm border border-gray-100 dark:border-neutral-800 flex items-start space-x-4 transition-colors relative overflow-hidden group">
-                <div className={`p-2 rounded-md ${themeClasses} transition-colors group-hover:scale-110 duration-300`}>
-                    <Icon className="w-4 h-4" />
-                </div>
-                <div className="flex-1">
-                    <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400 transition-colors uppercase tracking-wider">{title}</h4>
-                    <div className="flex items-baseline gap-2 mt-1">
-                        <MaskedBalance value={value} className="text-md font-bold text-gray-900 dark:text-gray-100 transition-colors tracking-tight" />
-                        {subText && (
-                            <span className="text-xs bg-gray-50 dark:bg-neutral-800/80 px-2 py-0.5 rounded-full border border-gray-200 dark:border-neutral-700">
-                                {subText}
-                            </span>
-                        )}
+            <Card className="bg-white dark:bg-neutral-900 p-2 border-gray-100 dark:border-neutral-800 group relative overflow-hidden">
+                <CardContent className="p-0 flex items-start gap-4 transition-colors">
+                    <div className={`p-2 rounded-md ${themeClasses} transition-colors group-hover:scale-110 duration-300`}>
+                        <Icon data-icon="inline-start" />
                     </div>
-                </div>
-                <div className={`absolute -right-6 -top-6 w-24 h-24 rounded-full opacity-[0.03] pointer-events-none transition-transform group-hover:scale-150 duration-500 ${themeClasses.split(' ')[0]}`}></div>
-            </div>
+                    <div className="flex-1">
+                        <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400 transition-colors uppercase tracking-wider">{title}</h4>
+                        <div className="flex items-baseline gap-2 mt-1">
+                            <MaskedBalance value={value} className="text-md font-bold text-gray-900 dark:text-gray-100 transition-colors tracking-tight" />
+                            {subText && (
+                                <span className="text-xs bg-gray-50 dark:bg-neutral-800/80 px-2 py-0.5 rounded-full border border-gray-200 dark:border-neutral-700">
+                                    {subText}
+                                </span>
+                            )}
+                        </div>
+                    </div>
+                    <div className={`absolute -right-6 -top-6 size-24 rounded-full opacity-[0.03] pointer-events-none transition-transform group-hover:scale-150 duration-500 ${themeClasses.split(' ')[0]}`}></div>
+                </CardContent>
+            </Card>
         );
     }
 }

@@ -74,3 +74,93 @@ export async function scrapePSX(tickers = []) {
     await browser.close();
     return results;
 }
+
+/**
+ * Scrapes news from TradingView for a given ticker.
+ * @param {string} ticker - The PSX ticker (e.g., OGDC)
+ * @returns {Promise<{data: Array, error: string|null}>} Object with news items and error status
+ */
+export async function scrapeTradingViewNews(ticker) {
+    const symbol = `PSX-${ticker}`;
+    const url = `https://www.tradingview.com/symbols/${symbol}/news/`;
+
+    let browser;
+    try {
+        browser = await chromium.launch({ headless: true });
+        const context = await browser.newContext({
+            userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        });
+
+        const page = await context.newPage();
+        await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
+
+        // Wait for news items to load - use shorter timeout and return error instead of timing out
+        await page.waitForSelector('a[class*="card-"], article, [data-name="news-item"]', { timeout: 5000 }).catch(() => {
+            throw new Error(`Timeout loading news for ${ticker} - selector not found`);
+        });
+
+        const newsItems = await page.$$eval('a[class*="card-"], article, [data-name="news-item"]', (items) => {
+            return items.map(item => {
+                const linkEl = item.tagName === 'A' ? item : item.querySelector('a[href*="/news/"]');
+                const titleEl = item.querySelector('[class*="title-"], [data-qa-id="news-headline-title"], h2, h3');
+                const sourceEl = item.querySelector('[class*="source-"], [class*="provider-"]');
+                const dateEl = item.querySelector('time, [class*="date-"], [class*="time-"]');
+
+                if (!titleEl || !linkEl) return null;
+
+                return {
+                    title: titleEl?.textContent?.trim() || '',
+                    link: linkEl?.href || '',
+                    source: sourceEl?.textContent?.trim() || 'TradingView',
+                    publishedAtStr: dateEl?.getAttribute('datetime') || dateEl?.textContent?.trim() || '',
+                };
+            }).filter(Boolean).slice(0, 10);
+        });
+
+        await context.close();
+
+        // Post-process dates
+        const processedNews = newsItems.map(item => {
+            let publishedAt = new Date();
+            const str = (item.publishedAtStr || '').toLowerCase();
+
+            let dateToParse = item.publishedAtStr;
+            if (dateToParse && !/\d{4}/.test(dateToParse) && !str.includes('ago') && !str.includes('hour') && !str.includes('min')) {
+                dateToParse += `, ${new Date().getFullYear()}`;
+            }
+
+            const parsed = new Date(dateToParse);
+
+            if (!isNaN(parsed.getTime())) {
+                publishedAt = parsed;
+            } else if (str.includes('hour')) {
+                const hours = parseInt(str) || 0;
+                publishedAt.setHours(publishedAt.getHours() - hours);
+            } else if (str.includes('minute')) {
+                const mins = parseInt(str) || 0;
+                publishedAt.setMinutes(publishedAt.getMinutes() - mins);
+            } else if (str.includes('day')) {
+                const days = parseInt(str) || 0;
+                publishedAt.setDate(publishedAt.getDate() - days);
+            }
+
+            return {
+                ticker,
+                title: item.title,
+                link: item.link,
+                source: item.source,
+                publishedAt
+            };
+        });
+
+        return { data: processedNews, error: null };
+    } catch (error) {
+        const errorMsg = error.message || `Failed to scrape news for ${ticker}`;
+        console.error(`[NEWS ERROR] ${ticker}:`, errorMsg);
+        return { data: [], error: errorMsg };
+    } finally {
+        if (browser) {
+            await browser.close().catch(() => {});
+        }
+    }
+}

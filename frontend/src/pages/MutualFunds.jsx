@@ -5,7 +5,9 @@ import { Upload, Plus, ChevronDown, ChevronRight, Loader2, Trash2, Calendar, Tre
 import Modal from '../components/Modal';
 import ReactECharts from 'echarts-for-react';
 import { StatSkeleton, ChartSkeleton, TableSkeleton } from '../components/Skeleton';
-import Button from '../components/Button';
+import { Button } from '../components/ui/button';
+import { Skeleton } from '../components/ui/skeleton';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/card';
 import MaskedBalance from '../components/MaskedBalance';
 const COLORS = ['#7c2889', '#a855f7', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#06b6d4'];
 
@@ -309,24 +311,24 @@ export default function MutualFunds() {
     } : null;
 
     if (loading) return (
-        <div className="space-y-6 animate-in fade-in duration-500">
+        <div className="flex flex-col gap-6 animate-in fade-in duration-500">
             <div className="flex justify-between items-center mb-6">
-                <div>
-                    <div className="h-8 w-48 bg-gray-200 dark:bg-neutral-800 rounded animate-pulse mb-2"></div>
-                    <div className="h-4 w-64 bg-gray-200 dark:bg-neutral-800 rounded animate-pulse"></div>
+                <div className="flex flex-col gap-2">
+                    <Skeleton className="h-8 w-48" />
+                    <Skeleton className="h-4 w-64" />
                 </div>
-                <div className="h-10 w-32 bg-gray-200 dark:bg-neutral-800 rounded animate-pulse"></div>
+                <Skeleton className="h-10 w-32" />
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                <StatSkeleton />
-                <StatSkeleton />
-                <StatSkeleton />
+                <Skeleton className="h-32 rounded-xl" />
+                <Skeleton className="h-32 rounded-xl" />
+                <Skeleton className="h-32 rounded-xl" />
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-                <ChartSkeleton />
-                <ChartSkeleton />
+                <Skeleton className="h-[300px] rounded-xl" />
+                <Skeleton className="h-[300px] rounded-xl" />
             </div>
-            <TableSkeleton rows={4} />
+            <Skeleton className="h-64 w-full rounded-xl" />
         </div>
     );
 
@@ -344,10 +346,13 @@ export default function MutualFunds() {
                         variant="secondary"
                         onClick={() => fileInputRef.current?.click()}
                         disabled={isUploading}
-                        processing={isUploading}
                         className="shadow-sm"
                     >
-                        {!isUploading && <Upload className="w-4 h-4 mr-2" />}
+                        {isUploading ? (
+                            <Loader2 data-icon="inline-start" className="animate-spin" />
+                        ) : (
+                            <Upload data-icon="inline-start" />
+                        )}
                         Upload File
                     </Button>
                     <Button
@@ -355,10 +360,10 @@ export default function MutualFunds() {
                         onClick={() => setShowHtmlModal(true)}
                         className="shadow-sm"
                     >
-                        <Plus className="w-4 h-4 mr-2" /> Paste HTML
+                        <Plus data-icon="inline-start" /> Paste HTML
                     </Button>
                     <Button variant="default" onClick={() => setShowForm(!showForm)}>
-                        <Plus className="w-4 h-4 mr-2" /> Add Manual
+                        <Plus data-icon="inline-start" /> Add Manual
                     </Button>
                 </div>
             </div>
@@ -435,28 +440,33 @@ export default function MutualFunds() {
 
             {showHtmlModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-                    <div className="bg-white dark:bg-neutral-900 rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden animate-in zoom-in duration-200">
-                        <div className="px-6 py-4 border-b border-gray-100 dark:border-neutral-800 flex justify-between items-center">
-                            <h3 className="font-bold text-gray-900 dark:text-gray-100">Paste Table HTML</h3>
-                            <Button variant="ghost" size="icon" onClick={() => setShowHtmlModal(false)} className="h-8 w-8 rounded-full">&times;</Button>
-                        </div>
-                        <div className="p-6">
-                            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Paste the HTML code of the portfolio table from your statement.</p>
+                    <Card className="w-full max-w-2xl shadow-2xl overflow-hidden animate-in zoom-in duration-200">
+                        <CardHeader className="border-b border-gray-100 dark:border-neutral-800 flex flex-row justify-between items-center">
+                            <div>
+                                <CardTitle className="text-lg font-bold">Paste Table HTML</CardTitle>
+                                <CardDescription>Paste the HTML code of the portfolio table from your statement.</CardDescription>
+                            </div>
+                            <Button variant="ghost" size="icon" onClick={() => setShowHtmlModal(false)} className="size-8 rounded-full">&times;</Button>
+                        </CardHeader>
+                        <CardContent className="p-6">
                             <textarea value={htmlContent} onChange={(e) => setHtmlContent(e.target.value)} placeholder="<table>...</table>" className="w-full h-64 px-4 py-3 bg-gray-50 dark:bg-neutral-950 border border-gray-200 dark:border-neutral-800 rounded-xl text-gray-900 dark:text-gray-100 text-sm font-mono focus:ring-2 focus:ring-[#7c2889] outline-none transition-all resize-none" />
                             <div className="flex gap-3 mt-6">
                                 <Button variant="outline" onClick={() => setShowHtmlModal(false)} className="flex-1">Cancel</Button>
                                 <Button
                                     onClick={handleHtmlSync}
                                     disabled={isSyncing || !htmlContent.trim()}
-                                    processing={isSyncing}
                                     className="flex-1"
                                 >
-                                    {!isSyncing && <TrendingUp className="w-4 h-4 mr-2" />}
+                                    {isSyncing ? (
+                                        <Loader2 data-icon="inline-start" className="animate-spin" />
+                                    ) : (
+                                        <TrendingUp data-icon="inline-start" />
+                                    )}
                                     Sync Portfolio
                                 </Button>
                             </div>
-                        </div>
-                    </div>
+                        </CardContent>
+                    </Card>
                 </div>
             )}
 

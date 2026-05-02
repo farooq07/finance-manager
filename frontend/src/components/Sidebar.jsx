@@ -5,6 +5,7 @@ import clsx from 'clsx';
 import logo from '../assets/logo.svg';
 import logosm from '../assets/logosm.svg';
 import { useAuth } from '../context/AuthContext';
+import { Button } from '@/components/ui/button';
 
 const navItems = [
     { name: 'Dashboard', path: '/', icon: Home },
@@ -46,7 +47,11 @@ export default function Sidebar() {
                     alt="WealthAxis"
                     className={clsx("object-contain transition-all duration-300", isExpanded ? "h-8" : "h-7 w-7")}
                 />
-                <h1 className="text-lg font-bold ml-2 text-gray-900 dark:text-white">Mywealth <span className="text-emerald-500">Axis</span></h1>
+                {isExpanded && (
+                    <h1 className="text-lg font-bold ml-2 text-gray-900 dark:text-white transition-opacity duration-300">
+                        Mywealth <span className="text-emerald-500">Axis</span>
+                    </h1>
+                )}
             </div>
 
             {/* Navigation */}
@@ -79,12 +84,14 @@ export default function Sidebar() {
                     );
                 })}
             </nav>
-            <button
+            <Button
+                variant="ghost"
+                size="icon"
                 onClick={() => setIsExpanded(!isExpanded)}
-                className=" bg-white dark:bg-neutral-800 border rounded-sm border-gray-200 dark:border-neutral-700 text-gray-400 dark:text-gray-500  p-2  hover:text-emerald-500 transition-colors z-10"
+                className="bg-white dark:bg-neutral-800 border rounded-sm border-gray-200 dark:border-neutral-700 text-gray-400 dark:text-gray-500 size-8 hover:text-emerald-500 transition-colors z-10"
             >
-                {isExpanded ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-            </button>
+                {isExpanded ? <ChevronLeft /> : <ChevronRight />}
+            </Button>
 
 
         </aside>

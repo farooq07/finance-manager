@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import rateLimit from 'express-rate-limit';
 import authRoutes from './src/routes/auth.routes.js';
 import dashboardRoutes from './src/routes/dashboard.routes.js';
 import expenseRoutes from './src/routes/expense.routes.js';
@@ -21,13 +22,37 @@ import { initCronJobs } from './src/services/cron.service.js';
 
 dotenv.config();
 
+if (!process.env.JWT_SECRET) {
+    throw new Error('JWT_SECRET environment variable is required');
+}
+
 const app = express();
 
-app.use(cors());
+// CORS: Lock to specific origins
+const allowedOrigins = [
+    'http://localhost:5173',
+    'http://localhost:5174',
+    process.env.FRONTEND_URL
+].filter(Boolean);
+
+app.use(cors({
+    origin: allowedOrigins,
+    credentials: true
+}));
+
 app.use(express.json());
 
+// Rate limiting: 10 requests per 15 minutes on auth endpoints
+const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 10,
+    message: 'Too many login attempts. Please try again later.',
+    standardHeaders: true,
+    legacyHeaders: false
+});
+
 // Routes
-app.use('/api/auth', authRoutes);
+app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/expenses', expenseRoutes);
 app.use('/api/mutual-funds', mutualFundRoutes);

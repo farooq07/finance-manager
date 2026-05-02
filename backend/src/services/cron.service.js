@@ -31,10 +31,9 @@ export const initCronJobs = () => {
             for (const user of users) {
                 try {
                     const data = await fetchDashboardData(user.id);
-                    const targetEmail = 'farooqibex@gmail.com'; // Hardcoded as requested
-                    const targetName = user.name || 'Farooq';
-                    
-                    await sendSummaryEmail(targetEmail, targetName, data.metrics);
+                    const targetName = user.name || 'User';
+
+                    await sendSummaryEmail(user.email, targetName, data.metrics);
                 } catch (err) {
                     console.error(`[Cron] Failed to send summary for user ${user.id}:`, err.message);
                 }

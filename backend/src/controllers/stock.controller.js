@@ -1,5 +1,5 @@
 import prisma from '../utils/prisma.js';
-import { scrapePSX } from '../services/scraper.service.js';
+import { scrapePSX, scrapeTradingViewNews } from '../services/scraper.service.js';
 
 // Get user's stock portfolio
 export const getStocks = async (req, res) => {
@@ -140,16 +140,29 @@ export const getPsxStocks = async (req, res) => {
     }
 };
 
-const TARGET_STOCKS = ['HUBC', 'FFL', 'FFC', 'MEBL', 'OGDC'];
+const TARGET_STOCKS = ['HUBC', 'FFL', 'FFC', 'MEBL', 'OGDC', 'EFERT', 'FATIMA', 'LUCK', 'MARI', 'MTL', 'NATF', 'PPL', 'PSO', 'SYS'];
 
 export const syncPsxStocks = async (req, res) => {
     try {
         console.log('[SYNC] Starting manual PSX Scraping Job...');
         const results = await scrapePSX(TARGET_STOCKS);
 
+        if (!results || results.length === 0) {
+            return res.status(200).json({
+                message: 'No stock data retrieved. Check network or website changes.',
+                success: false,
+                updated: 0
+            });
+        }
+
         let updatedCount = 0;
+        let skippedCount = 0;
+
         for (const data of results) {
-            if (!data.price) continue;
+            if (!data.price) {
+                skippedCount++;
+                continue;
+            }
 
             await prisma.psxStock.upsert({
                 where: { ticker: data.ticker },
@@ -178,10 +191,121 @@ export const syncPsxStocks = async (req, res) => {
             updatedCount++;
         }
 
-        console.log(`[SYNC] Successfully updated ${updatedCount} PSX stocks in DB.`);
-        res.status(200).json({ message: `Successfully updated ${updatedCount} stocks.` });
+        console.log(`[SYNC] Successfully updated ${updatedCount} PSX stocks (skipped ${skippedCount}).`);
+        res.status(200).json({
+            message: `✓ Updated ${updatedCount} stocks`,
+            success: true,
+            updated: updatedCount,
+            skipped: skippedCount
+        });
     } catch (error) {
-        console.error('[SYNC] Error during manual PSX Scraping:', error.message);
-        res.status(500).json({ message: 'Error syncing PSX data' });
+        console.error('[SYNC] Error during PSX Scraping:', error.message);
+        res.status(500).json({
+            message: 'Error syncing PSX data',
+            error: error.message,
+            success: false
+        });
+    }
+};
+
+export const syncStockNews = async (req, res) => {
+    try {
+        const { ticker } = req.body;
+
+        let tickers = [];
+        if (ticker) {
+            tickers = [ticker];
+        } else {
+            // Get latest snapshot to find all symbols in portfolio
+            const latestSnapshot = await prisma.psxSnapshot.findFirst({
+                where: { user_id: req.user.id },
+                orderBy: { snapshot_date: 'desc' }
+            });
+
+            if (latestSnapshot && Array.isArray(latestSnapshot.holdings_data)) {
+                tickers = latestSnapshot.holdings_data.map(h => h.symbol);
+            }
+        }
+
+        if (tickers.length === 0) {
+            return res.json({ message: 'No stocks found to sync news for.', success: false });
+        }
+
+        console.log(`[NEWS SYNC] Syncing news for ${tickers.join(', ')}`);
+
+        const results = {
+            success: [],
+            failed: []
+        };
+
+        // Process one by one - NO RETRIES on errors
+        for (const sym of tickers) {
+            const { data: newsItems, error } = await scrapeTradingViewNews(sym);
+
+            if (error) {
+                // Log error but don't retry
+                console.log(`[NEWS SKIP] ${sym}: ${error}`);
+                results.failed.push({ ticker: sym, reason: error });
+                continue;
+            }
+
+            if (newsItems.length === 0) {
+                results.failed.push({ ticker: sym, reason: 'No news items found' });
+                continue;
+            }
+
+            // Save the news
+            for (const item of newsItems) {
+                try {
+                    await prisma.stockNews.upsert({
+                        where: { link: item.link },
+                        update: {
+                            ticker: sym,
+                            title: item.title,
+                            source: item.source,
+                            publishedAt: item.publishedAt
+                        },
+                        create: {
+                            ticker: sym,
+                            title: item.title,
+                            link: item.link,
+                            source: item.source,
+                            publishedAt: item.publishedAt
+                        }
+                    });
+                } catch (dbErr) {
+                    console.error(`[DB ERROR] Failed to save news for ${sym}:`, dbErr.message);
+                }
+            }
+            results.success.push({ ticker: sym, count: newsItems.length });
+        }
+
+        const message = `Synced: ${results.success.length}/${tickers.length} stocks. ${results.failed.length > 0 ? `Failed: ${results.failed.map(f => f.ticker).join(', ')}` : 'All successful.'}`;
+        res.json({
+            message,
+            success: results.success.length > 0,
+            details: results
+        });
+    } catch (error) {
+        console.error('[NEWS SYNC ERROR]', error);
+        res.status(500).json({
+            message: 'Error syncing stock news',
+            error: error.message,
+            success: false
+        });
+    }
+};
+
+export const getStockNews = async (req, res) => {
+    try {
+        const { ticker } = req.params;
+        const news = await prisma.stockNews.findMany({
+            where: { ticker },
+            orderBy: { publishedAt: 'desc' },
+            take: 10
+        });
+        res.json(news);
+    } catch (error) {
+        res.status(500).json({ message: 'Error fetching stock news' });
     }
 };

@@ -2,9 +2,17 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Papa from 'papaparse';
 import ReactECharts from 'echarts-for-react';
-import { Upload, Plus, Trash2, TrendingUp, DollarSign, Calendar, Clock, Database, ChevronDown, ChevronRight, Activity, Percent, Eye, EyeOff, Briefcase, Loader2, RefreshCw, Gift } from 'lucide-react';
+import { 
+    Upload, Plus, Trash2, TrendingUp, DollarSign, Calendar, Clock, Database, 
+    ChevronDown, ChevronRight, Activity, Percent, Eye, EyeOff, Briefcase, 
+    Loader2, RefreshCw, Gift, Newspaper 
+} from 'lucide-react';
 import { usePin } from '../context/PinContext';
-import { usePsxSnapshots, useUploadPsxSnapshot, useBankInvestments, useAddBankInvestment, useDeleteBankInvestment, useUpdatePsxSummary } from '../hooks/usePsx';
+import { 
+    usePsxSnapshots, useUploadPsxSnapshot, useBankInvestments, 
+    useAddBankInvestment, useDeleteBankInvestment, useUpdatePsxSummary,
+    useDeletePsxSnapshot, useDeleteSymbolFromSnapshot, useSyncPsxData 
+} from '../hooks/usePsx';
 import { useDividends, useSyncDividends, useDeleteDividend } from '../hooks/useDividends';
 import { useBrokerAccounts } from '../hooks/useBrokerAccounts';
 import { fmtPKR, pctChange, glColor, fmtGL } from '../utils/currency';
@@ -14,12 +22,14 @@ import DatePickerInput from '../components/DatePickerInput';
 import DatePicker from 'react-datepicker';
 import { toast } from 'sonner';
 import MaskedBalance from '../components/MaskedBalance';
-import Button from '../components/Button';
-import { useDeletePsxSnapshot, useDeleteSymbolFromSnapshot, useSyncPsxData } from '../hooks/usePsx';
-import { usePsxStocks, useSyncPsxStocks } from '../hooks/useStocks';
+import { Button } from '@/components/ui/button';
+import { usePsxStocks, useSyncPsxStocks, useSyncStockNews } from '../hooks/useStocks';
 import Modal from '../components/Modal';
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 
-const DEFAULT_TARGETS = ['HUBC', 'FFL', 'FFC', 'MEBL', 'OGDC'];
+const DEFAULT_TARGETS = ['HUBC', 'FFL', 'FFC', 'MEBL', 'OGDC', 'EFERT', 'FATIMA', 'LUCK', 'MARI', 'MTL', 'NATF', 'PPL', 'PSO', 'SYS'];
 
 export default function Stocks() {
     const navigate = useNavigate();
@@ -39,15 +49,34 @@ export default function Stocks() {
     const deleteSymbol = useDeleteSymbolFromSnapshot();
     const syncData = useSyncPsxData();
     const syncLiveStocks = useSyncPsxStocks();
+    const syncStockNews = useSyncStockNews();
     const { data: dividends = [] } = useDividends();
     const syncDividendsMutation = useSyncDividends();
     const deleteDividendMutation = useDeleteDividend();
 
     // ---- Merged Data Logic (Top level to avoid ReferenceErrors) ----
-    const targetSymbols = ['FFC', 'FFL', 'HUBC', 'MEBL', 'OGDC'];
+    const targetSymbols = ['FFC', 'FFL', 'HUBC', 'MEBL', 'OGDC', 'EFERT', 'FATIMA', 'LUCK', 'MARI', 'MTL', 'NATF', 'PPL', 'PSO', 'SYS'];
     const latestSnapshot = snapshots.length > 0 ? snapshots[0] : null;
     const currentHoldings = latestSnapshot?.holdings_data || [];
-    
+
+    const get30dChange = (symbol) => {
+        if (snapshots.length < 2) return null;
+        const targetDate = new Date();
+        targetDate.setDate(targetDate.getDate() - 30);
+        
+        const pastSnap = snapshots.find(s => new Date(s.snapshot_date) >= targetDate && s.id !== latestSnapshot?.id);
+        if (!pastSnap) return null;
+        
+        const pastHolding = pastSnap.holdings_data.find(h => h.symbol === symbol);
+        const pastPrice = Number(pastHolding?.market_rate) || 0;
+        
+        const currentStock = liveStocks.find(s => s.ticker === symbol);
+        const currentPrice = currentStock?.price || 0;
+        
+        if (pastPrice === 0 || currentPrice === 0) return null;
+        return ((currentPrice - pastPrice) / pastPrice) * 100;
+    };
+
     // Create a set of all symbols to show: actual holdings + mandatory targets
     const allSymbols = Array.from(new Set([
         ...currentHoldings.map(h => h.symbol),
@@ -64,7 +93,7 @@ export default function Stocks() {
             custody_val: 0,
             today_gl: 0
         };
-        
+
         const live = liveStocks.find(ls => ls.ticker === sym);
         const marketPrice = live ? Number(live.price) : Number(h.market_rate);
         const totalCost = h.total_cost || (Number(h.holding) * (Number(h.cost_per_unit) || 0));
@@ -93,6 +122,7 @@ export default function Stocks() {
     const [showDividendsModal, setShowDividendsModal] = useState(false);
     const [divHtmlContent, setDivHtmlContent] = useState('');
     const [isSyncingDividends, setIsSyncingDividends] = useState(false);
+    const [showSyncForm, setShowSyncForm] = useState(false);
     const [deleteModal, setDeleteModal] = useState({ isOpen: false, title: '', description: '', onConfirm: null, isLoading: false });
 
     // Security States
@@ -117,17 +147,20 @@ export default function Stocks() {
     });
 
     if (loadingSnapshots || loadingBank || loadingBrokers) return (
-        <div className="space-y-6">
+        <div className="flex flex-col gap-6">
             <div className="flex justify-between items-center mb-6">
                 <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 transition-colors">PSX Engine</h1>
-                <div className="h-10 w-32 bg-gray-200 dark:bg-neutral-800 animate-pulse rounded-lg" />
+                <Skeleton className="h-10 w-32" />
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <StatSkeleton />
-                <StatSkeleton />
-                <StatSkeleton />
+                <Skeleton className="h-32 rounded-2xl" />
+                <Skeleton className="h-32 rounded-2xl" />
+                <Skeleton className="h-32 rounded-2xl" />
             </div>
-            <TableSkeleton rows={4} />
+            <div className="flex flex-col gap-4">
+                <Skeleton className="h-12 w-full" />
+                <Skeleton className="h-64 w-full" />
+            </div>
         </div>
     );
 
@@ -397,7 +430,7 @@ export default function Stocks() {
                 const grossAmount = parseFloat(cells[5].textContent.trim().replace(/,/g, ''));
                 const netAmount = parseFloat(cells[6].textContent.trim().replace(/,/g, ''));
                 const status = cells[7].textContent.trim();
-                
+
                 // Parse date DD/MM/YYYY to YYYY-MM-DD
                 const dateParts = cells[8].textContent.trim().split('/');
                 const paymentDate = dateParts.length === 3 ? `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}` : null;
@@ -426,6 +459,7 @@ export default function Stocks() {
             await syncDividendsMutation.mutateAsync(parsedDividends);
             toast.success(`Successfully synced ${parsedDividends.length} dividend records`);
             setDivHtmlContent('');
+            setShowSyncForm(false);
         } catch (error) {
             console.error('Dividend Sync Error:', error);
             toast.error('Failed to parse dividend HTML');
@@ -511,19 +545,62 @@ export default function Stocks() {
 
                 <div className="flex flex-col sm:flex-row flex-wrap items-center gap-3 w-full md:w-auto">
                     <Button
-                        variant="primary"
+                        variant="default"
                         onClick={async () => {
                             try {
-                                await syncLiveStocks.mutateAsync();
-                                toast.success('Live stock prices synced manually.');
+                                const result = await syncLiveStocks.mutateAsync();
+                                if (result?.success) {
+                                    toast.success(`✓ ${result.message}`);
+                                } else if (result?.message) {
+                                    toast.warning(result.message);
+                                } else {
+                                    toast.success('Live stock prices synced.');
+                                }
                             } catch (error) {
-                                toast.error('Failed to sync live stock prices.');
+                                toast.error(error.response?.data?.message || error.message || 'Failed to sync live stock prices');
                             }
                         }}
-                        processing={syncLiveStocks.isPending}
+                        disabled={syncLiveStocks.isPending}
                         className="h-10 px-4 w-full sm:w-auto"
                     >
-                        <RefreshCw className="w-4 h-4 mr-2" /> Sync Live Data
+                        {syncLiveStocks.isPending ? (
+                            <Loader2 data-icon="inline-start" className="animate-spin" />
+                        ) : (
+                            <RefreshCw data-icon="inline-start" />
+                        )}
+                        Sync Live Data
+                    </Button>
+                    
+                    <Button
+                        variant="outline"
+                        onClick={async () => {
+                            try {
+                                const result = await syncStockNews.mutateAsync();
+                                if (result?.success) {
+                                    toast.success(result.message || '✓ News synced successfully');
+                                    if (result.details?.failed?.length > 0) {
+                                        const failedList = result.details.failed.map(f => `${f.ticker} (${f.reason})`).join(', ');
+                                        toast.info(`⚠ Could not fetch news for: ${failedList}`, { duration: 5000 });
+                                    }
+                                } else if (result?.message) {
+                                    toast.warning(result.message);
+                                } else {
+                                    toast.success('News sync completed');
+                                }
+                            } catch (error) {
+                                const errorMsg = error.response?.data?.message || error.response?.data?.error || error.message || 'Failed to sync stock news';
+                                toast.error(errorMsg);
+                            }
+                        }}
+                        disabled={syncStockNews.isPending}
+                        className="h-10 px-4 w-full sm:w-auto border-emerald-200 dark:border-emerald-800/50 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20"
+                    >
+                        {syncStockNews.isPending ? (
+                            <Loader2 data-icon="inline-start" className="animate-spin" />
+                        ) : (
+                            <Newspaper data-icon="inline-start" />
+                        )}
+                        Sync News
                     </Button>
 
                     <Button
@@ -531,7 +608,7 @@ export default function Stocks() {
                         onClick={() => setShowBankModal(true)}
                         className="h-10 px-4 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-900/50 hover:bg-blue-100 dark:hover:bg-blue-900/40 shadow-sm w-full sm:w-auto"
                     >
-                        <DollarSign className="w-4 h-4 mr-2" /> Bank Transfers
+                        <DollarSign data-icon="inline-start" /> Bank Transfers
                     </Button>
 
                     <Button
@@ -706,9 +783,10 @@ export default function Stocks() {
                                     <th className="px-6 py-4 text-right">Cost/Unit</th>
                                     <th className="px-6 py-4 text-right">Total Cost</th>
                                     <th className="px-6 py-4 text-right">Market Price</th>
-                                    <th className="px-6 py-4 text-right">Change</th>
+                                    <th className="px-6 py-4 text-right">Total G/L</th>
                                     <th className="px-6 py-4 text-right">Current Value</th>
                                     <th className="px-6 py-4 text-right">Today G/L</th>
+                                    <th className="px-6 py-4 text-right">30d Perf</th>
                                     <th className="px-6 py-4 text-center">Action</th>
                                 </tr>
                             </thead>
@@ -720,8 +798,8 @@ export default function Stocks() {
                                     const prevVal = stock.custody_val - todayGl;
                                     const todayPct = prevVal > 0 ? (todayGl / prevVal) * 100 : 0;
                                     return (
-                                        <tr 
-                                            key={idx} 
+                                        <tr
+                                            key={idx}
                                             onClick={() => navigate(`/stocks/${stock.symbol}`)}
                                             className={`hover:bg-blue-50/50 dark:hover:bg-blue-900/10 cursor-pointer transition-colors ${stock.holding === 0 ? 'opacity-60 grayscale-[0.5]' : ''}`}
                                         >
@@ -748,7 +826,7 @@ export default function Stocks() {
                                                 {fmtPKR(stock.market_rate)}
                                                 {stock.live_data && (
                                                     <div className="flex items-center justify-end gap-1">
-                                                        <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                                                        <span className="size-1.5 bg-emerald-500 rounded-full animate-pulse" />
                                                         <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-normal uppercase tracking-tighter">Live</span>
                                                     </div>
                                                 )}
@@ -772,15 +850,26 @@ export default function Stocks() {
                                                     </span>
                                                 </div>
                                             </td>
+                                            <td className="px-6 py-3 whitespace-nowrap text-right">
+                                                {(() => {
+                                                    const perf = get30dChange(stock.symbol);
+                                                    if (perf === null) return <span className="text-gray-400 text-[10px]">No History</span>;
+                                                    return (
+                                                        <span className={`text-sm font-bold ${glColor(perf)}`}>
+                                                            {perf >= 0 ? '+' : ''}{perf.toFixed(1)}%
+                                                        </span>
+                                                    );
+                                                })()}
+                                            </td>
                                             <td className="px-6 py-3 whitespace-nowrap text-center">
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
                                                     onClick={(e) => { e.stopPropagation(); handleDeleteSymbolFromSnapshot(latestSnapshot.id, stock.symbol); }}
-                                                    className="h-8 w-8 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                                    className="size-8 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
                                                     title={`Remove ${stock.symbol} from today's holding`}
                                                 >
-                                                    <Trash2 className="w-4 h-4" />
+                                                    <Trash2 />
                                                 </Button>
                                             </td>
                                         </tr>
@@ -1189,11 +1278,56 @@ export default function Stocks() {
                                     <p className="text-sm text-gray-500 dark:text-gray-400">Manage and sync your dividend payouts</p>
                                 </div>
                             </div>
-                            <button onClick={() => setShowDividendsModal(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
-                                <Plus className="w-6 h-6 rotate-45" />
-                            </button>
+                            <div className="flex items-center gap-4">
+                                <button
+                                    onClick={() => setShowSyncForm(!showSyncForm)}
+                                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all duration-200 ${showSyncForm
+                                        ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/20'
+                                        : 'bg-gray-100 text-gray-600 dark:bg-neutral-800 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-neutral-700'
+                                        }`}
+                                >
+                                    <RefreshCw className={`w-4 h-4 ${showSyncForm ? 'rotate-180' : ''} transition-transform duration-500`} />
+                                    {showSyncForm ? 'Close Sync' : 'Sync New Dividends'}
+                                </button>
+                                <button onClick={() => setShowDividendsModal(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                                    <Plus className="w-6 h-6 rotate-45" />
+                                </button>
+                            </div>
                         </div>
-
+                        {/* Sync Area with Smooth Grid Transition */}
+                        <div className={`grid transition-all duration-500 ease-in-out ${showSyncForm ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
+                            <div className="overflow-hidden">
+                                <div className="p-6 pb-2">
+                                    <Card className="bg-gray-50/50 dark:bg-neutral-800/30 border-dashed">
+                                        <CardHeader className="pb-3">
+                                            <CardTitle className="text-sm font-bold">Sync New Dividends</CardTitle>
+                                            <CardDescription className="text-xs">
+                                                Paste the dividends table HTML from your broker portal to sync records.
+                                            </CardDescription>
+                                        </CardHeader>
+                                        <CardContent>
+                                            <textarea
+                                                className="w-full h-32 p-3 border border-gray-200 dark:border-neutral-700 rounded-xl bg-white dark:bg-neutral-900 text-xs font-mono dark:text-gray-300 focus:ring-2 focus:ring-emerald-500 transition-colors mb-3"
+                                                placeholder="Paste <tr>...</tr> or <table> content here..."
+                                                value={divHtmlContent}
+                                                onChange={(e) => setDivHtmlContent(e.target.value)}
+                                            />
+                                            <div className="flex justify-end">
+                                                <Button
+                                                    onClick={handleDividendSync}
+                                                    disabled={isSyncingDividends}
+                                                    size="sm"
+                                                    className="px-6"
+                                                >
+                                                    {isSyncingDividends ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />} 
+                                                    Sync Records
+                                                </Button>
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+                                </div>
+                            </div>
+                        </div>
                         <div className="flex-1 overflow-y-auto p-6">
                             {/* Summary Cards */}
                             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
@@ -1217,27 +1351,7 @@ export default function Stocks() {
                                 })}
                             </div>
 
-                            {/* Sync Area */}
-                            <div className="bg-gray-50 dark:bg-neutral-800/50 p-6 rounded-2xl border border-dashed border-gray-200 dark:border-neutral-700 mb-8">
-                                <h3 className="text-sm font-bold text-gray-900 dark:text-gray-100 mb-2">Sync New Dividends</h3>
-                                <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">Paste the dividends table HTML from your broker portal to sync records.</p>
-                                <textarea
-                                    className="w-full h-32 p-3 border border-gray-200 dark:border-neutral-700 rounded-xl bg-white dark:bg-neutral-900 text-xs font-mono dark:text-gray-300 focus:ring-2 focus:ring-emerald-500 transition-colors mb-3"
-                                    placeholder="Paste <tr>...</tr> or <table> content here..."
-                                    value={divHtmlContent}
-                                    onChange={(e) => setDivHtmlContent(e.target.value)}
-                                />
-                                <div className="flex justify-end">
-                                    <Button
-                                        onClick={handleDividendSync}
-                                        processing={isSyncingDividends}
-                                        size="sm"
-                                        className="px-6"
-                                    >
-                                        <RefreshCw className="w-4 h-4 mr-2" /> Sync Records
-                                    </Button>
-                                </div>
-                            </div>
+
 
                             {/* Dividends Table */}
                             <div className="bg-white dark:bg-neutral-900 rounded-xl border border-gray-100 dark:border-neutral-800 overflow-hidden">
@@ -1264,9 +1378,15 @@ export default function Stocks() {
                                                     <td className="px-4 py-3 text-right text-gray-600 dark:text-gray-400">{fmtPKR(div.gross_dividend_amount)}</td>
                                                     <td className="px-4 py-3 text-right font-bold text-emerald-600 dark:text-emerald-400">{fmtPKR(div.net_dividend_amount)}</td>
                                                     <td className="px-4 py-3">
-                                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${div.status?.toLowerCase() === 'paid' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20' : 'bg-amber-50 text-amber-600 dark:bg-amber-900/20'}`}>
+                                                        <Badge
+                                                            variant={div.status?.toLowerCase() === 'paid' ? 'default' : 'secondary'}
+                                                            className={`text-[10px] font-bold uppercase ${div.status?.toLowerCase() === 'paid'
+                                                                    ? 'bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800'
+                                                                    : 'bg-amber-500/10 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400 border-amber-200 dark:border-amber-800'
+                                                                }`}
+                                                        >
                                                             {div.status}
-                                                        </span>
+                                                        </Badge>
                                                     </td>
                                                     <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{fmtDate(div.payment_date)}</td>
                                                     <td className="px-4 py-3 text-center">

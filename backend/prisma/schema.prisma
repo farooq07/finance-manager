@@ -298,17 +298,30 @@ model PsxStock {
   id          String   @id @default(cuid())
   ticker      String   @unique  // "FFL", "ENGRO"
   companyName String
-  price       Decimal  @db.Decimal(10, 2)
-  change      Decimal  @db.Decimal(10, 2)
-  changePct   Decimal  @db.Decimal(5, 2)
+  price       Decimal  @db.Decimal(15, 4)
+  change      Decimal  @db.Decimal(15, 4)
+  changePct   Decimal  @db.Decimal(15, 4)
   volume      BigInt
-  high        Decimal  @db.Decimal(10, 2)
-  low         Decimal  @db.Decimal(10, 2)
-  marketCap   Decimal? @db.Decimal(18, 2)
+  high        Decimal  @db.Decimal(15, 4)
+  low         Decimal  @db.Decimal(15, 4)
+  marketCap   Decimal? @db.Decimal(18, 4)
   lastUpdated DateTime @updatedAt
   createdAt   DateTime @default(now())
 
   @@map("psx_stocks")
+}
+
+model StockNews {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ticker      String   @db.VarChar(20)
+  title       String
+  link        String   @unique
+  source      String?
+  publishedAt DateTime
+  createdAt   DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([ticker])
+  @@map("stock_news")
 }
 
 model Dividend {

@@ -134,12 +134,16 @@ export const fetchDashboardData = async (userId) => {
             amount
         }));
 
-        // 6. Assets
+        // 6. Rent Entries
+        const rentEntries = await prisma.rentEntry.findMany({ where: { user_id: userId } });
+        const totalRentBalance = rentEntries.reduce((sum, rent) => sum + Number(rent.amount), 0);
+
+        // 7. Assets
         const assets = await prisma.asset.findMany({ where: { user_id: userId } });
         const totalAssetValue = assets.reduce((sum, asset) => sum + Number(asset.value), 0);
 
-    // Net Worth formula = Liquid Cash + Assets/Investments + Receivables - Payables (Physical Assets excluded from Comprehensive Net Worth)
-    const netWorth = totalBankBalance + totalWalletBalance + totalInvestments + totalReceivable - totalPayable;
+    // Net Worth formula = Liquid Cash + Assets/Investments + Receivables - Payables - Expenses + Rent Balance (Physical Assets excluded from Comprehensive Net Worth)
+    const netWorth = totalBankBalance + totalWalletBalance + totalInvestments + totalReceivable - totalPayable - totalExpenses + totalRentBalance;
 
     return {
         metrics: {
@@ -155,7 +159,8 @@ export const fetchDashboardData = async (userId) => {
             totalPayable,
             totalExpenses,
             currentMonthExpenses,
-            totalAssetValue
+            totalAssetValue,
+            totalRentBalance
         },
         charts: {
             monthlyExpenses: chartData,
@@ -196,14 +201,14 @@ export const sendManualSummaryEmail = async (req, res) => {
             select: { name: true, email: true }
         });
 
-        const targetEmail = 'farooqibex@gmail.com'; // Hardcoded as requested
-        const targetName = user?.name || 'Farooq';
+        const targetEmail = user?.email;
+        const targetName = user?.name || 'User';
 
         const data = await fetchDashboardData(userId);
 
         await sendSummaryEmail(targetEmail, targetName, data.metrics);
 
-        res.json({ message: 'Summary email sent successfully to farooqibex@gmail.com' });
+        res.json({ message: `Summary email sent successfully to ${targetEmail}` });
     } catch (error) {
         console.error('Manual Summary Email Error:', error);
         res.status(500).json({ message: 'Server error sending summary email' });

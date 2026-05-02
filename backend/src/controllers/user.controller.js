@@ -35,6 +35,12 @@ export const getAllUsers = async (req, res) => {
 export const getUserById = async (req, res) => {
     try {
         const { id } = req.params;
+        const currentUser = req.user;
+
+        // Users can only view their own profile, or admins can view anyone
+        if (currentUser.id !== id && !checkUserManagementPermission(currentUser?.role)) {
+            return res.status(403).json({ message: 'Unauthorized - You can only view your own profile' });
+        }
 
         const user = await prisma.user.findUnique({
             where: { id },

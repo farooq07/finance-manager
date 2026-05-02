@@ -1,14 +1,15 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { Activity, ArrowLeft, RefreshCw, TrendingUp, TrendingDown, Clock, BarChart2 } from 'lucide-react';
-import { usePsxStocks, useSyncPsxStocks } from '../hooks/useStocks';
+import { Activity, ArrowLeft, RefreshCw, TrendingUp, TrendingDown, Clock, BarChart2, Newspaper, ExternalLink, Loader2 } from 'lucide-react';
+import { usePsxStocks, useSyncPsxStocks, useStockNews } from '../hooks/useStocks';
 import { usePsxSnapshots } from '../hooks/usePsx';
 import { fmtPKR, glColor, fmtGL } from '../utils/currency';
 import { fmtDateLong, fmtDateShort } from '../utils/dates';
-import Button from '../components/Button';
+import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import MaskedBalance from '../components/MaskedBalance';
 import { usePin } from '../context/PinContext';
 import ReactECharts from 'echarts-for-react';
+import TradingViewChart from '../components/TradingViewChart';
 
 export default function StockDetail() {
     const { id: ticker } = useParams();
@@ -17,6 +18,7 @@ export default function StockDetail() {
     const { data: liveStocks = [], isLoading } = usePsxStocks();
     const { data: snapshots = [], isLoading: loadingSnapshots } = usePsxSnapshots();
     const syncLiveStocks = useSyncPsxStocks();
+    const { data: news = [], isLoading: loadingNews } = useStockNews(ticker);
     const { isUnlocked } = usePin();
 
     // Find the current stock in the cached list
@@ -85,6 +87,30 @@ export default function StockDetail() {
         ]
     };
 
+    // Calculate historical returns from snapshots
+    const getReturn = (daysAgo) => {
+        if (holdingHistory.length < 2) return null;
+        const targetDate = new Date();
+        targetDate.setDate(targetDate.getDate() - daysAgo);
+
+        const pastSnap = holdingHistory.find(s => new Date(s.snapshot_date) >= targetDate);
+        if (!pastSnap) return null;
+
+        const pastHolding = pastSnap.holdings_data.find(h => h.symbol === ticker);
+        const currentPrice = stock?.price || 0;
+        const pastPrice = Number(pastHolding?.market_rate) || 0;
+
+        if (pastPrice === 0 || currentPrice === 0) return null;
+        return ((currentPrice - pastPrice) / pastPrice) * 100;
+    };
+
+    const perfData = [
+        { label: '1 Month', value: getReturn(30) },
+        { label: '3 Months', value: getReturn(90) },
+        { label: '6 Months', value: getReturn(180) },
+        { label: '1 Year', value: getReturn(365) },
+    ];
+
     return (
         <div className=" mx-auto">
             {/* Header Actions */}
@@ -96,10 +122,15 @@ export default function StockDetail() {
                 <Button
                     variant="primary"
                     onClick={handleSync}
-                    processing={syncLiveStocks.isPending}
+                    disabled={syncLiveStocks.isPending}
                     className="h-10 px-4 w-full sm:w-auto"
                 >
-                    <RefreshCw className="w-4 h-4 mr-2" /> Force Live Sync
+                    {syncLiveStocks.isPending ? (
+                        <Loader2 data-icon="inline-start" className="animate-spin" />
+                    ) : (
+                        <RefreshCw data-icon="inline-start" />
+                    )}
+                    Force Live Sync
                 </Button>
             </div>
 
@@ -112,7 +143,16 @@ export default function StockDetail() {
                         </div>
                         <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">{ticker}</h2>
                         <p className="text-gray-500 dark:text-gray-400 mb-6">Data has not been synced for this target yet.</p>
-                        <Button variant="primary" onClick={handleSync} processing={syncLiveStocks.isPending}>
+                        <Button
+                            variant="primary"
+                            onClick={handleSync}
+                            disabled={syncLiveStocks.isPending}
+                        >
+                            {syncLiveStocks.isPending ? (
+                                <Loader2 data-icon="inline-start" className="animate-spin" />
+                            ) : (
+                                <RefreshCw data-icon="inline-start" />
+                            )}
                             Sync Now
                         </Button>
                     </div>
@@ -172,6 +212,33 @@ export default function StockDetail() {
                                     Click "Force Live Sync" at any time to refresh the rates on-demand.
                                 </p>
                             </div>
+                        </div>
+
+                        {/* Live Technical Chart */}
+                        <div className="mt-8">
+                            <div className="flex items-center gap-3 mb-6">
+                                <div className="p-2 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+                                    <TrendingUp className="w-5 h-5 text-purple-600 dark:text-purple-500" />
+                                </div>
+                                <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100">Live Technical Chart</h3>
+                            </div>
+                            <TradingViewChart symbol={ticker} />
+                        </div>
+
+                        {/* Performance Grid */}
+                        <div className="mt-10 grid grid-cols-2 md:grid-cols-4 gap-4">
+                            {perfData.map((item, idx) => (
+                                <div key={idx} className="bg-gray-50 dark:bg-neutral-800/50 p-4 rounded-xl border border-gray-100 dark:border-neutral-800 flex flex-col items-center">
+                                    <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase mb-1">{item.label}</span>
+                                    {item.value !== null ? (
+                                        <div className={`text-lg font-bold ${glColor(item.value)}`}>
+                                            {item.value >= 0 ? '+' : ''}{item.value.toFixed(2)}%
+                                        </div>
+                                    ) : (
+                                        <span className="text-sm text-gray-400">No Data</span>
+                                    )}
+                                </div>
+                            ))}
                         </div>
 
                         {/* User Holding Specifics */}
@@ -246,6 +313,58 @@ export default function StockDetail() {
                                 </div>
                             </div>
                         )}
+
+                        {/* Latest News Section */}
+                        <div className="mt-10 pt-10 border-t border-gray-100 dark:border-neutral-800">
+                            <div className="flex items-center justify-between mb-6">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
+                                        <Newspaper className="w-5 h-5 text-orange-600 dark:text-orange-500" />
+                                    </div>
+                                    <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100">Latest News</h3>
+                                </div>
+                                <span className="text-xs font-medium text-gray-400 uppercase tracking-widest">TradingView Crawler</span>
+                            </div>
+                            
+                            {loadingNews ? (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {[1,2,3,4].map(i => (
+                                        <div key={i} className="h-28 bg-gray-50 dark:bg-neutral-800/50 rounded-xl animate-pulse" />
+                                    ))}
+                                </div>
+                            ) : news.length === 0 ? (
+                                <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-8 bg-gray-50/50 dark:bg-neutral-800/30 rounded-2xl border border-dashed border-gray-200 dark:border-neutral-800">
+                                    No recent news found for this ticker. Click "Sync News" on the main stocks page to refresh.
+                                </p>
+                            ) : (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {news.map((item, idx) => (
+                                        <a 
+                                            key={idx}
+                                            href={item.link}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="group p-4 bg-white dark:bg-neutral-900/50 border border-gray-100 dark:border-neutral-800 rounded-xl hover:border-orange-200 dark:hover:border-orange-900/30 hover:shadow-md transition-all flex flex-col justify-between"
+                                        >
+                                            <div className="flex justify-between items-start gap-3">
+                                                <h4 className="font-bold text-gray-900 dark:text-gray-100 group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors line-clamp-2">
+                                                    {item.title}
+                                                </h4>
+                                                <ExternalLink className="w-4 h-4 text-gray-300 group-hover:text-orange-500 shrink-0" />
+                                            </div>
+                                            <div className="flex items-center gap-3 mt-4 pt-4 border-t border-gray-50 dark:border-neutral-800">
+                                                <span className="text-xs font-bold text-orange-600 dark:text-orange-500 bg-orange-50 dark:bg-orange-900/20 px-2 py-0.5 rounded">
+                                                    {item.source}
+                                                </span>
+                                                <span className="text-xs text-gray-400 flex items-center gap-1">
+                                                    <Clock className="w-3 h-3" /> {new Date(item.publishedAt).toLocaleDateString()}
+                                                </span>
+                                            </div>
+                                        </a>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
                     </>
                 )}
             </div>
