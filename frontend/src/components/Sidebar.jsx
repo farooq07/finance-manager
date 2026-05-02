@@ -7,7 +7,7 @@ import logosm from '../assets/logosm.svg';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '@/components/ui/button';
 
-const navItems = [
+const baseNavItems = [
     { name: 'Dashboard', path: '/', icon: Home },
     { name: 'Accounts', path: '/accounts', icon: Wallet },
     { name: 'Physical Assets', path: '/assets', icon: Box },
@@ -20,6 +20,10 @@ const navItems = [
     { name: 'Reports', path: '/reports', icon: FileText },
     { name: 'Settings', path: '/settings', icon: Settings },
     { name: 'Design System', path: '/design-system', icon: Layers },
+];
+
+const adminNavItems = [
+    { name: 'Users', path: '/users', icon: Users, adminOnly: true },
 ];
 
 export default function Sidebar() {
@@ -56,7 +60,11 @@ export default function Sidebar() {
 
             {/* Navigation */}
             <nav className="flex-1 flex flex-col gap-1 w-full px-2 mt-2">
-                {navItems.map((item) => {
+                {(() => {
+                    const allItems = baseNavItems.concat(
+                        ['admin', 'super.admin'].includes(user?.role) ? adminNavItems : []
+                    );
+                    return allItems.map((item) => {
                     const isActive = location.pathname === item.path ||
                         (item.path !== '/' && location.pathname.startsWith(item.path));
                     return (
@@ -82,7 +90,8 @@ export default function Sidebar() {
                             {!isExpanded && <span className="sidebar-tooltip text-xs">{item.name}</span>}
                         </Link>
                     );
-                })}
+                    });
+                })()}
             </nav>
             <Button
                 variant="ghost"

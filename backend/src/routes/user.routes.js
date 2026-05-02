@@ -1,5 +1,5 @@
 import express from 'express';
-import { getAllUsers, getUserById, updateUserRole, deleteUser, createUser } from '../controllers/user.controller.js';
+import { getAllUsers, getUserById, updateUserRole, deleteUser, createUser, resetUserPassword } from '../controllers/user.controller.js';
 import verifyToken from '../middleware/auth.middleware.js';
 
 const router = express.Router();
@@ -15,6 +15,9 @@ router.post('/', verifyToken, createUser);
 
 // Update user role
 router.put('/:id/role', verifyToken, updateUserRole);
+
+// Reset user password (super.admin only)
+router.put('/:id/password', verifyToken, resetUserPassword);
 
 // Delete user
 router.delete('/:id', verifyToken, deleteUser);

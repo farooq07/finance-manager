@@ -76,6 +76,19 @@ export default function OTPVerification() {
         console.log('Resending email to:', email);
     };
 
+    // Auto-inject OTP in development mode
+    useEffect(() => {
+        if (process.env.NODE_ENV === 'development') {
+            // Auto-fill with development OTP after a short delay
+            const timer = setTimeout(() => {
+                const devOtp = ['1', '2', '3', '4', '5', '6'];
+                setOtp(devOtp);
+                inputRefs.current[5]?.focus();
+            }, 500);
+            return () => clearTimeout(timer);
+        }
+    }, []);
+
     return (
         <div className="min-h-screen flex items-center justify-center bg-white dark:bg-neutral-900 py-12 px-4 sm:px-6 lg:px-8 transition-colors">
             <div className="max-w-md w-full space-y-8 flex flex-col items-center">

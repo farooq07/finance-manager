@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, Shield, MoreVertical, Loader2, Mail, Calendar, ChevronDown } from 'lucide-react';
+import { Plus, Trash2, Shield, MoreVertical, Loader2, Mail, Calendar, ChevronDown, Key } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../services/api';
 import Modal from '../components/Modal';
@@ -12,9 +12,11 @@ export default function Users() {
     const queryClient = useQueryClient();
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [deleteModal, setDeleteModal] = useState({ isOpen: false, id: null, name: '' });
+    const [resetPasswordModal, setResetPasswordModal] = useState({ isOpen: false, id: null, email: '' });
     const [feedbackModal, setFeedbackModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
     const [selectedRole, setSelectedRole] = useState(null);
     const [editingUserId, setEditingUserId] = useState(null);
+    const [newPassword, setNewPassword] = useState('');
 
     const [formData, setFormData] = useState({
         name: '',
@@ -113,6 +115,33 @@ export default function Users() {
         }
     });
 
+    // Reset password mutation
+    const resetPasswordMutation = useMutation({
+        mutationFn: async ({ userId, password }) => {
+            const { data } = await api.put(`/users/${userId}/password`, { newPassword: password });
+            return data;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries(['users']);
+            setResetPasswordModal({ isOpen: false, id: null, email: '' });
+            setNewPassword('');
+            setFeedbackModal({
+                isOpen: true,
+                title: 'Success',
+                message: 'Password reset successfully',
+                type: 'success'
+            });
+        },
+        onError: (error) => {
+            setFeedbackModal({
+                isOpen: true,
+                title: 'Error',
+                message: error.response?.data?.message || 'Failed to reset password',
+                type: 'danger'
+            });
+        }
+    });
+
     const handleAddUser = async (e) => {
         e.preventDefault();
         if (!formData.name || !formData.email || !formData.password) {
@@ -136,6 +165,19 @@ export default function Users() {
         if (deleteModal.id) {
             await deleteUserMutation.mutateAsync(deleteModal.id);
         }
+    };
+
+    const handleResetPassword = async () => {
+        if (!newPassword || newPassword.length < 6) {
+            setFeedbackModal({
+                isOpen: true,
+                title: 'Validation Error',
+                message: 'Password must be at least 6 characters long',
+                type: 'warning'
+            });
+            return;
+        }
+        await resetPasswordMutation.mutateAsync({ userId: resetPasswordModal.id, password: newPassword });
     };
 
     const formatDate = (date) => {
@@ -266,7 +308,19 @@ export default function Users() {
                                                     {formatDate(user.created_at)}
                                                 </div>
                                             </td>
-                                            <td className="px-6 py-4 whitespace-nowrap">
+                                            <td className="px-6 py-4 whitespace-nowrap flex items-center gap-2">
+                                                <button
+                                                    onClick={() => setResetPasswordModal({
+                                                        isOpen: true,
+                                                        id: user.id,
+                                                        email: user.email
+                                                    })}
+                                                    disabled={resetPasswordMutation.isPending}
+                                                    className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-900/20 p-1.5 rounded transition-colors disabled:opacity-50"
+                                                    title="Reset password"
+                                                >
+                                                    <Key className="w-4 h-4" />
+                                                </button>
                                                 <button
                                                     onClick={() => setDeleteModal({
                                                         isOpen: true,
@@ -351,6 +405,50 @@ export default function Users() {
                         </Button>
                     </div>
                 </form>
+            </Modal>
+
+            {/* Reset Password Modal */}
+            <Modal
+                isOpen={resetPasswordModal.isOpen}
+                onClose={() => {
+                    setResetPasswordModal({ isOpen: false, id: null, email: '' });
+                    setNewPassword('');
+                }}
+                title="Reset User Password"
+            >
+                <div className="space-y-4">
+                    <p className="text-gray-700 dark:text-gray-300">
+                        Reset password for <strong>{resetPasswordModal.email}</strong>
+                    </p>
+                    <TextInput
+                        label="New Password"
+                        type="password"
+                        placeholder="Enter new password (min 6 characters)"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                    />
+                    <div className="flex gap-3 pt-4">
+                        <Button
+                            type="button"
+                            variant="secondary"
+                            onClick={() => {
+                                setResetPasswordModal({ isOpen: false, id: null, email: '' });
+                                setNewPassword('');
+                            }}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            type="button"
+                            className="bg-blue-600 hover:bg-blue-700 flex items-center gap-2"
+                            onClick={handleResetPassword}
+                            disabled={resetPasswordMutation.isPending}
+                        >
+                            {resetPasswordMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+                            Reset Password
+                        </Button>
+                    </div>
+                </div>
             </Modal>
 
             {/* Delete Confirmation Modal */}

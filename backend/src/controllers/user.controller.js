@@ -192,3 +192,47 @@ export const createUser = async (req, res) => {
         res.status(500).json({ message: 'Failed to create user' });
     }
 };
+
+export const resetUserPassword = async (req, res) => {
+    try {
+        const currentUser = req.user;
+        const { id } = req.params;
+        const { newPassword } = req.body;
+
+        if (currentUser?.role !== 'super.admin') {
+            return res.status(403).json({ message: 'Unauthorized - Super Admin access required' });
+        }
+
+        if (!newPassword || newPassword.length < 6) {
+            return res.status(400).json({ message: 'Password must be at least 6 characters long' });
+        }
+
+        if (id === currentUser.id) {
+            return res.status(400).json({ message: 'Cannot reset your own password via admin panel' });
+        }
+
+        const bcrypt = await import('bcrypt');
+        const salt = await bcrypt.default.genSalt(10);
+        const hashedPassword = await bcrypt.default.hash(newPassword, salt);
+
+        const user = await prisma.user.update({
+            where: { id },
+            data: { password_hash: hashedPassword },
+            select: {
+                id: true,
+                name: true,
+                email: true,
+                role: true,
+                created_at: true
+            }
+        });
+
+        res.status(200).json({ user, message: `Password reset successfully for ${user.email}` });
+    } catch (error) {
+        console.error('Reset password error:', error);
+        if (error.code === 'P2025') {
+            return res.status(404).json({ message: 'User not found' });
+        }
+        res.status(500).json({ message: 'Failed to reset user password' });
+    }
+};

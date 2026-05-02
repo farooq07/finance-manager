@@ -31,6 +31,13 @@ const ProtectedRoute = ({ children }) => {
   return children;
 };
 
+const AdminRoute = ({ children }) => {
+  const { user } = useAuth();
+  if (!user) return <Navigate to="/login" replace />;
+  if (!['admin', 'super.admin'].includes(user?.role)) return <Navigate to="/" replace />;
+  return children;
+};
+
 const PublicRoute = ({ children }) => {
   const { user } = useAuth();
   if (user) return <Navigate to="/" replace />;
@@ -62,7 +69,7 @@ function App() {
               <Route path="accounts" element={<Accounts />} />
               <Route path="banks/:id" element={<BankDetail />} />
               <Route path="settings" element={<Settings />} />
-              <Route path="users" element={<Users />} />
+              <Route path="users" element={<AdminRoute><Users /></AdminRoute>} />
               <Route path="reports" element={<Reports />} />
               <Route path="zakat" element={<Zakat />} />
               <Route path="assets" element={<Assets />} />
