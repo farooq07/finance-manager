@@ -1,6 +1,16 @@
-import pdfParse from 'pdf-parse';
 import Tesseract from 'tesseract.js';
 import fs from 'fs';
+
+let pdfParse;
+
+// Dynamic import for CommonJS module
+async function loadPdfParse() {
+    if (!pdfParse) {
+        pdfParse = await import('pdf-parse');
+        pdfParse = pdfParse.default;
+    }
+    return pdfParse;
+}
 
 /**
  * Extract text from PDF (handles encrypted PDFs)
@@ -10,10 +20,11 @@ import fs from 'fs';
  */
 export async function extractPdfText(filePath, password = null) {
     try {
+        const pdfParser = await loadPdfParse();
         const pdfBuffer = fs.readFileSync(filePath);
         const options = password ? { password } : {};
 
-        const pdfData = await pdfParse(pdfBuffer, options);
+        const pdfData = await pdfParser(pdfBuffer, options);
 
         return {
             rawText: pdfData.text || '',
