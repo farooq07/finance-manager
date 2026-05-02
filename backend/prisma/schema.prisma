@@ -35,6 +35,7 @@ model User {
   zakat               Zakat[]
   assets              Asset[]
   dividends           Dividend[]
+  category_patterns   CategoryPattern[]
 
   @@map("users")
 }
@@ -228,17 +229,74 @@ model Bank {
 }
 
 model BankStatement {
-  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  bank_id         String    @db.Uuid
-  month           String    @db.VarChar(20)
-  year            Int
-  file_path       String?   // Location of uploaded file
-  upload_date     DateTime  @default(now()) @db.Timestamptz(6)
-  transactions    Json?     // Parsed transaction data
-  closing_balance Decimal?  @db.Decimal(15, 2)
-  bank            Bank      @relation(fields: [bank_id], references: [id], onDelete: Cascade)
+  id                    String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  bank_id               String                @db.Uuid
+  month                 String                @db.VarChar(20)
+  year                  Int
+  file_path             String?               // Location of uploaded file
+  file_hash             String?               @db.VarChar(64)  // SHA256 for dedup
+  password_encrypted    String?               @db.Text         // Encrypted password if PDF is protected
+  upload_date           DateTime              @default(now()) @db.Timestamptz(6)
+  transactions          Json?                 // Parsed transaction data
+  opening_balance       Decimal?              @db.Decimal(15, 2)
+  closing_balance       Decimal?              @db.Decimal(15, 2)
+  total_credits         Decimal               @default(0) @db.Decimal(15, 2)
+  total_debits          Decimal               @default(0) @db.Decimal(15, 2)
+  transaction_count     Int                   @default(0)
+  processing_status     String                @default("pending") @db.VarChar(50) // pending, reviewed, approved, reconciled
+
+  bank                  Bank                  @relation(fields: [bank_id], references: [id], onDelete: Cascade)
+  parsed_transactions   BankTransactionLog[]
 
   @@map("bank_statements")
+}
+
+model BankTransactionLog {
+  id                  String    @id @default(cuid())
+  bank_statement_id   String    @db.Uuid
+  bank_statement      BankStatement @relation(fields: [bank_statement_id], references: [id], onDelete: Cascade)
+
+  transaction_date    DateTime  @db.Date
+  description         String    @db.Text
+  debit_amount        Decimal?  @db.Decimal(15, 2)
+  credit_amount       Decimal?  @db.Decimal(15, 2)
+  net_amount          Decimal   @db.Decimal(15, 2)
+
+  suggested_category  String?   @db.VarChar(100)
+  category_confidence Decimal?  @db.Decimal(3, 2)
+
+  is_duplicate        Boolean   @default(false)
+  duplicate_of_id     String?   @db.Uuid
+
+  user_approved       Boolean   @default(false)
+  approved_category   String?   @db.VarChar(100)
+
+  created_expense_id  String?   @db.Uuid
+
+  notes               String?   @db.Text
+  processing_status   String    @default("pending") @db.VarChar(50) // pending, approved, rejected, disputed
+  created_at          DateTime  @default(now())
+
+  @@index([bank_statement_id])
+  @@index([user_approved])
+  @@index([processing_status])
+  @@map("bank_transaction_logs")
+}
+
+model CategoryPattern {
+  id                String   @id @default(cuid())
+  user_id           String   @db.Uuid
+  user              User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  keyword           String   @db.VarChar(100)
+  assigned_category String   @db.VarChar(100)
+  confidence        Decimal  @db.Decimal(3, 2)
+
+  occurrences       Int      @default(1)
+  last_used         DateTime @default(now())
+
+  @@unique([user_id, keyword, assigned_category])
+  @@map("category_patterns")
 }
 
 model Institution {
