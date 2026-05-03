@@ -1,7 +1,29 @@
 import express from 'express';
-import { getWallets, createWallet, updateWalletBalance, deleteWallet } from '../controllers/wallet.controller.js';
+import multer from 'multer';
+import path from 'path';
+import { getWallets, createWallet, updateWalletBalance, deleteWallet, uploadStatement, getStatementTransactions, approveTransaction, deleteStatement } from '../controllers/wallet.controller.js';
 import verifyToken from '../middleware/auth.middleware.js';
 import validate, { walletSchema } from '../middleware/validate.js';
+
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, 'uploads/wallet-statements/');
+    },
+    filename: (req, file, cb) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+        cb(null, uniqueSuffix + path.extname(file.originalname));
+    }
+});
+
+const fileFilter = (req, file, cb) => {
+    if (file.mimetype === 'application/pdf') {
+        cb(null, true);
+    } else {
+        cb(new Error('Only PDF files are allowed'), false);
+    }
+};
+
+const upload = multer({ storage, fileFilter, limits: { fileSize: 10 * 1024 * 1024 } });
 
 const router = express.Router();
 
@@ -9,7 +31,26 @@ router.use(verifyToken);
 
 router.get('/', getWallets);
 router.post('/', validate(walletSchema), createWallet);
-router.put('/:id', updateWalletBalance); // Not validating full schema since it's just a balance patch
+router.put('/:id', updateWalletBalance);
 router.delete('/:id', deleteWallet);
+
+// Wallet Statement routes
+router.post('/:walletId/statements/upload', (req, res, next) => {
+    console.log('[ROUTE] Wallet statement upload - before multer:', {
+        walletId: req.params.walletId,
+        path: req.path
+    });
+    next();
+}, upload.single('file'), (req, res, next) => {
+    console.log('[ROUTE] Wallet statement upload - after multer:', {
+        hasFile: !!req.file,
+        fileName: req.file?.originalname,
+        fileSize: req.file?.size
+    });
+    next();
+}, uploadStatement);
+router.get('/:walletId/statements/:statementId/transactions', getStatementTransactions);
+router.post('/:walletId/statements/:statementId/transactions/:txId/approve', approveTransaction);
+router.delete('/:walletId/statements/:statementId', deleteStatement);
 
 export default router;

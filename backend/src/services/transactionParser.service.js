@@ -1,127 +1,281 @@
 import Decimal from 'decimal.js';
 
+const monthMap = {
+    'jan': 0, 'feb': 1, 'mar': 2, 'apr': 3, 'may': 4, 'jun': 5,
+    'jul': 6, 'aug': 7, 'sep': 8, 'oct': 9, 'nov': 10, 'dec': 11
+};
+
+const CREDIT_KEYWORDS = [
+    'rec from', 'received', 'credit', 'credited', 'deposit', 'reverse',
+    'refund', 'salary', 'dividend', 'profit', 'interest', 'transfer in',
+    'incoming', 'inward', 'cr.', 'cr '
+];
+
+const DEBIT_KEYWORDS = [
+    'withdrawal', 'withdraw', 'atm', 'pos', 'purchase', 'payment',
+    'paid', 'debit', 'debited', 'transfer out', 'outgoing', 'outward',
+    'charges', 'fee', 'tax', 'wht', 'utility', 'bill', 'dr.', 'dr ',
+    'mobile to', 'raast mobile'
+];
+
 /**
  * Parse transactions from extracted PDF text
- * Pakistani bank statements typically have format:
- * Date | Description | Debit | Credit | Balance
+ * Block-based approach: groups lines between date markers as transaction blocks
  */
 export function parseTransactions(rawText) {
-    const lines = rawText.split('\n').filter(l => l.trim());
+    // Pre-filter: remove page footers, headers, and metadata lines
+    const allLines = rawText.split('\n').map(l => l.trim()).filter(l => l);
+    const lines = allLines.filter(l => !isFooterOrHeaderLine(l));
     const transactions = [];
 
-    // Regex patterns for Pakistani bank statements
-    const datePattern = /(\d{1,2}[-\/]\d{1,2}[-\/]\d{2,4})/;
-    const amountPattern = /(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/g;
-
+    // Find all date markers
+    const dateMarkers = [];
     for (let i = 0; i < lines.length; i++) {
-        const line = lines[i].trim();
-
-        // Skip headers, footers, and metadata
-        if (isHeaderOrFooter(line) || line.length < 10) continue;
-
-        const dateMatch = line.match(datePattern);
-        if (!dateMatch) continue;
-
-        const transaction = extractTransactionFromLine(line, dateMatch[1]);
-        if (transaction && (transaction.debit_amount || transaction.credit_amount)) {
-            transactions.push(transaction);
+        const dateInfo = detectDate(lines[i]);
+        if (dateInfo) {
+            dateMarkers.push({ index: i, ...dateInfo });
         }
     }
 
+    console.log(`[PARSER] Found ${dateMarkers.length} date markers in ${lines.length} lines`);
+
+    if (dateMarkers.length === 0) {
+        if (lines.length > 0) {
+            console.log('[PARSER] No date markers found. Sample lines (first 15):');
+            for (let i = 0; i < Math.min(15, lines.length); i++) {
+                console.log(`  [${i}] ${lines[i].substring(0, 150)}`);
+            }
+        }
+        return [];
+    }
+
+    // Process each block (date marker to next date marker)
+    for (let m = 0; m < dateMarkers.length; m++) {
+        const marker = dateMarkers[m];
+        const startIdx = marker.index;
+        const endIdx = m + 1 < dateMarkers.length ? dateMarkers[m + 1].index : lines.length;
+
+        // Combine all lines in this block
+        const blockLines = lines.slice(startIdx, endIdx);
+        const blockText = blockLines.join(' ');
+
+        // Extract amounts from block (filtered to actual money values)
+        const amounts = extractAmountsFromText(blockText);
+
+        if (!amounts.length) {
+            console.log(`[PARSER] Block ${m} has date but no amounts: ${blockText.substring(0, 100)}`);
+            continue;
+        }
+
+        // Build description (text between date and last amounts)
+        let description = blockText.substring(blockText.indexOf(marker.dateStr) + marker.dateStr.length).trim();
+        description = removeTrailingAmounts(description);
+        description = description.substring(0, 255);
+
+        // Determine debit vs credit based on keywords + amount layout
+        const direction = determineDirection(description, amounts);
+
+        const txDate = parseDate(marker.dateStr);
+
+        const tx = {
+            transaction_date: txDate,
+            description,
+            withdrawal_amount: direction.debit,
+            deposit_amount: direction.credit,
+            debit_amount: direction.debit,
+            credit_amount: direction.credit,
+            net_amount: direction.credit
+                ? new Decimal(direction.credit).toNumber()
+                : direction.debit
+                    ? new Decimal(direction.debit).negated().toNumber()
+                    : 0,
+            balance: direction.balance
+        };
+
+        transactions.push(tx);
+    }
+
+    console.log(`[PARSER] Extracted ${transactions.length} valid transactions`);
     return transactions;
 }
 
 /**
- * Extract single transaction from line
+ * Check if a line is a page footer, header, or metadata (not transaction data)
  */
-function extractTransactionFromLine(line, dateStr) {
-    try {
-        const parts = line.split(/\s{2,}/); // Split by 2+ spaces (typical bank formatting)
+function isFooterOrHeaderLine(line) {
+    const lower = line.toLowerCase();
+    const footerPatterns = [
+        /page\s+\d+\s+of\s+\d+/,
+        /closing\s+balance/,
+        /opening\s+balance/,
+        /fixed\s+deposit\s+balance/,
+        /please\s+report\s+any\s+discrepancy/,
+        /within\s+\d+\s+days\s+from\s+the\s+date/,
+        /currency\s+from\s+to\s+printed/,
+        /^date\s+particulars\s+debit\s+credit\s+balance/,
+        /^date\s+description\s+debit\s+credit/,
+        /statement\s+of\s+account/,
+        /account\s+number\s*:/,
+        /branch\s*:/,
+        /printed\s+on/,
+        /generated\s+on/,
+        /signature/,
+        /authorized\s+signatory/,
+        /^\s*\d+\s+of\s+\d+\s*$/,
+        /this\s+is\s+a\s+computer\s+generated/,
+        /no\s+signature\s+required/
+    ];
+    return footerPatterns.some(p => p.test(lower));
+}
 
-        if (parts.length < 3) return null;
-
-        const description = extractDescription(parts);
-        const { debit, credit, balance } = extractAmounts(parts);
-
-        if (!debit && !credit) return null;
-
-        return {
-            transaction_date: parseDate(dateStr),
-            description: description.substring(0, 255),
-            debit_amount: debit ? new Decimal(debit).toNumber() : null,
-            credit_amount: credit ? new Decimal(credit).toNumber() : null,
-            net_amount: credit
-                ? new Decimal(credit).toNumber()
-                : new Decimal(debit).negated().toNumber(),
-            balance: balance ? new Decimal(balance).toNumber() : null
-        };
-    } catch (error) {
-        console.error(`Failed to parse transaction: ${error.message}`);
-        return null;
+/**
+ * Detect a date at the start of a line
+ * Returns { dateStr, format } or null
+ */
+function detectDate(line) {
+    // Standard Chartered: DDMmmYY (e.g., "01Apr26")
+    const scbMatch = line.match(/^(0[1-9]|[12]\d|3[01])([A-Z][a-z]{2})(\d{2})\b/);
+    if (scbMatch) {
+        return { dateStr: scbMatch[0], format: 'scb' };
     }
+
+    // Habib Metropolitan: DD-Mmm-YYYY (e.g., "02-Mar-2026")
+    const habibMatch = line.match(/^(\d{1,2})-([A-Za-z]{3})-(\d{4})/);
+    if (habibMatch) {
+        return { dateStr: habibMatch[0], format: 'habib' };
+    }
+
+    // Generic: DD/MM/YYYY or DD-MM-YYYY (no Mmm)
+    const genericMatch = line.match(/^(\d{1,2}[\-\/]\d{1,2}[\-\/]\d{2,4})\b/);
+    if (genericMatch) {
+        return { dateStr: genericMatch[1], format: 'generic' };
+    }
+
+    return null;
 }
 
 /**
- * Extract description (usually 2nd-4th parts)
+ * Extract amount values from text
+ * Only matches properly formatted amounts: must have commas (e.g., 20,000.00) or decimals (e.g., 1234.56)
+ * This filters out IDs, account numbers, dates embedded in description
  */
-function extractDescription(parts) {
-    return parts.slice(1, -3).join(' ').trim().substring(0, 255);
+function extractAmountsFromText(text) {
+    // Pattern matches: 20,000.00 or 1,234.56 or 0.50 or 245,447.00 or 12345.00
+    // Requires either commas (X,XXX...) or decimal point with 2 digits (X.XX)
+    const pattern = /\b(\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?|\d+\.\d{2})\b/g;
+    const matches = [...text.matchAll(pattern)];
+    return matches
+        .map(m => parseFloat(m[1].replace(/,/g, '')))
+        .filter(n => !isNaN(n) && n > 0);
 }
 
 /**
- * Extract amounts from line parts
+ * Determine debit vs credit based on description keywords and amount layout
  */
-function extractAmounts(parts) {
-    const amounts = parts.slice(-3).map(cleanAmount);
-    return {
-        debit: amounts[0] || null,
-        credit: amounts[1] || null,
-        balance: amounts[2] || null
-    };
+function determineDirection(description, amounts) {
+    if (amounts.length === 0) {
+        return { debit: null, credit: null, balance: null };
+    }
+
+    const lowerDesc = description.toLowerCase();
+    const isCredit = CREDIT_KEYWORDS.some(kw => lowerDesc.includes(kw));
+    const isDebit = DEBIT_KEYWORDS.some(kw => lowerDesc.includes(kw));
+
+    // Single amount: could be debit-only or credit-only row (balance column was empty)
+    // OR could be just the balance with no transaction amount (e.g., "Opening Balance: X")
+    if (amounts.length === 1) {
+        if (isDebit && !isCredit) {
+            return { debit: amounts[0], credit: null, balance: null };
+        }
+        if (isCredit && !isDebit) {
+            return { debit: null, credit: amounts[0], balance: null };
+        }
+        // Skip rows with single amount and no clear direction (likely balance-only rows)
+        return { debit: null, credit: null, balance: amounts[0] };
+    }
+
+    // 2+ amounts: last is balance, second-to-last is transaction amount
+    const balance = amounts[amounts.length - 1];
+    const txAmount = amounts[amounts.length - 2];
+
+    // If 3+ amounts, the format is likely: ... [Debit] [Credit] [Balance]
+    // where one column has actual amount, the other is empty (so we get 2 amounts), but if both filled, 3
+    if (amounts.length >= 3) {
+        const possibleDebit = amounts[amounts.length - 3];
+        const possibleCredit = amounts[amounts.length - 2];
+        if (isDebit && !isCredit) {
+            return { debit: possibleDebit || txAmount, credit: null, balance };
+        }
+        if (isCredit && !isDebit) {
+            return { debit: null, credit: possibleCredit || txAmount, balance };
+        }
+    }
+
+    if (isCredit && !isDebit) {
+        return { debit: null, credit: txAmount, balance };
+    }
+    if (isDebit && !isCredit) {
+        return { debit: txAmount, credit: null, balance };
+    }
+
+    // Default to debit if ambiguous
+    return { debit: txAmount, credit: null, balance };
 }
 
 /**
- * Clean amount string (remove currency, commas, etc)
+ * Remove trailing amount strings from description
  */
-function cleanAmount(str) {
-    if (!str) return null;
-    const cleaned = str.replace(/[^0-9.,-]/g, '').trim();
-    return cleaned || null;
+function removeTrailingAmounts(text) {
+    let cleaned = text;
+    // Remove trailing amounts (with commas or decimals)
+    const trailingAmountPattern = /\s*\b(\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?|\d+\.\d{2})\s*$/;
+    while (trailingAmountPattern.test(cleaned)) {
+        cleaned = cleaned.replace(trailingAmountPattern, '');
+    }
+    return cleaned.trim();
 }
 
 /**
- * Parse date string (handles DD/MM/YYYY, DD-MM-YYYY, etc)
+ * Parse date string (handles multiple formats)
  */
 function parseDate(dateStr) {
-    const parts = dateStr.split(/[-\/]/);
-    let day, month, year;
+    // Habib Metropolitan: DD-Mmm-YYYY (e.g., 02-Mar-2026)
+    const habibMatch = dateStr.match(/^(\d{1,2})-([A-Za-z]{3})-(\d{4})$/);
+    if (habibMatch) {
+        const day = parseInt(habibMatch[1]);
+        const month = monthMap[habibMatch[2].toLowerCase()];
+        const year = parseInt(habibMatch[3]);
+        if (month !== undefined) {
+            return new Date(Date.UTC(year, month, day));
+        }
+    }
 
+    // Standard Chartered: DDMmmYY
+    const scbMatch = dateStr.match(/^(\d{2})([A-Za-z]{3})(\d{2})$/);
+    if (scbMatch) {
+        const day = parseInt(scbMatch[1]);
+        const month = monthMap[scbMatch[2].toLowerCase()];
+        const year = parseInt(scbMatch[3]) + 2000;
+        if (month !== undefined) {
+            return new Date(Date.UTC(year, month, day));
+        }
+    }
+
+    // Generic: DD/MM/YYYY or DD-MM-YYYY
+    const parts = dateStr.split(/[\-\/]/);
     if (parts.length === 3) {
-        [day, month, year] = parts.map(Number);
+        let day = parseInt(parts[0]);
+        let month = parseInt(parts[1]);
+        let year = parseInt(parts[2]);
 
-        // Handle 2-digit year
         if (year < 100) {
             year += year < 50 ? 2000 : 1900;
         }
 
-        return new Date(year, month - 1, day);
+        return new Date(Date.UTC(year, month - 1, day));
     }
 
     return new Date();
-}
-
-/**
- * Check if line is header/footer/metadata
- */
-function isHeaderOrFooter(line) {
-    const lowerLine = line.toLowerCase();
-    const keywords = [
-        'date', 'description', 'debit', 'credit', 'balance',
-        'statement', 'page', 'total', 'opening', 'closing',
-        'branch', 'account', 'period', 'report'
-    ];
-
-    return keywords.some(kw => lowerLine.includes(kw));
 }
 
 /**
@@ -144,7 +298,7 @@ export function validateBalance(transactions, openingBalance, closingBalance) {
     const difference = Math.abs(calculated - expectedClosing);
 
     return {
-        isValid: difference < 0.01, // Allow 0.01 rounding difference
+        isValid: difference < 0.01,
         calculatedClosing: calculated,
         expectedClosing: expectedClosing,
         difference: difference

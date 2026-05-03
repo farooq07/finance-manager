@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Home, Receipt, TrendingUp, BarChart2, Users, FileText, Building, Wallet, Settings, ChevronLeft, ChevronRight, Layers, HeartHandshake, Box } from 'lucide-react';
+import { Home, Receipt, TrendingUp, BarChart2, Users, FileText, Building, Wallet, Settings, ChevronLeft, ChevronRight, Layers, HeartHandshake, Box, Shield } from 'lucide-react';
 import clsx from 'clsx';
 import logo from '../assets/logo.svg';
 import logosm from '../assets/logosm.svg';
@@ -10,13 +10,13 @@ import { Button } from '@/components/ui/button';
 const baseNavItems = [
     { name: 'Dashboard', path: '/', icon: Home },
     { name: 'Accounts', path: '/accounts', icon: Wallet },
-    { name: 'Physical Assets', path: '/assets', icon: Box },
     { name: 'Expenses', path: '/expenses', icon: Receipt },
     { name: 'Mutual Funds', path: '/mutual-funds', icon: TrendingUp },
     { name: 'Stocks', path: '/stocks', icon: BarChart2 },
     { name: 'Dues Ledger', path: '/dues', icon: Users },
     { name: 'Rent Tracker', path: '/rents', icon: Building },
     { name: 'Zakat', path: '/zakat', icon: HeartHandshake },
+    { name: 'Physical Assets', path: '/assets', icon: Box },
     { name: 'Reports', path: '/reports', icon: FileText },
     { name: 'Settings', path: '/settings', icon: Settings },
     { name: 'Design System', path: '/design-system', icon: Layers },
@@ -24,6 +24,7 @@ const baseNavItems = [
 
 const adminNavItems = [
     { name: 'Users', path: '/users', icon: Users, adminOnly: true },
+    { name: 'Roles', path: '/roles', icon: Shield, adminOnly: true },
 ];
 
 export default function Sidebar() {
@@ -65,31 +66,31 @@ export default function Sidebar() {
                         ['admin', 'super.admin'].includes(user?.role) ? adminNavItems : []
                     );
                     return allItems.map((item) => {
-                    const isActive = location.pathname === item.path ||
-                        (item.path !== '/' && location.pathname.startsWith(item.path));
-                    return (
-                        <Link
-                            key={item.name}
-                            to={item.path}
-                            className={clsx(
-                                "sidebar-item flex items-center rounded-lg transition-all duration-150 relative group outline-none focus-visible:ring-2 focus-visible:ring-emerald-500",
-                                isExpanded ? "w-full px-3 py-2.5" : "w-10 h-10 justify-center",
-                                isActive
-                                    ? "bg-emerald-50 text-emerald-600 shadow-sm dark:bg-emerald-900/20 dark:text-emerald-400"
-                                    : "text-gray-800 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-neutral-800 dark:hover:text-gray-100"
-                            )}
-                        >
-                            <item.icon className={clsx("w-[20px] h-[20px] shrink-0", isExpanded && "mr-3")} strokeWidth={isActive ? 2.2 : 1.8} />
+                        const isActive = location.pathname === item.path ||
+                            (item.path !== '/' && location.pathname.startsWith(item.path));
+                        return (
+                            <Link
+                                key={item.name}
+                                to={item.path}
+                                className={clsx(
+                                    "sidebar-item flex items-center rounded-lg transition-all duration-150 relative group outline-none focus-visible:ring-2 focus-visible:ring-emerald-500",
+                                    isExpanded ? "w-full px-3 py-2.5" : "w-10 h-10 justify-center",
+                                    isActive
+                                        ? "bg-emerald-50 text-emerald-600 shadow-sm dark:bg-emerald-900/20 dark:text-emerald-400"
+                                        : "text-gray-800 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-neutral-800 dark:hover:text-gray-100"
+                                )}
+                            >
+                                <item.icon className={clsx("w-[20px] h-[20px] shrink-0", isExpanded && "mr-3")} strokeWidth={isActive ? 2.2 : 1.8} />
 
-                            {isExpanded && (
-                                <span className={clsx("font-medium text-sm whitespace-nowrap overflow-hidden transition-all duration-300", mounted ? "opacity-100" : "opacity-0")}>
-                                    {item.name}
-                                </span>
-                            )}
+                                {isExpanded && (
+                                    <span className={clsx("font-medium text-sm whitespace-nowrap overflow-hidden transition-all duration-300", mounted ? "opacity-100" : "opacity-0")}>
+                                        {item.name}
+                                    </span>
+                                )}
 
-                            {!isExpanded && <span className="sidebar-tooltip text-xs">{item.name}</span>}
-                        </Link>
-                    );
+                                {!isExpanded && <span className="sidebar-tooltip text-xs">{item.name}</span>}
+                            </Link>
+                        );
                     });
                 })()}
             </nav>

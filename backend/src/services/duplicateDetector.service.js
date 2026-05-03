@@ -3,7 +3,7 @@ import prisma from '../utils/prisma.js';
 import Decimal from 'decimal.js';
 
 /**
- * Find duplicate transactions using fuzzy matching
+ * Find duplicate transactions using fuzzy matching (for Banks)
  * Checks: description similarity + amount + date proximity
  */
 export async function findDuplicates(userId, bankStatementId, transactions) {
@@ -14,6 +14,51 @@ export async function findDuplicates(userId, bankStatementId, transactions) {
         where: {
             bank_statement: {
                 bank: {
+                    user_id: userId
+                }
+            }
+        },
+        select: {
+            id: true,
+            description: true,
+            net_amount: true,
+            transaction_date: true
+        }
+    });
+
+    // Check each new transaction against existing ones
+    for (let i = 0; i < transactions.length; i++) {
+        const newTx = transactions[i];
+
+        for (const existing of existingTransactions) {
+            const similarity = calculateSimilarity(newTx, existing);
+
+            if (similarity.isDuplicate) {
+                duplicates.set(i, {
+                    duplicateOfId: existing.id,
+                    similarity: similarity.score,
+                    reason: similarity.reason
+                });
+                break; // Found duplicate, move to next transaction
+            }
+        }
+    }
+
+    return duplicates;
+}
+
+/**
+ * Find duplicate transactions for Wallets using fuzzy matching
+ * Checks: description similarity + amount + date proximity
+ */
+export async function findWalletDuplicates(userId, walletStatementId, transactions) {
+    const duplicates = new Map();
+
+    // Get all existing transactions from this user's wallet
+    const existingTransactions = await prisma.walletTransactionLog.findMany({
+        where: {
+            wallet_statement: {
+                wallet: {
                     user_id: userId
                 }
             }
@@ -110,7 +155,7 @@ function calculateSimilarity(newTx, existingTx) {
 }
 
 /**
- * Check if PDF itself was already imported (by file hash)
+ * Check if PDF itself was already imported (by file hash) - for Banks
  */
 export async function isFilePreviouslyImported(userId, fileHash, bankId) {
     const existing = await prisma.bankStatement.findFirst({
@@ -119,6 +164,23 @@ export async function isFilePreviouslyImported(userId, fileHash, bankId) {
             bank: {
                 user_id: userId,
                 id: bankId
+            }
+        }
+    });
+
+    return !!existing;
+}
+
+/**
+ * Check if wallet PDF was already imported (by file hash)
+ */
+export async function isWalletFilePreviouslyImported(userId, fileHash, walletId) {
+    const existing = await prisma.walletStatement.findFirst({
+        where: {
+            file_hash: fileHash,
+            wallet: {
+                user_id: userId,
+                id: walletId
             }
         }
     });

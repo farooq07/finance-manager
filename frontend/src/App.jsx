@@ -17,12 +17,14 @@ import DuesLedger from './pages/DuesLedger';
 import RentTracker from './pages/RentTracker';
 import Accounts from './pages/Accounts';
 import BankDetail from './pages/BankDetail';
+import WalletDetail from './pages/WalletDetail';
 import Settings from './pages/Settings';
 import Users from './pages/Users';
 import Reports from './pages/Reports';
 import DesignSystem from './pages/DesignSystem';
 import Zakat from './pages/Zakat';
 import Assets from './pages/Assets';
+import RolesManagement from './pages/RolesManagement';
 
 
 const ProtectedRoute = ({ children }) => {
@@ -68,8 +70,11 @@ function App() {
               <Route path="psx-engine" element={<Stocks />} />
               <Route path="accounts" element={<Accounts />} />
               <Route path="banks/:id" element={<BankDetail />} />
+              <Route path="wallets" element={<Accounts />} />
+              <Route path="wallets/:id" element={<WalletDetail />} />
               <Route path="settings" element={<Settings />} />
               <Route path="users" element={<AdminRoute><Users /></AdminRoute>} />
+              <Route path="roles" element={<AdminRoute><RolesManagement /></AdminRoute>} />
               <Route path="reports" element={<Reports />} />
               <Route path="zakat" element={<Zakat />} />
               <Route path="assets" element={<Assets />} />

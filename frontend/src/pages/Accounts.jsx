@@ -390,6 +390,16 @@ export default function Accounts() {
 
                                         {/* Action Buttons (visible on hover) */}
                                         <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <Link to={`/wallets/${wallet.id}`}>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="p-1.5 bg-white/20 rounded hover:bg-white/30 backdrop-blur-sm h-8 w-8 text-white"
+                                                    title="View Statements & Transactions"
+                                                >
+                                                    <ArrowRight className="w-4 h-4" />
+                                                </Button>
+                                            </Link>
                                             <Button
                                                 variant="ghost"
                                                 size="icon"

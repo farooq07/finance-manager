@@ -3,18 +3,26 @@ import NodeCache from 'node-cache';
 
 const cache = new NodeCache({ stdTTL: 3600 }); // Cache for 1 hour
 
-// Category keywords mapping
+// Category keywords - ordered by specificity (longer/more specific first)
+// Higher priority categories are checked first
 const categoryKeywords = {
-    'Food & Dining': ['starbucks', 'restaurant', 'cafe', 'pizza', 'burger', 'food', 'lunch', 'dinner', 'bakery', 'grocery'],
-    'Utilities': ['electric', 'gas', 'water', 'utility', 'telecom', 'internet', 'phone', 'wifi', 'broadband'],
-    'Transportation': ['uber', 'taxi', 'petrol', 'gas station', 'transport', 'parking', 'toll', 'airway', 'airline'],
-    'Shopping': ['amazon', 'daraz', 'mall', 'store', 'shop', 'retail', 'clothing', 'apparel', 'department'],
-    'Entertainment': ['cinema', 'movie', 'spotify', 'netflix', 'gaming', 'game', 'entertainment', 'concert', 'tickets'],
-    'Education': ['school', 'university', 'college', 'tuition', 'course', 'books', 'education', 'training', 'exam'],
-    'Healthcare': ['hospital', 'doctor', 'pharmacy', 'medicine', 'health', 'clinic', 'dental', 'medical'],
-    'Travel': ['hotel', 'accommodation', 'booking', 'airbnb', 'resort', 'travel', 'tourism', 'flight'],
-    'Finance': ['bank', 'insurance', 'investment', 'loan', 'credit', 'debit', 'transfer', 'payment'],
-    'Subscription': ['subscription', 'membership', 'premium', 'monthly', 'annual', 'license'],
+    'ATM Withdrawal': ['atm withdrawal', 'cash withdrawal', 'atm cash', 'atm '],
+    'Profit/Dividend': ['account credited-dividends', 'dividend', 'profit', 'mark up', 'markup', 'interest credit'],
+    'Salary': ['salary', 'payroll', 'wages'],
+    'Bank Charges': ['service charge', 'bank charges', 'wht', 'tax deducted', 'switch charges', 'sms charge', 'maintenance fee'],
+    'Transfer': ['eft rec', 'rec from bank', 'raast mobile', 'transfer', 'ibft', 'mpbl'],
+    'Food & Dining': ['starbucks', 'restaurant', 'cafe', 'pizza', 'burger', 'food panda', 'foodpanda', 'lunch', 'dinner', 'bakery'],
+    'Groceries': ['carrefour', 'imtiaz', 'metro', 'al fatah', 'grocery', 'supermarket'],
+    'Utilities': ['k-electric', 'kelectric', 'sui gas', 'wapda', 'electric bill', 'gas bill', 'water bill', 'internet bill', 'ptcl', 'jazz', 'telenor', 'zong', 'ufone'],
+    'Transportation': ['uber', 'careem', 'indriver', 'petrol', 'shell', 'pso', 'total parco', 'fuel'],
+    'Shopping': ['amazon', 'daraz', 'mall', 'retail'],
+    'Entertainment': ['cinema', 'movie', 'spotify', 'netflix', 'youtube', 'cinepax'],
+    'Education': ['school fee', 'university', 'tuition', 'course fee'],
+    'Healthcare': ['hospital', 'pharmacy', 'medicine', 'clinic', 'dental', 'shaukat khanum', 'aga khan'],
+    'Travel': ['hotel', 'booking.com', 'airbnb', 'pia', 'airblue', 'serene'],
+    'Subscription': ['subscription', 'membership', 'premium', 'license'],
+    'Insurance': ['insurance', 'takaful', 'efu', 'jubilee'],
+    'Investment': ['mutual fund', 'al meezan', 'mcb arif habib', 'ubl funds'],
     'Other': []
 };
 
@@ -108,23 +116,28 @@ function extractKeywords(description) {
 
 /**
  * Find category by keyword matching
+ * Iterates categories in priority order - first match wins
+ * Confidence is based on keyword specificity (longer keywords = higher confidence)
  */
 function findCategoryByKeywords(description) {
     let bestMatch = { category: 'Other', confidence: 0 };
 
     for (const [category, keywords] of Object.entries(categoryKeywords)) {
-        let matchCount = 0;
-
         for (const keyword of keywords) {
             if (description.includes(keyword)) {
-                matchCount++;
-            }
-        }
+                // Confidence based on keyword length (specificity)
+                // Phrases like "account credited-dividends" (28 chars) get higher confidence
+                // than short keywords like "atm" (3 chars)
+                const specificity = Math.min(keyword.length / 20, 1);
+                const confidence = 0.6 + (specificity * 0.35);
 
-        if (matchCount > 0) {
-            const confidence = Math.min(matchCount / keywords.length, 1);
-            if (confidence > bestMatch.confidence) {
-                bestMatch = { category, confidence };
+                if (confidence > bestMatch.confidence) {
+                    bestMatch = { category, confidence };
+                    // For very specific matches (long phrases), short-circuit
+                    if (keyword.length > 15) {
+                        return bestMatch;
+                    }
+                }
             }
         }
     }

@@ -141,6 +141,13 @@ export const uploadStatement = async (req, res) => {
         const { bankId } = req.params;
         const { password } = req.body;
 
+        console.log('[STATEMENT] Upload request:', {
+            bankId,
+            hasFile: !!req.file,
+            fileName: req.file?.originalname,
+            hasPassword: !!password
+        });
+
         // Validate bank ownership
         const bank = await prisma.bank.findUnique({
             where: { id: bankId, user_id: req.user.id }
@@ -155,39 +162,74 @@ export const uploadStatement = async (req, res) => {
         }
 
         filePath = req.file.path;
+        console.log('[STATEMENT] File saved at:', filePath);
 
-        // Step 1: Check for duplicate file
-        const fileHash = getFileHash(filePath);
-        const isDuplicate = await isFilePreviouslyImported(req.user.id, fileHash, bankId);
+        // Declare variables outside try block
+        let fileHash = '';
+        let rawText = '';
+        let pageCount = 1;
+        let parsedTxs = [];
 
-        if (isDuplicate) {
-            fs.unlinkSync(filePath);
-            return res.status(400).json({ message: 'This PDF was already imported previously' });
-        }
+        try {
+            // Step 1: Check for duplicate file
+            console.log('[STATEMENT] Checking for duplicate file...');
+            fileHash = getFileHash(filePath);
+            const isDuplicate = await isFilePreviouslyImported(req.user.id, fileHash, bankId);
 
-        // Step 2: Extract PDF text
-        console.log('[STATEMENT] Extracting text from PDF...');
-        const { rawText, pageCount } = await extractPdfText(filePath, password);
+            if (isDuplicate) {
+                fs.unlinkSync(filePath);
+                return res.status(400).json({ message: 'This PDF was already imported previously' });
+            }
 
-        if (!rawText || rawText.length < 100) {
-            fs.unlinkSync(filePath);
-            return res.status(400).json({ message: 'Could not extract text from PDF. Try a different format or file.' });
-        }
+            // Step 2: Extract PDF text
+            console.log('[STATEMENT] Extracting text from PDF...');
+            try {
+                const pdfData = await extractPdfText(filePath, password);
+                rawText = pdfData.rawText;
+                pageCount = pdfData.pageCount;
+                console.log('[STATEMENT] PDF extracted successfully, text length:', rawText.length);
+                console.log('[STATEMENT] Extraction method:', pdfData.method);
+                if (rawText.length > 0) {
+                    console.log('[STATEMENT] First 500 chars of extracted text:', rawText.substring(0, 500));
+                }
+            } catch (pdfError) {
+                console.error('[STATEMENT] PDF extraction error:', pdfError.message);
+                // Continue without text extraction
+                rawText = '';
+            }
 
-        // Step 3: Parse transactions
-        console.log('[STATEMENT] Parsing transactions...');
-        const parsedTxs = parseTransactions(rawText);
-
-        if (parsedTxs.length === 0) {
-            fs.unlinkSync(filePath);
-            return res.status(400).json({ message: 'No transactions found in the statement.' });
+            // Step 3: Parse transactions
+            console.log('[STATEMENT] Parsing transactions...');
+            try {
+                parsedTxs = rawText ? parseTransactions(rawText) : [];
+                console.log('[STATEMENT] Parsed transactions count:', parsedTxs.length);
+            } catch (parseError) {
+                console.error('[STATEMENT] Transaction parsing error:', parseError.message);
+                parsedTxs = [];
+            }
+        } catch (preprocessError) {
+            console.error('[STATEMENT] Preprocessing error:', preprocessError);
+            // Continue with basic file storage even if processing fails
         }
 
         // Step 4: Create BankStatement record
         console.log('[STATEMENT] Creating bank statement record...');
+
+        // Extract month and year from first transaction or use current
+        let month = new Date().toLocaleString('en-US', { month: 'long' });
+        let year = new Date().getFullYear();
+
+        if (parsedTxs.length > 0 && parsedTxs[0].transaction_date) {
+            const txDate = new Date(parsedTxs[0].transaction_date);
+            month = txDate.toLocaleString('en-US', { month: 'long' });
+            year = txDate.getFullYear();
+        }
+
         const bankStatement = await prisma.bankStatement.create({
             data: {
                 bank_id: bankId,
+                month,
+                year,
                 file_path: filePath,
                 file_hash: fileHash,
                 password_encrypted: password ? encryptPassword(password) : null,
@@ -198,42 +240,59 @@ export const uploadStatement = async (req, res) => {
 
         // Step 5: Check for duplicates and auto-categorize
         console.log('[STATEMENT] Checking for duplicates and categorizing...');
-        const duplicateMap = await findDuplicates(req.user.id, bankStatement.id, parsedTxs);
+        let duplicateMap = new Map();
+        let transactionLogs = [];
 
-        // Step 6: Create transaction logs with auto-categorization
-        const transactionLogs = [];
+        if (parsedTxs.length > 0) {
+            try {
+                duplicateMap = await findDuplicates(req.user.id, bankStatement.id, parsedTxs);
+            } catch (dupError) {
+                console.error('[STATEMENT] Duplicate detection error:', dupError.message);
+                duplicateMap = new Map();
+            }
 
-        for (let i = 0; i < parsedTxs.length; i++) {
-            const tx = parsedTxs[i];
-            const isDupTx = duplicateMap.has(i);
+            // Step 6: Create transaction logs with auto-categorization
+            for (let i = 0; i < parsedTxs.length; i++) {
+                try {
+                    const tx = parsedTxs[i];
+                    const isDupTx = duplicateMap.has(i);
 
-            // Auto-categorize
-            const categorization = await categorizeTransaction(
-                req.user.id,
-                tx.description,
-                tx.net_amount
-            );
+                    // Auto-categorize
+                    let categorization = { category: 'Other', confidence: 0 };
+                    try {
+                        categorization = await categorizeTransaction(
+                            req.user.id,
+                            tx.description,
+                            tx.net_amount
+                        );
+                    } catch (catError) {
+                        console.error('[STATEMENT] Categorization error for tx:', tx.description, catError.message);
+                    }
 
-            const txLog = await prisma.bankTransactionLog.create({
-                data: {
-                    bank_statement_id: bankStatement.id,
-                    transaction_date: tx.transaction_date,
-                    description: tx.description,
-                    debit_amount: tx.debit_amount,
-                    credit_amount: tx.credit_amount,
-                    net_amount: tx.net_amount,
-                    suggested_category: categorization.category,
-                    category_confidence: categorization.confidence,
-                    is_duplicate: isDupTx,
-                    duplicate_of_id: isDupTx ? duplicateMap.get(i).duplicateOfId : null,
-                    processing_status: isDupTx ? 'rejected' : 'pending'
+                    const txLog = await prisma.bankTransactionLog.create({
+                        data: {
+                            bank_statement_id: bankStatement.id,
+                            transaction_date: tx.transaction_date,
+                            description: tx.description,
+                            debit_amount: tx.debit_amount || null,
+                            credit_amount: tx.credit_amount || null,
+                            net_amount: tx.net_amount,
+                            suggested_category: categorization.category,
+                            category_confidence: categorization.confidence,
+                            is_duplicate: isDupTx,
+                            duplicate_of_id: isDupTx ? duplicateMap.get(i).duplicateOfId : null,
+                            processing_status: isDupTx ? 'rejected' : 'pending'
+                        }
+                    });
+
+                    transactionLogs.push(txLog);
+                } catch (txError) {
+                    console.error('[STATEMENT] Error creating transaction log:', txError.message);
                 }
-            });
-
-            transactionLogs.push(txLog);
+            }
         }
 
-        console.log(`[STATEMENT] Imported ${parsedTxs.length - duplicateMap.size} transactions (${duplicateMap.size} duplicates)`);
+        console.log(`[STATEMENT] Imported ${transactionLogs.length} transactions (${duplicateMap.size} duplicates)`);
 
         res.status(201).json({
             message: 'Statement uploaded and processed',
@@ -253,10 +312,18 @@ export const uploadStatement = async (req, res) => {
             fs.unlinkSync(filePath);
         }
 
-        console.error('[STATEMENT] Upload failed:', error.message);
+        console.error('[STATEMENT] Upload failed:', error);
+        console.error('[STATEMENT] Error stack:', error.stack);
+        console.error('[STATEMENT] Error details:', {
+            message: error.message,
+            code: error.code,
+            meta: error.meta
+        });
+
         res.status(500).json({
             message: 'Failed to process statement',
-            error: error.message
+            error: error.message,
+            details: error.meta?.cause || error.code
         });
     }
 };
@@ -352,6 +419,61 @@ export const approveTransaction = async (req, res) => {
     } catch (error) {
         console.error('Error approving transaction:', error);
         res.status(500).json({ message: 'Failed to approve transaction' });
+    }
+};
+
+/**
+ * Delete a bank statement and all its transactions
+ * DELETE /api/banks/:bankId/statements/:statementId
+ */
+export const deleteStatement = async (req, res) => {
+    try {
+        const { bankId, statementId } = req.params;
+
+        const bank = await prisma.bank.findUnique({
+            where: { id: bankId, user_id: req.user.id }
+        });
+
+        if (!bank) {
+            return res.status(404).json({ message: 'Bank not found' });
+        }
+
+        const statement = await prisma.bankStatement.findUnique({
+            where: { id: statementId },
+            include: { parsed_transactions: true }
+        });
+
+        if (!statement || statement.bank_id !== bankId) {
+            return res.status(404).json({ message: 'Statement not found' });
+        }
+
+        // Remove created expenses linked to this statement's approved transactions
+        const linkedExpenseIds = statement.parsed_transactions
+            .map(t => t.created_expense_id)
+            .filter(Boolean);
+
+        if (linkedExpenseIds.length > 0) {
+            await prisma.expense.deleteMany({
+                where: { id: { in: linkedExpenseIds }, user_id: req.user.id }
+            });
+        }
+
+        // Delete file from disk
+        if (statement.file_path && fs.existsSync(statement.file_path)) {
+            try {
+                fs.unlinkSync(statement.file_path);
+            } catch (e) {
+                console.warn('Could not delete statement file:', e.message);
+            }
+        }
+
+        // Cascade delete will handle transaction logs
+        await prisma.bankStatement.delete({ where: { id: statementId } });
+
+        res.json({ message: 'Statement deleted successfully' });
+    } catch (error) {
+        console.error('Error deleting statement:', error);
+        res.status(500).json({ message: 'Failed to delete statement', error: error.message });
     }
 };
 

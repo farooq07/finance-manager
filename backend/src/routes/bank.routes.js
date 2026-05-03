@@ -12,7 +12,8 @@ import {
     deleteBank,
     uploadStatement,
     getStatementTransactions,
-    approveTransaction
+    approveTransaction,
+    deleteStatement
 } from '../controllers/bank.controller.js';
 
 // Multer config for PDF uploads
@@ -48,9 +49,23 @@ router.put('/:id', validate(bankSchema), updateBank);
 router.put('/:id/balance', updateBankBalance);
 router.delete('/:id', deleteBank);
 
-// Bank Statement routes
-router.post('/:bankId/statements/upload', upload.single('file'), uploadStatement);
+// Bank Statement routes with logging
+router.post('/:bankId/statements/upload', (req, res, next) => {
+    console.log('[ROUTE] Statement upload - before multer:', {
+        bankId: req.params.bankId,
+        path: req.path
+    });
+    next();
+}, upload.single('file'), (req, res, next) => {
+    console.log('[ROUTE] Statement upload - after multer:', {
+        hasFile: !!req.file,
+        fileName: req.file?.originalname,
+        fileSize: req.file?.size
+    });
+    next();
+}, uploadStatement);
 router.get('/:bankId/statements/:statementId/transactions', getStatementTransactions);
 router.post('/:bankId/statements/:statementId/transactions/:txId/approve', approveTransaction);
+router.delete('/:bankId/statements/:statementId', deleteStatement);
 
 export default router;

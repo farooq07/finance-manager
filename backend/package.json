@@ -31,6 +31,7 @@
     "nodemailer": "^8.0.1",
     "pdf-parse": "^2.4.5",
     "pdfjs-dist": "^5.7.284",
+    "pdfreader": "^3.0.8",
     "playwright": "^1.58.2",
     "string-similarity": "^4.0.4",
     "tesseract.js": "^7.0.0",
