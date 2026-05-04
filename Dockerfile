@@ -18,8 +18,11 @@ RUN npx prisma generate
 # Copy backend code
 COPY backend ./
 
+# Create upload directories (Multer needs these)
+RUN mkdir -p uploads/statements uploads/wallet-statements
+
 # Expose port
 EXPOSE 5000
 
-# Start server (migrations handled separately)
-CMD ["npm", "start"]
+# Push schema to DB and start server
+CMD npx prisma db push --skip-generate && npm start
