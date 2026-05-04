@@ -36,6 +36,7 @@ model User {
   assets              Asset[]
   dividends           Dividend[]
   category_patterns   CategoryPattern[]
+  category_cache      CategoryCache[]
 
   @@map("users")
 }
@@ -353,6 +354,21 @@ model CategoryPattern {
 
   @@unique([user_id, keyword, assigned_category])
   @@map("category_patterns")
+}
+
+model CategoryCache {
+  id          String   @id @default(cuid())
+  user_id     String   @db.Uuid
+  description String   @db.Text
+  category    String   @db.VarChar(100)
+  source      String   @default("ai") @db.VarChar(20)
+  confidence  Decimal  @db.Decimal(3, 2)
+  hit_count   Int      @default(1)
+  last_used   DateTime @default(now())
+  user        User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, description])
+  @@map("category_cache")
 }
 
 model Institution {

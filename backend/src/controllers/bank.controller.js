@@ -1,7 +1,7 @@
 import prisma from '../utils/prisma.js';
 import { extractPdfText, getFileHash } from '../services/pdfParser.service.js';
 import { parseTransactions, validateBalance } from '../services/transactionParser.service.js';
-import { categorizeTransaction, recordUserCategory } from '../services/categorizer.service.js';
+import { categorizeTransactionBatch, recordUserCategory } from '../services/categorizer.service.js';
 import { findDuplicates, isFilePreviouslyImported, markAsDuplicate } from '../services/duplicateDetector.service.js';
 import fs from 'fs';
 
@@ -251,23 +251,20 @@ export const uploadStatement = async (req, res) => {
                 duplicateMap = new Map();
             }
 
-            // Step 6: Create transaction logs with auto-categorization
+            // Step 6: Batch categorise then create transaction logs
+            let categorizations = [];
+            try {
+                categorizations = await categorizeTransactionBatch(req.user.id, parsedTxs);
+            } catch (catError) {
+                console.error('[STATEMENT] Batch categorization error:', catError.message);
+                categorizations = parsedTxs.map(() => ({ category: 'Other', confidence: 0, method: 'default' }));
+            }
+
             for (let i = 0; i < parsedTxs.length; i++) {
                 try {
                     const tx = parsedTxs[i];
                     const isDupTx = duplicateMap.has(i);
-
-                    // Auto-categorize
-                    let categorization = { category: 'Other', confidence: 0 };
-                    try {
-                        categorization = await categorizeTransaction(
-                            req.user.id,
-                            tx.description,
-                            tx.net_amount
-                        );
-                    } catch (catError) {
-                        console.error('[STATEMENT] Categorization error for tx:', tx.description, catError.message);
-                    }
+                    const categorization = categorizations[i] || { category: 'Other', confidence: 0 };
 
                     const txLog = await prisma.bankTransactionLog.create({
                         data: {

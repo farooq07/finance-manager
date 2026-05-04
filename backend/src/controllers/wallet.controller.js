@@ -1,7 +1,7 @@
 import prisma from '../utils/prisma.js';
 import { extractPdfText, getFileHash } from '../services/pdfParser.service.js';
 import { parseTransactions, validateBalance } from '../services/transactionParser.service.js';
-import { categorizeTransaction, recordUserCategory } from '../services/categorizer.service.js';
+import { categorizeTransactionBatch, recordUserCategory } from '../services/categorizer.service.js';
 import { findWalletDuplicates, isWalletFilePreviouslyImported, markAsDuplicate } from '../services/duplicateDetector.service.js';
 import fs from 'fs';
 
@@ -196,21 +196,19 @@ export const uploadStatement = async (req, res) => {
                 duplicateMap = new Map();
             }
 
+            let categorizations = [];
+            try {
+                categorizations = await categorizeTransactionBatch(req.user.id, parsedTxs);
+            } catch (catError) {
+                console.error('[WALLET_STATEMENT] Batch categorization error:', catError.message);
+                categorizations = parsedTxs.map(() => ({ category: 'Other', confidence: 0, method: 'default' }));
+            }
+
             for (let i = 0; i < parsedTxs.length; i++) {
                 try {
                     const tx = parsedTxs[i];
                     const isDupTx = duplicateMap.has(i);
-
-                    let categorization = { category: 'Other', confidence: 0 };
-                    try {
-                        categorization = await categorizeTransaction(
-                            req.user.id,
-                            tx.description,
-                            tx.net_amount
-                        );
-                    } catch (catError) {
-                        console.error('[WALLET_STATEMENT] Categorization error for tx:', tx.description, catError.message);
-                    }
+                    const categorization = categorizations[i] || { category: 'Other', confidence: 0 };
 
                     const txLog = await prisma.walletTransactionLog.create({
                         data: {
