@@ -13,6 +13,9 @@ import {
     uploadStatement,
     getStatementTransactions,
     approveTransaction,
+    updateTransactionCategory,
+    deleteTransaction,
+    bulkApproveTransactions,
     deleteStatement
 } from '../controllers/bank.controller.js';
 
@@ -66,6 +69,9 @@ router.post('/:bankId/statements/upload', (req, res, next) => {
 }, uploadStatement);
 router.get('/:bankId/statements/:statementId/transactions', getStatementTransactions);
 router.post('/:bankId/statements/:statementId/transactions/:txId/approve', approveTransaction);
+router.put('/:bankId/statements/:statementId/transactions/:txId', updateTransactionCategory);
+router.delete('/:bankId/statements/:statementId/transactions/:txId', deleteTransaction);
+router.post('/:bankId/bulk-approve', bulkApproveTransactions);
 router.delete('/:bankId/statements/:statementId', deleteStatement);
 
 export default router;

@@ -15,7 +15,9 @@ const DEBIT_KEYWORDS = [
     'withdrawal', 'withdraw', 'atm', 'pos', 'purchase', 'payment',
     'paid', 'debit', 'debited', 'transfer out', 'outgoing', 'outward',
     'charges', 'fee', 'tax', 'wht', 'utility', 'bill', 'dr.', 'dr ',
-    'mobile to', 'raast mobile'
+    'mobile to', 'raast mobile',
+    'dc txn',  // Standard Chartered debit card transaction
+    'dc debit'
 ];
 
 /**
@@ -95,8 +97,9 @@ export function parseTransactions(rawText) {
         transactions.push(tx);
     }
 
-    console.log(`[PARSER] Extracted ${transactions.length} valid transactions`);
-    return transactions;
+    const valid = transactions.filter(tx => tx.net_amount !== 0);
+    console.log(`[PARSER] Extracted ${valid.length} valid transactions (${transactions.length - valid.length} zero-amount rows skipped)`);
+    return valid;
 }
 
 /**
@@ -108,6 +111,10 @@ function isFooterOrHeaderLine(line) {
         /page\s+\d+\s+of\s+\d+/,
         /closing\s+balance/,
         /opening\s+balance/,
+        /balance\s+b\/f/,              // Standard Chartered: "BALANCE B/F" or "01Apr26 BALANCE B/F"
+        /balance\s+brought\s+forward/,
+        /balance\s+c\/f/,
+        /balance\s+carried\s+forward/,
         /fixed\s+deposit\s+balance/,
         /please\s+report\s+any\s+discrepancy/,
         /within\s+\d+\s+days\s+from\s+the\s+date/,
@@ -123,9 +130,17 @@ function isFooterOrHeaderLine(line) {
         /authorized\s+signatory/,
         /^\s*\d+\s+of\s+\d+\s*$/,
         /this\s+is\s+a\s+computer\s+generated/,
+        /this\s+is\s+an?\s+electronic\s+statement/,  // Standard Chartered footer
+        /items\s+and\s+balance\s+on\s+this\s+statement/,
+        /must\s+be\s+verified\s+and\s+the\s+bank/,
+        /notified\s+of\s+any\s+discrepancy/,
+        /hereof\s+or\s+it\b/,
         /no\s+signature\s+required/
     ];
-    return footerPatterns.some(p => p.test(lower));
+    if (footerPatterns.some(p => p.test(lower))) return true;
+    // Lines that start with a date then "BALANCE B/F" (Standard Chartered page header)
+    if (/^\d{2}[a-z]{3}\d{2}\s+balance\s+b\/f/i.test(line)) return true;
+    return false;
 }
 
 /**

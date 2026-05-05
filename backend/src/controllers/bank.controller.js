@@ -420,6 +420,149 @@ export const approveTransaction = async (req, res) => {
 };
 
 /**
+ * Delete a single transaction log (and its linked expense if any)
+ * DELETE /api/banks/:bankId/statements/:statementId/transactions/:txId
+ */
+export const deleteTransaction = async (req, res) => {
+    try {
+        const { bankId, txId } = req.params;
+
+        const bank = await prisma.bank.findUnique({
+            where: { id: bankId, user_id: req.user.id }
+        });
+        if (!bank) return res.status(404).json({ message: 'Bank not found' });
+
+        const txLog = await prisma.bankTransactionLog.findUnique({ where: { id: txId } });
+        if (!txLog) return res.status(404).json({ message: 'Transaction not found' });
+
+        if (txLog.created_expense_id) {
+            await prisma.expense.deleteMany({ where: { id: txLog.created_expense_id, user_id: req.user.id } });
+        }
+
+        await prisma.bankTransactionLog.delete({ where: { id: txId } });
+
+        res.json({ message: 'Transaction deleted' });
+    } catch (error) {
+        console.error('Error deleting transaction:', error);
+        res.status(500).json({ message: 'Failed to delete transaction' });
+    }
+};
+
+/**
+ * Update category/notes of an already-approved transaction
+ * PUT /api/banks/:bankId/statements/:statementId/transactions/:txId
+ */
+export const updateTransactionCategory = async (req, res) => {
+    try {
+        const { bankId, txId } = req.params;
+        const { approvedCategory, notes } = req.body;
+
+        if (!approvedCategory) {
+            return res.status(400).json({ message: 'approvedCategory is required' });
+        }
+
+        const bank = await prisma.bank.findUnique({
+            where: { id: bankId, user_id: req.user.id }
+        });
+        if (!bank) return res.status(404).json({ message: 'Bank not found' });
+
+        const txLog = await prisma.bankTransactionLog.findUnique({ where: { id: txId } });
+        if (!txLog) return res.status(404).json({ message: 'Transaction not found' });
+
+        // Update the transaction log
+        await prisma.bankTransactionLog.update({
+            where: { id: txId },
+            data: { approved_category: approvedCategory, notes: notes ?? txLog.notes }
+        });
+
+        // Update the linked expense if it exists
+        if (txLog.created_expense_id) {
+            await prisma.expense.update({
+                where: { id: txLog.created_expense_id },
+                data: { category: approvedCategory, notes: notes ?? txLog.notes }
+            });
+        }
+
+        await recordUserCategory(req.user.id, txLog.description, approvedCategory);
+
+        res.json({ message: 'Transaction updated' });
+    } catch (error) {
+        console.error('Error updating transaction:', error);
+        res.status(500).json({ message: 'Failed to update transaction' });
+    }
+};
+
+/**
+ * Bulk approve transactions in one request
+ * POST /api/banks/:bankId/bulk-approve
+ * Body: { transactions: [{ txId, approvedCategory }] }
+ */
+export const bulkApproveTransactions = async (req, res) => {
+    try {
+        const { bankId } = req.params;
+        const { transactions: items } = req.body;
+
+        if (!Array.isArray(items) || items.length === 0) {
+            return res.status(400).json({ message: 'No transactions provided' });
+        }
+
+        const bank = await prisma.bank.findUnique({
+            where: { id: bankId, user_id: req.user.id }
+        });
+        if (!bank) return res.status(404).json({ message: 'Bank not found' });
+
+        // Fetch all requested transaction logs in one query
+        const txIds = items.map(i => i.txId);
+        const txLogs = await prisma.bankTransactionLog.findMany({
+            where: { id: { in: txIds } }
+        });
+        const txMap = new Map(txLogs.map(t => [t.id, t]));
+
+        let successCount = 0;
+        const errors = [];
+
+        await Promise.all(items.map(async ({ txId, approvedCategory }) => {
+            const txLog = txMap.get(txId);
+            if (!txLog || txLog.processing_status === 'approved') return;
+
+            const category = approvedCategory || txLog.suggested_category || 'Other';
+            try {
+                const expense = await prisma.expense.create({
+                    data: {
+                        user_id: req.user.id,
+                        amount: Math.abs(txLog.net_amount),
+                        category,
+                        expense_date: txLog.transaction_date,
+                        payment_method: 'Bank Transfer',
+                        notes: txLog.description
+                    }
+                });
+
+                await prisma.bankTransactionLog.update({
+                    where: { id: txId },
+                    data: {
+                        user_approved: true,
+                        approved_category: category,
+                        created_expense_id: expense.id,
+                        processing_status: 'approved'
+                    }
+                });
+
+                await recordUserCategory(req.user.id, txLog.description, category);
+                successCount++;
+            } catch (err) {
+                errors.push(txId);
+            }
+        }));
+
+        res.json({ message: `Approved ${successCount} transactions`, successCount, errors });
+    } catch (error) {
+        console.error('Error bulk approving transactions:', error);
+        res.status(500).json({ message: 'Failed to bulk approve transactions' });
+    }
+};
+
+/**
  * Delete a bank statement and all its transactions
  * DELETE /api/banks/:bankId/statements/:statementId
  */
