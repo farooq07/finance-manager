@@ -8,7 +8,13 @@ const monthMap = {
 const CREDIT_KEYWORDS = [
     'rec from', 'received', 'credit', 'credited', 'deposit', 'reverse',
     'refund', 'salary', 'dividend', 'profit', 'interest', 'transfer in',
-    'incoming', 'inward', 'cr.', 'cr '
+    'incoming', 'inward', 'cr.', 'cr ',
+    'raast in',           // NayaPay
+    'incoming fund',      // NayaPay
+    'top up', 'topup',    // NayaPay wallet top-up
+    'cashback',           // NayaPay
+    'add money',          // NayaPay
+    'wallet load'         // NayaPay
 ];
 
 const DEBIT_KEYWORDS = [
@@ -16,8 +22,14 @@ const DEBIT_KEYWORDS = [
     'paid', 'debit', 'debited', 'transfer out', 'outgoing', 'outward',
     'charges', 'fee', 'tax', 'wht', 'utility', 'bill', 'dr.', 'dr ',
     'mobile to', 'raast mobile',
-    'dc txn',  // Standard Chartered debit card transaction
-    'dc debit'
+    'dc txn',             // Standard Chartered debit card transaction
+    'dc debit',
+    'raast out',          // NayaPay
+    'card purchase',      // NayaPay
+    'wallet payment',     // NayaPay
+    'send money',         // NayaPay
+    'mobile topup',       // NayaPay
+    'online payment'      // NayaPay
 ];
 
 /**
@@ -71,11 +83,18 @@ export function parseTransactions(rawText) {
 
         // Build description (text between date and last amounts)
         let description = blockText.substring(blockText.indexOf(marker.dateStr) + marker.dateStr.length).trim();
+        // Strip NayaPay time prefix (e.g., "06:13 PM " at start of description)
+        description = description.replace(/^\d{1,2}:\d{2}\s*(AM|PM)\s*/i, '');
+        // Strip signed Rs. amount notation from description (e.g., "+Rs. 20,000" or "-Rs. 3,500")
+        description = description.replace(/[+-]\s*Rs\.?\s*[\d,]+(?:\.\d{1,2})?/gi, '');
         description = removeTrailingAmounts(description);
+        // Clean up any leftover "Rs." fragments
+        description = description.replace(/\bRs\.?\s*$/i, '').trim();
+        description = description.replace(/\s{2,}/g, ' ').trim();
         description = description.substring(0, 255);
 
         // Determine debit vs credit based on keywords + amount layout
-        const direction = determineDirection(description, amounts);
+        const direction = determineDirection(description, amounts, blockText);
 
         const txDate = parseDate(marker.dateStr);
 
@@ -137,7 +156,23 @@ function isFooterOrHeaderLine(line) {
         /hereof\s+or\s+it\b/,
         /no\s+signature\s+required/
     ];
+    const nayaPayHeaderPatterns = [
+        /^time\s+type\s+description/,           // NayaPay table header row
+        /service\s+charges\s+rs\.?\s*0/,         // NayaPay service charges (zero amount)
+        /^transaction\s+id\s+[a-z0-9]{10,}/i,   // NayaPay transaction ID lines
+        /^[a-z0-9]{15,}$/i,                      // Lone transaction ID (long alphanumeric only)
+        /^nayapay\s+id/i,
+        /^account\s+number\s+0[0-9]{9,}/,        // NayaPay account number header
+        /opening\s+balance.*rs\./i,
+        /closing\s+balance.*rs\./i,
+        /total\s+income.*rs\./i,
+        /total\s+spent.*rs\./i,
+        /^\d{1,2}:\d{2}\s*(am|pm)$/i,            // Time-only lines ("06:13 PM")
+        /^current\s+address/i,
+        /^account\s+statement/i,
+    ];
     if (footerPatterns.some(p => p.test(lower))) return true;
+    if (nayaPayHeaderPatterns.some(p => p.test(lower))) return true;
     // Lines that start with a date then "BALANCE B/F" (Standard Chartered page header)
     if (/^\d{2}[a-z]{3}\d{2}\s+balance\s+b\/f/i.test(line)) return true;
     return false;
@@ -160,6 +195,12 @@ function detectDate(line) {
         return { dateStr: habibMatch[0], format: 'habib' };
     }
 
+    // NayaPay / space-separated: DD MMM YYYY (e.g., "01 Apr 2026")
+    const nayaMatch = line.match(/^(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{4})\b/i);
+    if (nayaMatch) {
+        return { dateStr: nayaMatch[0], format: 'naya' };
+    }
+
     // Generic: DD/MM/YYYY or DD-MM-YYYY (no Mmm)
     const genericMatch = line.match(/^(\d{1,2}[\-\/]\d{1,2}[\-\/]\d{2,4})\b/);
     if (genericMatch) {
@@ -175,8 +216,6 @@ function detectDate(line) {
  * This filters out IDs, account numbers, dates embedded in description
  */
 function extractAmountsFromText(text) {
-    // Pattern matches: 20,000.00 or 1,234.56 or 0.50 or 245,447.00 or 12345.00
-    // Requires either commas (X,XXX...) or decimal point with 2 digits (X.XX)
     const pattern = /\b(\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?|\d+\.\d{2})\b/g;
     const matches = [...text.matchAll(pattern)];
     return matches
@@ -185,16 +224,30 @@ function extractAmountsFromText(text) {
 }
 
 /**
+ * Detect NayaPay-style signed amounts: "+Rs. 20,000" → credit, "-Rs. 1,500" → debit
+ * Returns 'credit', 'debit', or null
+ */
+function detectSignedRsAmount(text) {
+    if (/\+\s*Rs\.?\s*[\d,]+/i.test(text)) return 'credit';
+    if (/-\s*Rs\.?\s*[\d,]+/i.test(text)) return 'debit';
+    return null;
+}
+
+/**
  * Determine debit vs credit based on description keywords and amount layout
  */
-function determineDirection(description, amounts) {
+function determineDirection(description, amounts, rawBlockText = '') {
     if (amounts.length === 0) {
         return { debit: null, credit: null, balance: null };
     }
 
     const lowerDesc = description.toLowerCase();
-    const isCredit = CREDIT_KEYWORDS.some(kw => lowerDesc.includes(kw));
-    const isDebit = DEBIT_KEYWORDS.some(kw => lowerDesc.includes(kw));
+
+    // NayaPay: check +Rs. / -Rs. sign in the raw block (most reliable signal)
+    const signedDirection = detectSignedRsAmount(rawBlockText || description);
+
+    const isCredit = signedDirection === 'credit' || CREDIT_KEYWORDS.some(kw => lowerDesc.includes(kw));
+    const isDebit = signedDirection === 'debit' || DEBIT_KEYWORDS.some(kw => lowerDesc.includes(kw));
 
     // Single amount: could be debit-only or credit-only row (balance column was empty)
     // OR could be just the balance with no transaction amount (e.g., "Opening Balance: X")
@@ -260,6 +313,17 @@ function parseDate(dateStr) {
         const day = parseInt(habibMatch[1]);
         const month = monthMap[habibMatch[2].toLowerCase()];
         const year = parseInt(habibMatch[3]);
+        if (month !== undefined) {
+            return new Date(Date.UTC(year, month, day));
+        }
+    }
+
+    // NayaPay: DD MMM YYYY (e.g., "01 Apr 2026")
+    const nayaMatch = dateStr.match(/^(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})$/);
+    if (nayaMatch) {
+        const day = parseInt(nayaMatch[1]);
+        const month = monthMap[nayaMatch[2].toLowerCase()];
+        const year = parseInt(nayaMatch[3]);
         if (month !== undefined) {
             return new Date(Date.UTC(year, month, day));
         }
