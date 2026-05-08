@@ -46,6 +46,7 @@ const fuse = new Fuse(fuseItems, {
  * Returns { category, confidence } or null if no match.
  */
 function fuzzyMatch(description) {
+    if (!description || description.length < 3) return null;
     const results = fuse.search(description);
     if (!results.length) return null;
 

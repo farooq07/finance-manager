@@ -5,8 +5,9 @@ const monthMap = {
     'jul': 6, 'aug': 7, 'sep': 8, 'oct': 9, 'nov': 10, 'dec': 11
 };
 
+// These match anywhere in the description
 const CREDIT_KEYWORDS = [
-    'rec from', 'received', 'credit', 'credited', 'deposit', 'reverse',
+    'received', 'credit', 'credited', 'deposit', 'reverse',
     'refund', 'salary', 'dividend', 'profit', 'interest', 'transfer in',
     'incoming', 'inward', 'cr.', 'cr ',
     'raast in',           // NayaPay
@@ -17,11 +18,16 @@ const CREDIT_KEYWORDS = [
     'wallet load'         // NayaPay
 ];
 
+// "rec from" / "eft rec" are only reliable credit signals when at the START of the description.
+// When they appear in the middle (e.g. next transaction's text bleeding in), they are noise.
+const CREDIT_KEYWORDS_START_ONLY = ['rec from', 'eft rec from', 'eft rec'];
+
 const DEBIT_KEYWORDS = [
     'withdrawal', 'withdraw', 'atm', 'pos', 'purchase', 'payment',
     'paid', 'debit', 'debited', 'transfer out', 'outgoing', 'outward',
     'charges', 'fee', 'tax', 'wht', 'utility', 'bill', 'dr.', 'dr ',
     'mobile to', 'raast mobile',
+    'mpbl',               // Habib Metro RAAST Mobile to reference prefix
     'dc txn',             // Standard Chartered debit card transaction
     'dc debit',
     'raast out',          // NayaPay
@@ -246,8 +252,17 @@ function determineDirection(description, amounts, rawBlockText = '') {
     // NayaPay: check +Rs. / -Rs. sign in the raw block (most reliable signal)
     const signedDirection = detectSignedRsAmount(rawBlockText || description);
 
-    const isCredit = signedDirection === 'credit' || CREDIT_KEYWORDS.some(kw => lowerDesc.includes(kw));
-    const isDebit = signedDirection === 'debit' || DEBIT_KEYWORDS.some(kw => lowerDesc.includes(kw));
+    // "rec from" / "eft rec" only count as credit when they appear within the first 40 chars
+    const creditStartHit = CREDIT_KEYWORDS_START_ONLY.some(kw => lowerDesc.substring(0, 40).includes(kw));
+    const isCredit = signedDirection === 'credit'
+        || creditStartHit
+        || CREDIT_KEYWORDS.some(kw => lowerDesc.includes(kw));
+
+    // "A/C PK" followed by an IBAN (e.g. "USMAN SHAD A/C PK36...") is a RAAST send = debit
+    const ibanDebit = /a\/c\s+pk\d{2}/i.test(description);
+    const isDebit = signedDirection === 'debit'
+        || ibanDebit
+        || DEBIT_KEYWORDS.some(kw => lowerDesc.includes(kw));
 
     // Single amount: could be debit-only or credit-only row (balance column was empty)
     // OR could be just the balance with no transaction amount (e.g., "Opening Balance: X")

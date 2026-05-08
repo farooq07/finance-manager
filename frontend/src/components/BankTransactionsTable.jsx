@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChevronDown, ChevronUp, Check, CheckCheck, Loader2, Pencil, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, Check, CheckCheck, Loader2, Pencil, Trash2, ArrowDownLeft, ArrowUpRight } from 'lucide-react';
 import { fmtPKR } from '../utils/currency';
 import { useApproveTransaction, useBulkApproveTransactions, useUpdateTransactionCategory, useDeleteTransaction } from '../hooks/useStatementTransactions';
 import { toast } from 'sonner';
@@ -24,6 +24,21 @@ export default function BankTransactionsTable({ bankId, transactions = [] }) {
     const [editingApprovedId, setEditingApprovedId] = useState(null);
     const [editCategory, setEditCategory] = useState('');
     const [editNotes, setEditNotes] = useState('');
+
+    const TypeBadge = ({ tx }) => {
+        const isCredit = Number(tx.net_amount) > 0 || (tx.credit_amount && !tx.debit_amount);
+        return isCredit ? (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400">
+                <ArrowDownLeft className="w-3 h-3" />
+                Credit
+            </span>
+        ) : (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400">
+                <ArrowUpRight className="w-3 h-3" />
+                Debit
+            </span>
+        );
+    };
 
     if (!transactions || transactions.length === 0) {
         return <div className="text-center py-8 text-gray-500 dark:text-gray-400">No transactions to display</div>;
@@ -235,6 +250,7 @@ export default function BankTransactionsTable({ bankId, transactions = [] }) {
                                         />
                                     </th>
                                     <th className="px-4 py-3 text-left font-semibold text-gray-900 dark:text-gray-100">Date</th>
+                                    <th className="px-4 py-3 text-left font-semibold text-gray-900 dark:text-gray-100">Type</th>
                                     <th className="px-4 py-3 text-left font-semibold text-gray-900 dark:text-gray-100">Description</th>
                                     <th className="px-4 py-3 text-right font-semibold text-gray-900 dark:text-gray-100">Withdrawal</th>
                                     <th className="px-4 py-3 text-right font-semibold text-gray-900 dark:text-gray-100">Deposit</th>
@@ -256,6 +272,9 @@ export default function BankTransactionsTable({ bankId, transactions = [] }) {
                                             </td>
                                             <td className="px-4 py-3 text-gray-900 dark:text-gray-100 whitespace-nowrap">
                                                 {new Date(tx.transaction_date).toLocaleDateString('en-PK')}
+                                            </td>
+                                            <td className="px-4 py-3 whitespace-nowrap">
+                                                <TypeBadge tx={tx} />
                                             </td>
                                             <td className="px-4 py-3 text-gray-900 dark:text-gray-100 max-w-xs">
                                                 {tx.description}
@@ -300,7 +319,7 @@ export default function BankTransactionsTable({ bankId, transactions = [] }) {
                                         </tr>
                                         {expandedTxId === tx.id && (
                                             <tr className="bg-gray-50 dark:bg-neutral-800/50 border-b border-gray-200 dark:border-gray-700">
-                                                <td colSpan="7" className="px-4 py-4">
+                                                <td colSpan="8" className="px-4 py-4">
                                                     <div className="flex flex-wrap gap-3 items-end">
                                                         <div className="flex-1 min-w-[180px]">
                                                             <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Category</label>
@@ -362,6 +381,7 @@ export default function BankTransactionsTable({ bankId, transactions = [] }) {
                             <thead className="bg-green-100 dark:bg-green-900/30 border-b border-green-200 dark:border-green-800">
                                 <tr>
                                     <th className="px-4 py-3 text-left font-semibold text-green-900 dark:text-green-100">Date</th>
+                                    <th className="px-4 py-3 text-left font-semibold text-green-900 dark:text-green-100">Type</th>
                                     <th className="px-4 py-3 text-left font-semibold text-green-900 dark:text-green-100">Description</th>
                                     <th className="px-4 py-3 text-right font-semibold text-green-900 dark:text-green-100">Withdrawal</th>
                                     <th className="px-4 py-3 text-right font-semibold text-green-900 dark:text-green-100">Deposit</th>
@@ -375,6 +395,9 @@ export default function BankTransactionsTable({ bankId, transactions = [] }) {
                                         <tr className="border-b border-green-200 dark:border-green-800 hover:bg-green-100/50 dark:hover:bg-green-900/20 transition-colors">
                                             <td className="px-4 py-3 text-gray-900 dark:text-gray-100 whitespace-nowrap">
                                                 {new Date(tx.transaction_date).toLocaleDateString('en-PK')}
+                                            </td>
+                                            <td className="px-4 py-3 whitespace-nowrap">
+                                                <TypeBadge tx={tx} />
                                             </td>
                                             <td className="px-4 py-3 text-gray-900 dark:text-gray-100 max-w-xs">
                                                 {tx.description}
@@ -412,7 +435,7 @@ export default function BankTransactionsTable({ bankId, transactions = [] }) {
                                         </tr>
                                         {editingApprovedId === tx.id && (
                                             <tr className="bg-green-100/60 dark:bg-green-900/20 border-b border-green-200 dark:border-green-800">
-                                                <td colSpan="6" className="px-4 py-4">
+                                                <td colSpan="7" className="px-4 py-4">
                                                     <div className="flex flex-wrap gap-3 items-end">
                                                         <div className="flex-1 min-w-[180px]">
                                                             <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Category</label>

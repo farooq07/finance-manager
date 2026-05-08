@@ -25,6 +25,8 @@ import DesignSystem from './pages/DesignSystem';
 import Zakat from './pages/Zakat';
 import Assets from './pages/Assets';
 import RolesManagement from './pages/RolesManagement';
+import Beneficiaries from './pages/Beneficiaries';
+import BeneficiaryDetail from './pages/BeneficiaryDetail';
 
 
 const ProtectedRoute = ({ children }) => {
@@ -79,6 +81,8 @@ function App() {
               <Route path="zakat" element={<Zakat />} />
               <Route path="assets" element={<Assets />} />
               <Route path="design-system" element={<DesignSystem />} />
+              <Route path="beneficiaries" element={<Beneficiaries />} />
+              <Route path="beneficiaries/:id" element={<BeneficiaryDetail />} />
             </Route>
           </Routes>
         </Router>

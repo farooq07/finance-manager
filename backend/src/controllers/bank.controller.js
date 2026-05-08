@@ -3,6 +3,7 @@ import { extractPdfText, getFileHash } from '../services/pdfParser.service.js';
 import { parseTransactions, validateBalance } from '../services/transactionParser.service.js';
 import { categorizeTransactionBatch, recordUserCategory } from '../services/categorizer.service.js';
 import { findDuplicates, isFilePreviouslyImported, markAsDuplicate } from '../services/duplicateDetector.service.js';
+import { linkTransactionsToBeneficiaries } from './beneficiary.controller.js';
 import fs from 'fs';
 
 export const createBank = async (req, res) => {
@@ -291,6 +292,9 @@ export const uploadStatement = async (req, res) => {
 
         console.log(`[STATEMENT] Imported ${transactionLogs.length} transactions (${duplicateMap.size} duplicates)`);
 
+        // Auto-link transactions to beneficiaries
+        await linkTransactionsToBeneficiaries(req.user.id, transactionLogs);
+
         res.status(201).json({
             message: 'Statement uploaded and processed',
             statementId: bankStatement.id,
@@ -358,6 +362,34 @@ export const getStatementTransactions = async (req, res) => {
 };
 
 /**
+ * Get ALL transactions for a bank across all statements in one query
+ * GET /api/banks/:bankId/transactions
+ */
+export const getAllTransactions = async (req, res) => {
+    try {
+        const { bankId } = req.params;
+
+        const bank = await prisma.bank.findUnique({
+            where: { id: bankId, user_id: req.user.id }
+        });
+
+        if (!bank) return res.status(404).json({ message: 'Bank not found' });
+
+        const transactions = await prisma.bankTransactionLog.findMany({
+            where: {
+                bank_statement: { bank_id: bankId }
+            },
+            orderBy: { transaction_date: 'desc' }
+        });
+
+        res.json(transactions);
+    } catch (error) {
+        console.error('Error fetching all transactions:', error);
+        res.status(500).json({ message: 'Failed to fetch transactions' });
+    }
+};
+
+/**
  * Approve a transaction and convert to Expense
  * POST /api/banks/:bankId/statements/:statementId/transactions/:txId/approve
  */
@@ -388,17 +420,23 @@ export const approveTransaction = async (req, res) => {
             await recordUserCategory(req.user.id, txLog.description, approvedCategory);
         }
 
-        // Create Expense record
-        const expense = await prisma.expense.create({
-            data: {
-                user_id: req.user.id,
-                amount: Math.abs(txLog.net_amount),
-                category: approvedCategory || txLog.suggested_category || 'Other',
-                expense_date: txLog.transaction_date,
-                payment_method: 'Bank Transfer',
-                notes: notes || txLog.description
-            }
-        });
+        const isCredit = Number(txLog.net_amount) > 0;
+
+        // Only create an Expense for debit (outgoing) transactions
+        let expenseId = null;
+        if (!isCredit) {
+            const expense = await prisma.expense.create({
+                data: {
+                    user_id: req.user.id,
+                    amount: Math.abs(txLog.net_amount),
+                    category: approvedCategory || txLog.suggested_category || 'Other',
+                    expense_date: txLog.transaction_date,
+                    payment_method: 'Bank Transfer',
+                    notes: notes || txLog.description
+                }
+            });
+            expenseId = expense.id;
+        }
 
         // Update transaction log
         await prisma.bankTransactionLog.update({
@@ -406,13 +444,13 @@ export const approveTransaction = async (req, res) => {
             data: {
                 user_approved: true,
                 approved_category: approvedCategory,
-                created_expense_id: expense.id,
+                created_expense_id: expenseId,
                 processing_status: 'approved',
                 notes
             }
         });
 
-        res.json({ message: 'Transaction approved', expenseId: expense.id });
+        res.json({ message: 'Transaction approved', expenseId, isCredit });
     } catch (error) {
         console.error('Error approving transaction:', error);
         res.status(500).json({ message: 'Failed to approve transaction' });
@@ -526,24 +564,29 @@ export const bulkApproveTransactions = async (req, res) => {
             if (!txLog || txLog.processing_status === 'approved') return;
 
             const category = approvedCategory || txLog.suggested_category || 'Other';
+            const isCredit = Number(txLog.net_amount) > 0;
             try {
-                const expense = await prisma.expense.create({
-                    data: {
-                        user_id: req.user.id,
-                        amount: Math.abs(txLog.net_amount),
-                        category,
-                        expense_date: txLog.transaction_date,
-                        payment_method: 'Bank Transfer',
-                        notes: txLog.description
-                    }
-                });
+                let expenseId = null;
+                if (!isCredit) {
+                    const expense = await prisma.expense.create({
+                        data: {
+                            user_id: req.user.id,
+                            amount: Math.abs(txLog.net_amount),
+                            category,
+                            expense_date: txLog.transaction_date,
+                            payment_method: 'Bank Transfer',
+                            notes: txLog.description
+                        }
+                    });
+                    expenseId = expense.id;
+                }
 
                 await prisma.bankTransactionLog.update({
                     where: { id: txId },
                     data: {
                         user_approved: true,
                         approved_category: category,
-                        created_expense_id: expense.id,
+                        created_expense_id: expenseId,
                         processing_status: 'approved'
                     }
                 });

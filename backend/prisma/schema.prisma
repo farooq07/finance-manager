@@ -37,6 +37,7 @@ model User {
   dividends           Dividend[]
   category_patterns   CategoryPattern[]
   category_cache      CategoryCache[]
+  beneficiaries       Beneficiary[]
 
   @@map("users")
 }
@@ -472,4 +473,46 @@ model Dividend {
 
   @@unique([user_id, event_id])
   @@map("dividends")
+}
+
+model Beneficiary {
+  id         String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String               @db.Uuid
+  name       String               @db.VarChar(255)
+  nickname   String?              @db.VarChar(100)
+  phone      String?              @db.VarChar(50)
+  notes      String?
+  created_at DateTime             @default(now()) @db.Timestamptz(6)
+  user       User                 @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  accounts   BeneficiaryAccount[]
+  transactions BeneficiaryTransaction[]
+
+  @@map("beneficiaries")
+}
+
+model BeneficiaryAccount {
+  id             String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  beneficiary_id String      @db.Uuid
+  account_label  String?     @db.VarChar(100)  // e.g., "HBL Savings", "NayaPay"
+  account_no     String      @db.VarChar(100)  // full or partial account/IBAN/phone
+  created_at     DateTime    @default(now()) @db.Timestamptz(6)
+  beneficiary    Beneficiary @relation(fields: [beneficiary_id], references: [id], onDelete: Cascade)
+
+  @@map("beneficiary_accounts")
+}
+
+model BeneficiaryTransaction {
+  id                    String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  beneficiary_id        String      @db.Uuid
+  bank_transaction_id   String?     // cuid — matches BankTransactionLog.id
+  wallet_transaction_id String?     // cuid — matches WalletTransactionLog.id (future)
+  amount                Decimal     @db.Decimal(15, 2)
+  direction             String      @db.VarChar(10)  // 'credit' | 'debit'
+  transaction_date      DateTime    @db.Date
+  description           String?
+  created_at            DateTime    @default(now()) @db.Timestamptz(6)
+  beneficiary           Beneficiary @relation(fields: [beneficiary_id], references: [id], onDelete: Cascade)
+
+  @@unique([beneficiary_id, bank_transaction_id])
+  @@map("beneficiary_transactions")
 }

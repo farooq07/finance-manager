@@ -19,6 +19,7 @@ import assetRoutes from './src/routes/asset.routes.js';
 import userRoutes from './src/routes/user.routes.js';
 import dividendRoutes from './src/routes/dividend.routes.js';
 import roleRoutes from './src/routes/role.routes.js';
+import beneficiaryRoutes from './src/routes/beneficiary.routes.js';
 import { initCronJobs } from './src/services/cron.service.js';
 
 dotenv.config();
@@ -70,6 +71,7 @@ app.use('/api/assets', assetRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/dividends', dividendRoutes);
 app.use('/api/roles', roleRoutes);
+app.use('/api/beneficiaries', beneficiaryRoutes);
 
 // Root route / Health check
 app.get('/', (req, res) => {

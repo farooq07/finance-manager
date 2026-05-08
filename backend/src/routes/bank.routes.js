@@ -11,6 +11,7 @@ import {
     updateBankBalance,
     deleteBank,
     uploadStatement,
+    getAllTransactions,
     getStatementTransactions,
     approveTransaction,
     updateTransactionCategory,
@@ -67,6 +68,7 @@ router.post('/:bankId/statements/upload', (req, res, next) => {
     });
     next();
 }, uploadStatement);
+router.get('/:bankId/transactions', getAllTransactions);
 router.get('/:bankId/statements/:statementId/transactions', getStatementTransactions);
 router.post('/:bankId/statements/:statementId/transactions/:txId/approve', approveTransaction);
 router.put('/:bankId/statements/:statementId/transactions/:txId', updateTransactionCategory);

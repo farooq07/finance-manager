@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Home, Receipt, TrendingUp, BarChart2, Users, FileText, Building, Wallet, Settings, ChevronLeft, ChevronRight, Layers, HeartHandshake, Box, Shield } from 'lucide-react';
+import { Home, Receipt, TrendingUp, BarChart2, Users, FileText, Building, Wallet, Settings, ChevronLeft, ChevronRight, Layers, HeartHandshake, Box, Shield, Contact } from 'lucide-react';
 import clsx from 'clsx';
 import logo from '../assets/logo.svg';
 import logosm from '../assets/logosm.svg';
@@ -14,6 +14,7 @@ const baseNavItems = [
     { name: 'Mutual Funds', path: '/mutual-funds', icon: TrendingUp },
     { name: 'Stocks', path: '/stocks', icon: BarChart2 },
     { name: 'Dues Ledger', path: '/dues', icon: Users },
+    { name: 'Beneficiaries', path: '/beneficiaries', icon: Contact },
     { name: 'Rent Tracker', path: '/rents', icon: Building },
     { name: 'Zakat', path: '/zakat', icon: HeartHandshake },
     { name: 'Physical Assets', path: '/assets', icon: Box },
@@ -54,7 +55,7 @@ export default function Sidebar() {
                 />
                 {isExpanded && (
                     <h1 className="text-lg font-bold ml-2 text-gray-900 dark:text-white transition-opacity duration-300">
-                        Mywealth <span className="text-emerald-500">Axis</span>
+                        FSWealth <span className="text-emerald-500">Axis</span>
                     </h1>
                 )}
             </div>

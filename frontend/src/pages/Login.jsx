@@ -153,8 +153,10 @@ export default function Login() {
                 <GridPattern />
 
                 {/* Top: Brand */}
-                <div className="relative z-10">
-                    <img src={logo} alt="WealthAxis" className="h-8 brightness-0 invert opacity-90" />
+                <div className="relative z-10 w-full max-w-4xl mx-auto grid grid-cols-3 grid-rows-1 gap-4">
+                    <span className="text-2xl font-bold text-white tracking-tight">
+                        FSWealth <span className="text-emerald-400">Axis</span>
+                    </span>
                 </div>
 
                 {/* Bento Grid */}
@@ -218,8 +220,8 @@ export default function Login() {
                             delay="0.3s"
                         />
 
-                        {/* Card 6 — Full width: Tagline */}
-                        <div className="col-span-3 rounded-2xl p-5 border border-white/10 flex items-center gap-5"
+                        {/* Card 6 — Tagline (shares last row with Card 5) */}
+                        <div className="col-span-2 rounded-2xl p-5 border border-white/10 flex items-center gap-5"
                             style={{ background: 'linear-gradient(135deg, rgba(52,211,153,0.06) 0%, rgba(16,37,34,0.6) 100%)' }}>
                             <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 flex items-center justify-center shrink-0">
                                 <Landmark className="w-6 h-6 text-emerald-400" />

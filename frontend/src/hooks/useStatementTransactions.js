@@ -18,26 +18,8 @@ export const useBankAllTransactions = (bankId) => {
         queryKey: ['banks', bankId, 'all-transactions'],
         queryFn: async () => {
             if (!bankId) return [];
-            // Fetch all statements and their transactions
-            const { data: bank } = await api.get(`/banks/${bankId}`);
-            const allTransactions = [];
-
-            if (bank.statements && bank.statements.length > 0) {
-                for (const statement of bank.statements) {
-                    try {
-                        const { data: txs } = await api.get(
-                            `/banks/${bankId}/statements/${statement.id}/transactions`
-                        );
-                        allTransactions.push(...(txs || []));
-                    } catch (error) {
-                        console.error(`Failed to fetch transactions for statement ${statement.id}`, error);
-                    }
-                }
-            }
-
-            return allTransactions.sort((a, b) =>
-                new Date(b.transaction_date) - new Date(a.transaction_date)
-            );
+            const { data } = await api.get(`/banks/${bankId}/transactions`);
+            return data;
         },
         enabled: !!bankId,
     });

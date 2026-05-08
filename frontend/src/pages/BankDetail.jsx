@@ -17,7 +17,7 @@ import BankTransactionsTable from '../components/BankTransactionsTable';
 export default function BankDetail() {
     const { id } = useParams();
     const { data: bank, isLoading } = useBank(id);
-    const { data: allTransactions = [] } = useBankAllTransactions(id);
+    const { data: allTransactions = [], isLoading: txLoading } = useBankAllTransactions(id);
     const queryClient = useQueryClient();
     const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
     const [uploadFile, setUploadFile] = useState(null);
@@ -232,15 +232,25 @@ export default function BankDetail() {
             </div>
 
             {/* All Transactions Table */}
-            {allTransactions.length > 0 && (
+            {(txLoading || allTransactions.length > 0) && (
                 <div className="bg-white dark:bg-neutral-900 rounded-xl shadow-sm border border-gray-200 dark:border-neutral-800 overflow-hidden transition-colors p-6">
-                    <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-6">
-                        All Transactions
-                    </h2>
-                    <BankTransactionsTable
-                        bankId={id}
-                        transactions={allTransactions}
-                    />
+                    <div className="flex items-center justify-between mb-6">
+                        <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">All Transactions</h2>
+                        {txLoading && (
+                            <span className="text-xs text-gray-400 dark:text-gray-500 flex items-center gap-1.5">
+                                <span className="inline-block w-3 h-3 rounded-full border-2 border-gray-300 border-t-emerald-500 animate-spin" />
+                                Loading…
+                            </span>
+                        )}
+                    </div>
+                    {txLoading ? (
+                        <TableSkeleton rows={8} />
+                    ) : (
+                        <BankTransactionsTable
+                            bankId={id}
+                            transactions={allTransactions}
+                        />
+                    )}
                 </div>
             )}
 
