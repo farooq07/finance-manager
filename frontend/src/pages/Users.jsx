@@ -289,8 +289,8 @@ export default function Users() {
                                                 ) : (
                                                     <div className="flex items-center gap-2">
                                                         <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium gap-1 ${getRoleBadgeColor(user.role)}`}>
-                                                            {user.role === 'admin' && <Shield className="w-3 h-3" />}
-                                                            {user.role === 'admin' ? 'Admin' : 'User'}
+                                                            {(user.role === 'admin' || user.role === 'super.admin') && <Shield className="w-3 h-3" />}
+                                                            {user.role === 'super.admin' ? 'Super Admin' : user.role === 'admin' ? 'Admin' : 'User'}
                                                         </span>
                                                         <button
                                                             onClick={() => setEditingUserId(user.id)}

@@ -240,69 +240,83 @@ function detectSignedRsAmount(text) {
 }
 
 /**
- * Determine debit vs credit based on description keywords and amount layout
+ * Determine debit vs credit based on description keywords and amount layout.
+ *
+ * Priority (highest → lowest):
+ *  1. NayaPay ±Rs. sign in raw block text
+ *  2. Habib Metro "Sender (" → always credit (EFT in, dividends, etc.)
+ *  3. Explicit credit phrases (Account Credited, charges reverse)
+ *  4. Strong debit phrases (ATM Withdrawal, RAAST Mobile, A/C PK IBAN, MPBL)
+ *  5. Generic keyword lists (for other bank formats)
+ *  6. Default → debit (prevents credits landing in Expenses)
  */
 function determineDirection(description, amounts, rawBlockText = '') {
-    if (amounts.length === 0) {
-        return { debit: null, credit: null, balance: null };
-    }
+    if (amounts.length === 0) return { debit: null, credit: null, balance: null };
 
     const lowerDesc = description.toLowerCase();
 
-    // NayaPay: check +Rs. / -Rs. sign in the raw block (most reliable signal)
+    // ── 1. NayaPay: signed ±Rs. amount ──────────────────────────────────────
     const signedDirection = detectSignedRsAmount(rawBlockText || description);
+    if (signedDirection === 'credit') return buildCreditResult(amounts, null);
+    if (signedDirection === 'debit')  return buildDebitResult(amounts);
 
-    // "rec from" / "eft rec" only count as credit when they appear within the first 40 chars
-    const creditStartHit = CREDIT_KEYWORDS_START_ONLY.some(kw => lowerDesc.substring(0, 40).includes(kw));
-    const isCredit = signedDirection === 'credit'
-        || creditStartHit
-        || CREDIT_KEYWORDS.some(kw => lowerDesc.includes(kw));
-
-    // "A/C PK" followed by an IBAN (e.g. "USMAN SHAD A/C PK36...") is a RAAST send = debit
-    const ibanDebit = /a\/c\s+pk\d{2}/i.test(description);
-    const isDebit = signedDirection === 'debit'
-        || ibanDebit
-        || DEBIT_KEYWORDS.some(kw => lowerDesc.includes(kw));
-
-    // Single amount: could be debit-only or credit-only row (balance column was empty)
-    // OR could be just the balance with no transaction amount (e.g., "Opening Balance: X")
-    if (amounts.length === 1) {
-        if (isDebit && !isCredit) {
-            return { debit: amounts[0], credit: null, balance: null };
-        }
-        if (isCredit && !isDebit) {
-            return { debit: null, credit: amounts[0], balance: null };
-        }
-        // Skip rows with single amount and no clear direction (likely balance-only rows)
-        return { debit: null, credit: null, balance: amounts[0] };
+    // ── 2. Habib Metro: "Sender (" appears ONLY in inbound EFT transactions ─
+    // Debit transactions (ATM, RAAST out, etc.) never contain "Sender (".
+    if (/\bsender\s*\(/i.test(description)) {
+        return buildCreditResult(amounts, extractSenderAmount(description));
     }
 
-    // 2+ amounts: last is balance, second-to-last is transaction amount
-    const balance = amounts[amounts.length - 1];
-    const txAmount = amounts[amounts.length - 2];
+    // ── 3. Explicit credit phrases ───────────────────────────────────────────
+    if (/account credited|credited[- ]dividends/i.test(description)) return buildCreditResult(amounts, null);
+    if (/charges reverse|fee reverse|reversal/i.test(description))   return buildCreditResult(amounts, null);
 
-    // If 3+ amounts, the format is likely: ... [Debit] [Credit] [Balance]
-    // where one column has actual amount, the other is empty (so we get 2 amounts), but if both filled, 3
-    if (amounts.length >= 3) {
-        const possibleDebit = amounts[amounts.length - 3];
-        const possibleCredit = amounts[amounts.length - 2];
-        if (isDebit && !isCredit) {
-            return { debit: possibleDebit || txAmount, credit: null, balance };
+    // ── 4. Strong debit phrases ──────────────────────────────────────────────
+    if (/atm withdrawal|cash withdrawal|atm\s+cash/i.test(description)) return buildDebitResult(amounts);
+    if (/raast mobile to|\bmobile to\b/i.test(description))             return buildDebitResult(amounts);
+    if (/a\/c\s+pk\d{2}/i.test(description))                            return buildDebitResult(amounts);
+    if (/\bmpbl\b/i.test(description))                                  return buildDebitResult(amounts);
+
+    // ── 5. Generic keywords (NayaPay / Standard Chartered / others) ──────────
+    // Strip leading amounts before checking "starts-with" keywords —
+    // Habib Metro sometimes emits amounts before the description text.
+    const descStripped = lowerDesc.replace(/^[\d,.\s]+/, '').trim();
+    const creditStartHit = CREDIT_KEYWORDS_START_ONLY.some(kw => descStripped.startsWith(kw));
+    const isCredit = creditStartHit || CREDIT_KEYWORDS.some(kw => lowerDesc.includes(kw));
+    const isDebit  = DEBIT_KEYWORDS.some(kw => lowerDesc.includes(kw));
+
+    if (isCredit && !isDebit) return buildCreditResult(amounts, null);
+
+    // ── 6. Default → debit ───────────────────────────────────────────────────
+    return buildDebitResult(amounts);
+}
+
+function buildDebitResult(amounts) {
+    if (amounts.length === 1) return { debit: amounts[0], credit: null, balance: null };
+    return { debit: amounts[amounts.length - 2], credit: null, balance: amounts[amounts.length - 1] };
+}
+
+function buildCreditResult(amounts, specificAmount) {
+    // specificAmount: pulled from inside Sender(...) — handles small unformatted integers
+    // like "697" that the generic amount extractor misses.
+    if (specificAmount !== null && specificAmount > 0) {
+        const balance = amounts.length > 0 ? amounts[amounts.length - 1] : null;
+        if (balance !== specificAmount) {
+            return { debit: null, credit: specificAmount, balance };
         }
-        if (isCredit && !isDebit) {
-            return { debit: null, credit: possibleCredit || txAmount, balance };
-        }
     }
+    if (amounts.length === 1) return { debit: null, credit: amounts[0], balance: null };
+    return { debit: null, credit: amounts[amounts.length - 2], balance: amounts[amounts.length - 1] };
+}
 
-    if (isCredit && !isDebit) {
-        return { debit: null, credit: txAmount, balance };
-    }
-    if (isDebit && !isCredit) {
-        return { debit: txAmount, credit: null, balance };
-    }
-
-    // Default to debit if ambiguous
-    return { debit: txAmount, credit: null, balance };
+/**
+ * Extract transaction amount from Habib Metro's "Sender (...)" field.
+ *   Sender (- 245,447.00 ...)   → 245447
+ *   Sender (ACCOUNT 697 ...)    → 697
+ *   Sender ( AKBL DIVIDEND ...) → null  (fallback to amounts array)
+ */
+function extractSenderAmount(description) {
+    const m = description.match(/Sender\s*\(\s*(?:ACCOUNT\s+|-)?\s*([\d,]+(?:\.\d{1,2})?)\b/i);
+    return m ? parseFloat(m[1].replace(/,/g, '')) : null;
 }
 
 /**

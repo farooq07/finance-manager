@@ -349,7 +349,7 @@ export const getStatementTransactions = async (req, res) => {
         const transactions = await prisma.bankTransactionLog.findMany({
             where: {
                 bank_statement_id: statementId,
-                bank_statement: { bank_id: bankId }
+                bank_statement: { bank_id: bankId, bank: { user_id: req.user.id } }
             },
             orderBy: { transaction_date: 'asc' }
         });
@@ -377,7 +377,7 @@ export const getAllTransactions = async (req, res) => {
 
         const transactions = await prisma.bankTransactionLog.findMany({
             where: {
-                bank_statement: { bank_id: bankId }
+                bank_statement: { bank_id: bankId, bank: { user_id: req.user.id } }
             },
             orderBy: { transaction_date: 'desc' }
         });
@@ -407,8 +407,8 @@ export const approveTransaction = async (req, res) => {
             return res.status(404).json({ message: 'Bank not found' });
         }
 
-        const txLog = await prisma.bankTransactionLog.findUnique({
-            where: { id: txId }
+        const txLog = await prisma.bankTransactionLog.findFirst({
+            where: { id: txId, bank_statement: { bank_id: bankId } }
         });
 
         if (!txLog) {
@@ -470,7 +470,9 @@ export const deleteTransaction = async (req, res) => {
         });
         if (!bank) return res.status(404).json({ message: 'Bank not found' });
 
-        const txLog = await prisma.bankTransactionLog.findUnique({ where: { id: txId } });
+        const txLog = await prisma.bankTransactionLog.findFirst({
+            where: { id: txId, bank_statement: { bank_id: bankId } }
+        });
         if (!txLog) return res.status(404).json({ message: 'Transaction not found' });
 
         if (txLog.created_expense_id) {
@@ -504,7 +506,9 @@ export const updateTransactionCategory = async (req, res) => {
         });
         if (!bank) return res.status(404).json({ message: 'Bank not found' });
 
-        const txLog = await prisma.bankTransactionLog.findUnique({ where: { id: txId } });
+        const txLog = await prisma.bankTransactionLog.findFirst({
+            where: { id: txId, bank_statement: { bank_id: bankId } }
+        });
         if (!txLog) return res.status(404).json({ message: 'Transaction not found' });
 
         // Update the transaction log
@@ -549,10 +553,10 @@ export const bulkApproveTransactions = async (req, res) => {
         });
         if (!bank) return res.status(404).json({ message: 'Bank not found' });
 
-        // Fetch all requested transaction logs in one query
+        // Fetch all requested transaction logs, scoped to this bank only
         const txIds = items.map(i => i.txId);
         const txLogs = await prisma.bankTransactionLog.findMany({
-            where: { id: { in: txIds } }
+            where: { id: { in: txIds }, bank_statement: { bank_id: bankId } }
         });
         const txMap = new Map(txLogs.map(t => [t.id, t]));
 

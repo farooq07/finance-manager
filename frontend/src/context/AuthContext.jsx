@@ -24,6 +24,11 @@ export const AuthProvider = ({ children }) => {
         checkUser();
     }, []);
 
+    const refreshUser = async () => {
+        const { data } = await api.get('/auth/me');
+        setUser(data);
+    };
+
     const login = async (identifier, password) => {
         const { data } = await api.post('/auth/login', { identifier, password });
         return data; // Returns { userId, email, requiresOtp: true }
@@ -33,6 +38,7 @@ export const AuthProvider = ({ children }) => {
         const { data } = await api.post('/auth/verify-otp', { userId, otp });
         localStorage.setItem('token', data.token);
         setUser(data.user);
+        return data; // includes mustChangePassword flag
     };
 
     const register = async (name, email, password) => {
@@ -57,7 +63,7 @@ export const AuthProvider = ({ children }) => {
     };
 
     return (
-        <AuthContext.Provider value={{ user, loading, login, verifyOtp, register, forgotPassword, resetPassword, logout }}>
+        <AuthContext.Provider value={{ user, loading, login, verifyOtp, register, forgotPassword, resetPassword, logout, refreshUser }}>
             {!loading && children}
         </AuthContext.Provider>
     );

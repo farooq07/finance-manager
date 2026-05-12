@@ -3,14 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import Papa from 'papaparse';
 import ReactECharts from 'echarts-for-react';
 import { 
-    Upload, Plus, Trash2, TrendingUp, DollarSign, Calendar, Clock, Database, 
+    Upload, Plus, Trash2, TrendingUp, Calendar, Clock, Database, 
     ChevronDown, ChevronRight, Activity, Percent, Eye, EyeOff, Briefcase, 
     Loader2, RefreshCw, Gift, Newspaper 
 } from 'lucide-react';
 import { usePin } from '../context/PinContext';
 import { 
-    usePsxSnapshots, useUploadPsxSnapshot, useBankInvestments, 
-    useAddBankInvestment, useDeleteBankInvestment, useUpdatePsxSummary,
+    usePsxSnapshots, useUploadPsxSnapshot, useUpdatePsxSummary,
     useDeletePsxSnapshot, useDeleteSymbolFromSnapshot, useSyncPsxData 
 } from '../hooks/usePsx';
 import { useDividends, useSyncDividends, useDeleteDividend } from '../hooks/useDividends';
@@ -36,14 +35,11 @@ export default function Stocks() {
     const { isUnlocked } = usePin();
     // ---- Server State ----
     const { data: snapshots = [], isLoading: loadingSnapshots } = usePsxSnapshots();
-    const { data: bankData, isLoading: loadingBank } = useBankInvestments();
     const { data: brokerAccounts = [], isLoading: loadingBrokers } = useBrokerAccounts();
     const { data: liveStocks = [], isLoading: loadingLiveStocks } = usePsxStocks();
 
     // Mutations
     const uploadSnapshot = useUploadPsxSnapshot();
-    const addBankTx = useAddBankInvestment();
-    const delBankTx = useDeleteBankInvestment();
     const updateSummary = useUpdatePsxSummary();
     const deleteSnapshot = useDeletePsxSnapshot();
     const deleteSymbol = useDeleteSymbolFromSnapshot();
@@ -112,7 +108,6 @@ export default function Stocks() {
     });
 
     // ---- Local State ----
-    const [showBankModal, setShowBankModal] = useState(false);
     const [showSummaryModal, setShowSummaryModal] = useState(false);
     const [showHtmlModal, setShowHtmlModal] = useState(false);
     const [htmlContent, setHtmlContent] = useState('');
@@ -139,14 +134,13 @@ export default function Stocks() {
     };
 
     // Forms
-    const [bankForm, setBankForm] = useState({ transaction_date: new Date().toISOString().split('T')[0], amount: '', description: '' });
     const [csvDate, setCsvDate] = useState(new Date().toISOString().split('T')[0]);
     const [summaryForm, setSummaryForm] = useState({
         trading_cash: '', market_value: '', working_capital: '', open_position: '',
         margin_req: '', total_worth: '', margin_pct: '', mark_to_market: '', blocked_profit: ''
     });
 
-    if (loadingSnapshots || loadingBank || loadingBrokers) return (
+    if (loadingSnapshots || loadingBrokers) return (
         <div className="flex flex-col gap-6">
             <div className="flex justify-between items-center mb-6">
                 <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 transition-colors">PSX Engine</h1>
@@ -164,12 +158,7 @@ export default function Stocks() {
         </div>
     );
 
-    const totalInvested = bankData?.total_invested || 0;
     const currentCustody = latestSnapshot ? Number(latestSnapshot.total_custody) : 0;
-
-    // Lifetime ROI
-    const lifetimeGL = currentCustody - totalInvested;
-    const lifetimePct = totalInvested > 0 ? (lifetimeGL / totalInvested) * 100 : 0;
 
     // ---- Handlers ----
     const handleFileUpload = (e) => {
@@ -248,39 +237,7 @@ export default function Stocks() {
         });
     };
 
-    const handleAddBankTx = async (e) => {
-        e.preventDefault();
-        try {
-            await addBankTx.mutateAsync({
-                transaction_date: bankForm.transaction_date,
-                amount: Number(bankForm.amount),
-                description: bankForm.description
-            });
-            setBankForm({ transaction_date: new Date().toISOString().split('T')[0], amount: '', description: '' });
-            toast.success('Bank transaction added successfully');
-        } catch (err) {
-            toast.error(err.response?.data?.message || 'Failed to add bank transaction');
-        }
-    };
 
-    const handleDeleteBankTx = (id) => {
-        setDeleteModal({
-            isOpen: true,
-            title: 'Delete Bank Transaction',
-            description: 'Are you sure you want to delete this bank transaction? This alters your "Invested" basis.',
-            onConfirm: async () => {
-                setDeleteModal(prev => ({ ...prev, isLoading: true }));
-                try {
-                    await delBankTx.mutateAsync(id);
-                    toast.success('Transaction deleted');
-                } catch (err) {
-                    toast.error('Failed to delete transaction');
-                } finally {
-                    setDeleteModal({ isOpen: false });
-                }
-            }
-        });
-    }
 
     const handleUpdateSummary = async (e) => {
         e.preventDefault();
@@ -603,13 +560,7 @@ export default function Stocks() {
                         Sync News
                     </Button>
 
-                    <Button
-                        variant="secondary"
-                        onClick={() => setShowBankModal(true)}
-                        className="h-10 px-4 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-900/50 hover:bg-blue-100 dark:hover:bg-blue-900/40 shadow-sm w-full sm:w-auto"
-                    >
-                        <DollarSign data-icon="inline-start" /> Bank Transfers
-                    </Button>
+
 
                     <Button
                         variant="ghost"
@@ -1058,100 +1009,7 @@ export default function Stocks() {
                 </div>
             )}
 
-            {/* Bank Transactions Modal */}
-            {showBankModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-                    <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200">
-                        <div className="px-6 py-4 border-b border-gray-100 dark:border-neutral-800 flex justify-between items-center bg-gray-50 dark:bg-neutral-800/50 transition-colors">
-                            <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 flex items-center">
-                                <DollarSign className="w-5 h-5 text-blue-600 dark:text-blue-500 mr-2" />
-                                Manage Bank Transfers
-                            </h2>
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => setShowBankModal(false)}
-                                className="h-8 w-8 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-full"
-                            >
-                                ✕
-                            </Button>
-                        </div>
 
-                        <div className="p-6 overflow-y-auto flex-1 bg-white dark:bg-neutral-900 transition-colors">
-                            <div className="bg-blue-50/50 dark:bg-neutral-800 flex-none p-4 rounded-xl border border-blue-100 dark:border-neutral-700 mb-6 transition-colors">
-                                <h3 className="font-semibold text-blue-800 dark:text-blue-400 mb-2">Log Deposit to Brokerage</h3>
-                                <form onSubmit={handleAddBankTx} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                    <div className="col-span-1">
-                                        <DatePickerInput
-                                            required
-                                            selectedDate={bankForm.transaction_date}
-                                            onChange={(val) => setBankForm({ ...bankForm, transaction_date: val })}
-                                            className="focus:ring-blue-500 focus:border-blue-500 w-full bg-white dark:bg-neutral-900 dark:border-neutral-600 dark:text-gray-100"
-                                        />
-                                    </div>
-                                    <div className="col-span-1">
-                                        <input
-                                            type="number"
-                                            step="0.01"
-                                            required
-                                            placeholder="Amount (PKR)"
-                                            className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-neutral-900 dark:text-gray-100 placeholder-gray-400"
-                                            value={bankForm.amount}
-                                            onChange={e => setBankForm({ ...bankForm, amount: e.target.value })}
-                                        />
-                                    </div>
-                                    <div className="col-span-1 sm:col-span-2 flex gap-3">
-                                        <input
-                                            type="text"
-                                            placeholder="Description (e.g. IBFT to PSX)"
-                                            className="flex-1 px-3 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-neutral-900 dark:text-gray-100 placeholder-gray-400"
-                                            value={bankForm.description}
-                                            onChange={e => setBankForm({ ...bankForm, description: e.target.value })}
-                                        />
-                                        <Button
-                                            type="submit"
-                                            processing={addBankTx.isPending}
-                                            className="px-6 py-2"
-                                        >
-                                            Save
-                                        </Button>
-                                    </div>
-                                </form>
-                            </div>
-
-                            <div className="space-y-3">
-                                <h3 className="font-semibold text-gray-700 dark:text-gray-400 mb-2 text-sm uppercase tracking-wider">Transfer History</h3>
-                                {(bankData?.investments || []).map(tx => (
-                                    <div key={tx.id} className="flex items-center justify-between p-3 border border-gray-100 dark:border-neutral-800 rounded-xl hover:bg-gray-50 dark:hover:bg-neutral-800/50 transition-colors">
-                                        <div>
-                                            <p className="font-semibold text-gray-900 dark:text-gray-100">{fmtDateShort(tx.transaction_date)}</p>
-                                            <p className="text-xs text-gray-500 dark:text-gray-400">{tx.description || 'Deposit'}</p>
-                                        </div>
-                                        <div className="flex items-center gap-4">
-                                            <p className={`font-bold ${Number(tx.amount) >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'}`}>
-                                                {Number(tx.amount) >= 0 ? '+' : ''}PKR {fmtPKR(tx.amount)}
-                                            </p>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                onClick={() => handleDeleteBankTx(tx.id)}
-                                                className="h-9 w-9 text-gray-400 hover:text-red-600 dark:hover:text-red-400 bg-white dark:bg-neutral-800 hover:bg-red-50 dark:hover:bg-neutral-700 shadow-sm"
-                                            >
-                                                <Trash2 className="w-4 h-4" />
-                                            </Button>
-                                        </div>
-                                    </div>
-                                ))}
-                                {(bankData?.investments || []).length === 0 && (
-                                    <div className="text-center p-8 text-gray-400 dark:text-gray-500 border-2 border-dashed rounded-xl border-gray-100 dark:border-neutral-800">
-                                        No bank transfers logged yet. Add your first deposit above to calculate ROI.
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
 
             {/* Main Chart */}
             <div className="bg-white dark:bg-neutral-900 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-neutral-800 transition-colors">

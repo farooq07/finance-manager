@@ -144,6 +144,10 @@ const TARGET_STOCKS = ['HUBC', 'FFL', 'FFC', 'MEBL', 'OGDC', 'EFERT', 'FATIMA', 
 
 export const syncPsxStocks = async (req, res) => {
     try {
+        if (!['admin', 'super.admin'].includes(req.user?.role)) {
+            return res.status(403).json({ message: 'Unauthorized - Admin access required' });
+        }
+
         console.log('[SYNC] Starting manual PSX Scraping Job...');
         const results = await scrapePSX(TARGET_STOCKS);
 

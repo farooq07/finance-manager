@@ -175,7 +175,8 @@ export const createUser = async (req, res) => {
                 name,
                 email,
                 password_hash: hashedPassword,
-                role
+                role,
+                must_change_password: true
             },
             select: {
                 id: true,

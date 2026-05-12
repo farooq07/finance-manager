@@ -1,8 +1,9 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Link } from 'react-router-dom';
 import { Mail, ArrowLeft, TrendingUp, PieChart, Wallet, ShieldCheck, BarChart3, Landmark } from 'lucide-react';
 import logo from '../assets/logo.svg';
+import api from '../services/api';
 
 /* ─── Bento Illustration Cards ─── */
 const BentoCard = ({ icon: Icon, title, description, gradient, iconColor, delay }) => (
@@ -85,6 +86,13 @@ export default function Login() {
 
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+    const [registrationEnabled, setRegistrationEnabled] = useState(true);
+
+    useEffect(() => {
+        api.get('/auth/config')
+            .then(({ data }) => setRegistrationEnabled(data.registrationEnabled))
+            .catch(() => {}); // silently ignore
+    }, []);
 
     const handleLoginSubmit = async (e) => {
         e.preventDefault();
@@ -332,25 +340,27 @@ export default function Login() {
                                 </button>
                             </form>
 
-                            {/* Divider */}
-                            <div className="relative my-8">
-                                <div className="absolute inset-0 flex items-center">
-                                    <div className="w-full border-t border-gray-200 dark:border-gray-800" />
-                                </div>
-                                <div className="relative flex justify-center text-xs">
-                                    <span className="px-3 bg-white dark:bg-gray-950 text-gray-400 dark:text-gray-500 font-medium">
-                                        New to WealthAxis?
-                                    </span>
-                                </div>
-                            </div>
-
-                            {/* Register Link */}
-                            <Link
-                                to="/register"
-                                className="w-full flex justify-center py-2.5 px-4 rounded-xl text-sm font-semibold text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 hover:bg-primary-100 dark:hover:bg-primary-900/30 border border-primary-200 dark:border-primary-800/40 transition-all duration-200"
-                            >
-                                Create an account
-                            </Link>
+                            {/* Register Link — hidden when registration is disabled */}
+                            {registrationEnabled && (
+                                <>
+                                    <div className="relative my-8">
+                                        <div className="absolute inset-0 flex items-center">
+                                            <div className="w-full border-t border-gray-200 dark:border-gray-800" />
+                                        </div>
+                                        <div className="relative flex justify-center text-xs">
+                                            <span className="px-3 bg-white dark:bg-gray-950 text-gray-400 dark:text-gray-500 font-medium">
+                                                New to WealthAxis?
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <Link
+                                        to="/register"
+                                        className="w-full flex justify-center py-2.5 px-4 rounded-xl text-sm font-semibold text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 hover:bg-primary-100 dark:hover:bg-primary-900/30 border border-primary-200 dark:border-primary-800/40 transition-all duration-200"
+                                    >
+                                        Create an account
+                                    </Link>
+                                </>
+                            )}
 
                             {/* Mobile: Feature pills */}
                             <div className="mt-10 lg:hidden">

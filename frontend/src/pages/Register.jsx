@@ -86,7 +86,13 @@ export default function Register() {
         try {
             await register(name, email, password);
         } catch (err) {
-            setError(err.response?.data?.message || 'Failed to create account');
+            const status = err.response?.status;
+            const message = err.response?.data?.message;
+            if (status === 403) {
+                setError(message || 'Registration is currently disabled. Please contact your administrator.');
+            } else {
+                setError(message || 'Failed to create account');
+            }
         } finally {
             setLoading(false);
         }

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ChevronDown, ChevronUp, Check, CheckCheck, Loader2, Pencil, Trash2, ArrowDownLeft, ArrowUpRight } from 'lucide-react';
+import { Checkbox } from './ui/checkbox';
 import { fmtPKR } from '../utils/currency';
 import { useApproveTransaction, useBulkApproveTransactions, useUpdateTransactionCategory, useDeleteTransaction } from '../hooks/useStatementTransactions';
 import { toast } from 'sonner';
@@ -242,12 +243,13 @@ export default function BankTransactionsTable({ bankId, transactions = [] }) {
                             <thead className="bg-gray-50 dark:bg-neutral-800 border-b border-gray-200 dark:border-gray-700">
                                 <tr>
                                     <th className="px-4 py-3 text-center w-10">
-                                        <input
-                                            type="checkbox"
-                                            checked={selectedIds.size === pendingTxs.length && pendingTxs.length > 0}
-                                            onChange={toggleSelectAll}
-                                            className="rounded border-gray-300 dark:border-gray-600 text-emerald-600 focus:ring-emerald-500"
-                                        />
+                                        <div className="flex justify-center">
+                                            <Checkbox
+                                                checked={selectedIds.size === pendingTxs.length && pendingTxs.length > 0}
+                                                onChange={toggleSelectAll}
+                                                className="border-gray-300 dark:border-gray-600"
+                                            />
+                                        </div>
                                     </th>
                                     <th className="px-4 py-3 text-left font-semibold text-gray-900 dark:text-gray-100">Date</th>
                                     <th className="px-4 py-3 text-left font-semibold text-gray-900 dark:text-gray-100">Type</th>
@@ -263,12 +265,13 @@ export default function BankTransactionsTable({ bankId, transactions = [] }) {
                                     <React.Fragment key={tx.id}>
                                         <tr className={`border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-neutral-800/50 transition-colors ${selectedIds.has(tx.id) ? 'bg-emerald-50 dark:bg-emerald-900/10' : ''}`}>
                                             <td className="px-4 py-3 text-center">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={selectedIds.has(tx.id)}
-                                                    onChange={() => toggleSelect(tx.id)}
-                                                    className="rounded border-gray-300 dark:border-gray-600 text-emerald-600 focus:ring-emerald-500"
-                                                />
+                                                <div className="flex justify-center">
+                                                    <Checkbox
+                                                        checked={selectedIds.has(tx.id)}
+                                                        onChange={() => toggleSelect(tx.id)}
+                                                        className="border-gray-300 dark:border-gray-600"
+                                                    />
+                                                </div>
                                             </td>
                                             <td className="px-4 py-3 text-gray-900 dark:text-gray-100 whitespace-nowrap">
                                                 {new Date(tx.transaction_date).toLocaleDateString('en-PK')}

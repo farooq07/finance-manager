@@ -27,11 +27,13 @@ import Assets from './pages/Assets';
 import RolesManagement from './pages/RolesManagement';
 import Beneficiaries from './pages/Beneficiaries';
 import BeneficiaryDetail from './pages/BeneficiaryDetail';
+import ChangeFirstPassword from './pages/ChangeFirstPassword';
 
 
 const ProtectedRoute = ({ children }) => {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
+  if (user.must_change_password) return <Navigate to="/change-password" replace />;
   return children;
 };
 
@@ -60,6 +62,7 @@ function App() {
             <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
             <Route path="/forgot-password" element={<PublicRoute><ForgotPassword /></PublicRoute>} />
             <Route path="/verify-otp" element={<PublicRoute><OTPVerification /></PublicRoute>} />
+            <Route path="/change-password" element={<ChangeFirstPassword />} />
 
             <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
               <Route index element={<Dashboard />} />

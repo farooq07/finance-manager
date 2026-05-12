@@ -4,8 +4,16 @@ import crypto from 'crypto';
 import prisma from '../utils/prisma.js';
 import { sendOtpEmail } from '../utils/email.js';
 
+export const getAuthConfig = (req, res) => {
+    res.json({ registrationEnabled: process.env.ALLOW_REGISTRATION !== 'false' });
+};
+
 export const register = async (req, res) => {
     try {
+        if (process.env.ALLOW_REGISTRATION === 'false') {
+            return res.status(403).json({ message: 'Registration is currently disabled. Please contact your administrator.' });
+        }
+
         const { name, email, password } = req.body;
 
         if (!name || !email || !password) {
@@ -117,7 +125,7 @@ export const getMe = async (req, res) => {
     try {
         const user = await prisma.user.findUnique({
             where: { id: req.user.id },
-            select: { id: true, name: true, email: true, app_pin_code: true }
+            select: { id: true, name: true, email: true, app_pin_code: true, role: true, must_change_password: true }
         });
 
         if (!user) {
@@ -128,7 +136,9 @@ export const getMe = async (req, res) => {
             id: user.id,
             name: user.name,
             email: user.email,
-            hasPin: !!user.app_pin_code
+            role: user.role,
+            hasPin: !!user.app_pin_code,
+            must_change_password: user.must_change_password
         });
     } catch (error) {
         console.error('GetMe Error:', error);
@@ -180,11 +190,14 @@ export const verifyOtp = async (req, res) => {
         res.json({
             message: 'Login successful',
             token,
+            mustChangePassword: user.must_change_password,
             user: {
                 id: user.id,
                 name: user.name,
                 email: user.email,
-                hasPin: !!user.app_pin_code
+                role: user.role,
+                hasPin: !!user.app_pin_code,
+                must_change_password: user.must_change_password
             }
         });
     } catch (error) {
@@ -349,5 +362,28 @@ export const resetPassword = async (req, res) => {
     } catch (error) {
         console.error('Reset Password Error:', error);
         res.status(500).json({ message: 'Server error during password reset' });
+    }
+};
+
+export const firstPasswordChange = async (req, res) => {
+    try {
+        const { newPassword } = req.body;
+
+        if (!newPassword || newPassword.length < 6) {
+            return res.status(400).json({ message: 'Password must be at least 6 characters long' });
+        }
+
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+        await prisma.user.update({
+            where: { id: req.user.id },
+            data: { password_hash: hashedPassword, must_change_password: false }
+        });
+
+        res.json({ message: 'Password updated successfully' });
+    } catch (error) {
+        console.error('First Password Change Error:', error);
+        res.status(500).json({ message: 'Server error updating password' });
     }
 };
