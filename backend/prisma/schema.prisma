@@ -39,8 +39,34 @@ model User {
   category_patterns   CategoryPattern[]
   category_cache      CategoryCache[]
   beneficiaries       Beneficiary[]
+  chat_sessions       ChatSession[]
 
   @@map("users")
+}
+
+model ChatSession {
+  id         String        @id @default(cuid())
+  user_id    String        @db.Uuid
+  title      String?       @db.VarChar(200)
+  created_at DateTime      @default(now())
+  updated_at DateTime      @updatedAt
+  user       User          @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  messages   ChatMessage[]
+
+  @@map("chat_sessions")
+}
+
+model ChatMessage {
+  id         String      @id @default(cuid())
+  session_id String
+  role       String      @db.VarChar(20)
+  content    String      @db.Text
+  tool_name  String?     @db.VarChar(100)
+  tool_data  Json?
+  created_at DateTime    @default(now())
+  session    ChatSession @relation(fields: [session_id], references: [id], onDelete: Cascade)
+
+  @@map("chat_messages")
 }
 
 model Expense {

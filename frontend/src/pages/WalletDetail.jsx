@@ -12,6 +12,7 @@ import TextInput from '../components/TextInput';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import BankTransactionsTable from '../components/BankTransactionsTable';
 import StatementTransactionsModal from '../components/StatementTransactionsModal';
+import StatementFileUpload from '../components/StatementFileUpload';
 
 export default function WalletDetail() {
     const { id } = useParams();
@@ -110,8 +111,10 @@ export default function WalletDetail() {
     const handleFileChange = (e) => {
         const file = e.target.files?.[0];
         if (file) {
-            if (file.type !== 'application/pdf') {
-                toast.error('Only PDF files are allowed');
+            const isPdf = file.type === 'application/pdf';
+            const isCsv = file.type === 'text/csv' || file.type === 'application/csv' || file.name.toLowerCase().endsWith('.csv');
+            if (!isPdf && !isCsv) {
+                toast.error('Only PDF or CSV files are allowed');
                 return;
             }
             if (file.size > 10 * 1024 * 1024) {
@@ -267,48 +270,12 @@ export default function WalletDetail() {
                 title="Upload Wallet Statement"
             >
                 <form onSubmit={handleUpload} className="space-y-4">
-                    <div className="space-y-2">
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                            PDF File <span className="text-red-500">*</span>
-                        </label>
-                        <div className="relative">
-                            <input
-                                type="file"
-                                accept=".pdf"
-                                onChange={handleFileChange}
-                                className="hidden"
-                                id="pdf-input"
-                                required
-                            />
-                            <label
-                                htmlFor="pdf-input"
-                                className="flex items-center justify-center w-full px-4 py-8 border-2 border-dashed border-gray-300 dark:border-neutral-600 rounded-lg cursor-pointer hover:border-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/10 transition-colors"
-                            >
-                                <div className="text-center">
-                                    <UploadCloud className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                                    {fileName ? (
-                                        <div>
-                                            <p className="text-sm font-medium text-gray-900 dark:text-gray-100 break-all">{fileName}</p>
-                                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Click to change</p>
-                                        </div>
-                                    ) : (
-                                        <div>
-                                            <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Click to upload or drag and drop</p>
-                                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">PDF files up to 10MB</p>
-                                        </div>
-                                    )}
-                                </div>
-                            </label>
-                        </div>
-                    </div>
-
-                    <TextInput
-                        label="Password (if encrypted)"
-                        type="password"
-                        placeholder="Enter PDF password if required"
-                        value={pdfPassword}
-                        onChange={(e) => setPdfPassword(e.target.value)}
-                        helperText="Only required if your statement PDF is password protected"
+                    <StatementFileUpload
+                        fileName={fileName}
+                        pdfPassword={pdfPassword}
+                        onPasswordChange={setPdfPassword}
+                        onFileChange={handleFileChange}
+                        inputId="wallet-pdf-input"
                     />
 
                     <div className="flex gap-3 pt-4">

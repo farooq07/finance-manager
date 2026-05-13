@@ -90,8 +90,9 @@ export default function StatementTransactionsModal({ isOpen, onClose, bankId, st
             isOpen={isOpen}
             onClose={onClose}
             title={`Transactions from ${statementTitle}`}
+            size="xl"
         >
-            <div className="space-y-6 max-h-[70vh] overflow-y-auto">
+            <div className="space-y-6 max-h-[75vh] overflow-y-auto pr-1">
                 {isLoading ? (
                     <div className="flex items-center justify-center py-12">
                         <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
@@ -114,10 +115,10 @@ export default function StatementTransactionsModal({ isOpen, onClose, bankId, st
                                     >
                                         <div className="flex items-start justify-between gap-4">
                                             <div className="flex-1">
-                                                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                                                        <p className="text-sm font-medium text-gray-900 dark:text-gray-100 break-words">
                                                     {tx.description}
                                                 </p>
-                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                                <p className="text-xs text-gray-500 dark:text-gray:400 mt-1">
                                                     {new Date(tx.transaction_date).toLocaleDateString('en-PK')}
                                                 </p>
                                             </div>
@@ -220,8 +221,8 @@ export default function StatementTransactionsModal({ isOpen, onClose, bankId, st
                                         className="border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/10 rounded-lg p-3 opacity-75"
                                     >
                                         <div className="flex items-start justify-between gap-4">
-                                            <div className="flex-1">
-                                                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-sm font-medium text-gray-900 dark:text-gray-100 break-words">
                                                     {tx.description}
                                                 </p>
                                                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">

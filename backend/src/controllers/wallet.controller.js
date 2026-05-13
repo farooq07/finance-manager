@@ -1,9 +1,17 @@
 import prisma from '../utils/prisma.js';
 import { extractPdfText, getFileHash } from '../services/pdfParser.service.js';
 import { parseTransactions, validateBalance } from '../services/transactionParser.service.js';
+import { parseCsvTransactions } from '../services/csvParser.service.js';
 import { categorizeTransactionBatch, recordUserCategory } from '../services/categorizer.service.js';
 import { findWalletDuplicates, isWalletFilePreviouslyImported, markAsDuplicate } from '../services/duplicateDetector.service.js';
 import fs from 'fs';
+
+function isCsv(file) {
+    return file.mimetype === 'text/csv'
+        || file.mimetype === 'application/csv'
+        || file.mimetype === 'application/vnd.ms-excel'
+        || file.originalname?.toLowerCase().endsWith('.csv');
+}
 
 export const getWallets = async (req, res) => {
     try {
@@ -126,6 +134,7 @@ export const uploadStatement = async (req, res) => {
         let rawText = '';
         let pageCount = 1;
         let parsedTxs = [];
+        const fileIsCsv = isCsv(req.file);
 
         try {
             console.log('[WALLET_STATEMENT] Checking for duplicate file...');
@@ -134,27 +143,38 @@ export const uploadStatement = async (req, res) => {
 
             if (isDuplicate) {
                 fs.unlinkSync(filePath);
-                return res.status(400).json({ message: 'This PDF was already imported previously' });
+                return res.status(400).json({ message: 'This file was already imported previously' });
             }
 
-            console.log('[WALLET_STATEMENT] Extracting text from PDF...');
-            try {
-                const pdfData = await extractPdfText(filePath, password);
-                rawText = pdfData.rawText;
-                pageCount = pdfData.pageCount;
-                console.log('[WALLET_STATEMENT] PDF extracted successfully, text length:', rawText.length);
-            } catch (pdfError) {
-                console.error('[WALLET_STATEMENT] PDF extraction error:', pdfError.message);
-                rawText = '';
-            }
+            if (fileIsCsv) {
+                console.log('[WALLET_STATEMENT] Parsing CSV...');
+                try {
+                    parsedTxs = parseCsvTransactions(filePath);
+                    console.log('[WALLET_STATEMENT] CSV parsed:', parsedTxs.length, 'transactions');
+                } catch (csvError) {
+                    fs.unlinkSync(filePath);
+                    return res.status(400).json({ message: csvError.message });
+                }
+            } else {
+                console.log('[WALLET_STATEMENT] Extracting text from PDF...');
+                try {
+                    const pdfData = await extractPdfText(filePath, password);
+                    rawText = pdfData.rawText;
+                    pageCount = pdfData.pageCount;
+                    console.log('[WALLET_STATEMENT] PDF extracted, text length:', rawText.length);
+                } catch (pdfError) {
+                    console.error('[WALLET_STATEMENT] PDF extraction error:', pdfError.message);
+                    rawText = '';
+                }
 
-            console.log('[WALLET_STATEMENT] Parsing transactions...');
-            try {
-                parsedTxs = rawText ? parseTransactions(rawText) : [];
-                console.log('[WALLET_STATEMENT] Parsed transactions count:', parsedTxs.length);
-            } catch (parseError) {
-                console.error('[WALLET_STATEMENT] Transaction parsing error:', parseError.message);
-                parsedTxs = [];
+                console.log('[WALLET_STATEMENT] Parsing transactions...');
+                try {
+                    parsedTxs = rawText ? parseTransactions(rawText) : [];
+                    console.log('[WALLET_STATEMENT] Parsed transactions count:', parsedTxs.length);
+                } catch (parseError) {
+                    console.error('[WALLET_STATEMENT] Transaction parsing error:', parseError.message);
+                    parsedTxs = [];
+                }
             }
         } catch (preprocessError) {
             console.error('[WALLET_STATEMENT] Preprocessing error:', preprocessError);

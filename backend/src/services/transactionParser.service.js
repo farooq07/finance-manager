@@ -387,6 +387,55 @@ function parseDate(dateStr) {
 }
 
 /**
+ * Extract opening and closing balances from raw PDF text.
+ * Handles multiple Pakistani bank formats.
+ */
+export function parseStatementBalances(rawText) {
+    const lines = rawText.split('\n').map(l => l.trim()).filter(Boolean);
+
+    // Regex to pull the last number (with optional commas) from a line
+    const extractAmount = (line) => {
+        const matches = line.match(/[\d,]+\.?\d*/g);
+        if (!matches) return null;
+        // Take the last numeric token (balance is usually rightmost)
+        const raw = matches[matches.length - 1].replace(/,/g, '');
+        const val = parseFloat(raw);
+        return isNaN(val) ? null : val;
+    };
+
+    const OPENING_PATTERNS = [
+        /opening\s+balance/i,
+        /balance\s+b\/?f/i,
+        /balance\s+brought\s+forward/i,
+        /ob\s*:/i,
+        /^b\/f/i,
+    ];
+    const CLOSING_PATTERNS = [
+        /closing\s+balance/i,
+        /balance\s+c\/?f/i,
+        /balance\s+carried\s+forward/i,
+        /cb\s*:/i,
+        /^c\/f/i,
+    ];
+
+    let opening = null;
+    let closing = null;
+
+    for (const line of lines) {
+        if (opening === null && OPENING_PATTERNS.some(p => p.test(line))) {
+            const val = extractAmount(line);
+            if (val !== null) opening = val;
+        }
+        if (CLOSING_PATTERNS.some(p => p.test(line))) {
+            const val = extractAmount(line);
+            if (val !== null) closing = val; // Keep updating — take the LAST match (end of statement)
+        }
+    }
+
+    return { opening, closing };
+}
+
+/**
  * Reconcile transactions against opening/closing balance
  */
 export function validateBalance(transactions, openingBalance, closingBalance) {

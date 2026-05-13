@@ -16,10 +16,12 @@ const storage = multer.diskStorage({
 });
 
 const fileFilter = (req, file, cb) => {
-    if (file.mimetype === 'application/pdf') {
+    const allowed = ['application/pdf', 'text/csv', 'application/csv', 'application/vnd.ms-excel'];
+    const isCsvByName = file.originalname?.toLowerCase().endsWith('.csv');
+    if (allowed.includes(file.mimetype) || isCsvByName) {
         cb(null, true);
     } else {
-        cb(new Error('Only PDF files are allowed'), false);
+        cb(new Error('Only PDF or CSV files are allowed'), false);
     }
 };
 

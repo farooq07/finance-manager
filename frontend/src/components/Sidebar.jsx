@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Home, Receipt, TrendingUp, BarChart2, Users, FileText, Building, Wallet, Settings, ChevronLeft, ChevronRight, Layers, HeartHandshake, Box, Shield, Contact } from 'lucide-react';
+import { Home, Receipt, TrendingUp, BarChart2, Users, FileText, Building, Wallet, Settings, ChevronLeft, ChevronRight, Layers, HeartHandshake, Box, Shield, Contact, MessageSquare } from 'lucide-react';
 import clsx from 'clsx';
 import logo from '../assets/logo.svg';
 import logosm from '../assets/logosm.svg';
@@ -18,6 +18,7 @@ const baseNavItems = [
     { name: 'Rent Tracker', path: '/rents', icon: Building },
     { name: 'Zakat', path: '/zakat', icon: HeartHandshake },
     { name: 'Physical Assets', path: '/assets', icon: Box },
+    { name: 'AI Assistant', path: '/assistant', icon: MessageSquare },
     { name: 'Reports', path: '/reports', icon: FileText },
     { name: 'Settings', path: '/settings', icon: Settings },
     { name: 'Design System', path: '/design-system', icon: Layers },

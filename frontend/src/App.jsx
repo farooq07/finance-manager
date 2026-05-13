@@ -28,6 +28,7 @@ import RolesManagement from './pages/RolesManagement';
 import Beneficiaries from './pages/Beneficiaries';
 import BeneficiaryDetail from './pages/BeneficiaryDetail';
 import ChangeFirstPassword from './pages/ChangeFirstPassword';
+import AiAssistant from './pages/AiAssistant';
 
 
 const ProtectedRoute = ({ children }) => {
@@ -86,6 +87,7 @@ function App() {
               <Route path="design-system" element={<DesignSystem />} />
               <Route path="beneficiaries" element={<Beneficiaries />} />
               <Route path="beneficiaries/:id" element={<BeneficiaryDetail />} />
+              <Route path="assistant" element={<AiAssistant />} />
             </Route>
           </Routes>
         </Router>

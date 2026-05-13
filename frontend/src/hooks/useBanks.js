@@ -78,3 +78,14 @@ export const useDeleteBank = () => {
         },
     });
 };
+
+export const useBankCategorySummary = (bankId) => {
+    return useQuery({
+        queryKey: ['banks', bankId, 'category-summary'],
+        queryFn: async () => {
+            const { data } = await api.get(`/banks/${bankId}/category-summary`);
+            return data;
+        },
+        enabled: !!bankId,
+    });
+};

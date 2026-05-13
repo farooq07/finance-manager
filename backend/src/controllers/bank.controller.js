@@ -1,10 +1,18 @@
 import prisma from '../utils/prisma.js';
 import { extractPdfText, getFileHash } from '../services/pdfParser.service.js';
-import { parseTransactions, validateBalance } from '../services/transactionParser.service.js';
+import { parseTransactions, validateBalance, parseStatementBalances } from '../services/transactionParser.service.js';
+import { parseCsvTransactions } from '../services/csvParser.service.js';
 import { categorizeTransactionBatch, recordUserCategory } from '../services/categorizer.service.js';
 import { findDuplicates, isFilePreviouslyImported, markAsDuplicate } from '../services/duplicateDetector.service.js';
 import { linkTransactionsToBeneficiaries } from './beneficiary.controller.js';
 import fs from 'fs';
+
+function isCsv(file) {
+    return file.mimetype === 'text/csv'
+        || file.mimetype === 'application/csv'
+        || file.mimetype === 'application/vnd.ms-excel'
+        || file.originalname?.toLowerCase().endsWith('.csv');
+}
 
 export const createBank = async (req, res) => {
     try {
@@ -170,6 +178,7 @@ export const uploadStatement = async (req, res) => {
         let rawText = '';
         let pageCount = 1;
         let parsedTxs = [];
+        const fileIsCsv = isCsv(req.file);
 
         try {
             // Step 1: Check for duplicate file
@@ -179,38 +188,47 @@ export const uploadStatement = async (req, res) => {
 
             if (isDuplicate) {
                 fs.unlinkSync(filePath);
-                return res.status(400).json({ message: 'This PDF was already imported previously' });
+                return res.status(400).json({ message: 'This file was already imported previously' });
             }
 
-            // Step 2: Extract PDF text
-            console.log('[STATEMENT] Extracting text from PDF...');
-            try {
-                const pdfData = await extractPdfText(filePath, password);
-                rawText = pdfData.rawText;
-                pageCount = pdfData.pageCount;
-                console.log('[STATEMENT] PDF extracted successfully, text length:', rawText.length);
-                console.log('[STATEMENT] Extraction method:', pdfData.method);
-                if (rawText.length > 0) {
-                    console.log('[STATEMENT] First 500 chars of extracted text:', rawText.substring(0, 500));
+            if (fileIsCsv) {
+                // Step 2a: Parse CSV directly
+                console.log('[STATEMENT] Parsing CSV file...');
+                try {
+                    parsedTxs = parseCsvTransactions(filePath);
+                    console.log('[STATEMENT] CSV parsed:', parsedTxs.length, 'transactions');
+                } catch (csvError) {
+                    fs.unlinkSync(filePath);
+                    return res.status(400).json({ message: csvError.message });
                 }
-            } catch (pdfError) {
-                console.error('[STATEMENT] PDF extraction error:', pdfError.message);
-                // Continue without text extraction
-                rawText = '';
-            }
+            } else {
+                // Step 2b: Extract PDF text
+                console.log('[STATEMENT] Extracting text from PDF...');
+                try {
+                    const pdfData = await extractPdfText(filePath, password);
+                    rawText = pdfData.rawText;
+                    pageCount = pdfData.pageCount;
+                    console.log('[STATEMENT] PDF extracted successfully, text length:', rawText.length);
+                    if (rawText.length > 0) {
+                        console.log('[STATEMENT] First 500 chars of extracted text:', rawText.substring(0, 500));
+                    }
+                } catch (pdfError) {
+                    console.error('[STATEMENT] PDF extraction error:', pdfError.message);
+                    rawText = '';
+                }
 
-            // Step 3: Parse transactions
-            console.log('[STATEMENT] Parsing transactions...');
-            try {
-                parsedTxs = rawText ? parseTransactions(rawText) : [];
-                console.log('[STATEMENT] Parsed transactions count:', parsedTxs.length);
-            } catch (parseError) {
-                console.error('[STATEMENT] Transaction parsing error:', parseError.message);
-                parsedTxs = [];
+                // Step 3: Parse transactions
+                console.log('[STATEMENT] Parsing transactions...');
+                try {
+                    parsedTxs = rawText ? parseTransactions(rawText) : [];
+                    console.log('[STATEMENT] Parsed transactions count:', parsedTxs.length);
+                } catch (parseError) {
+                    console.error('[STATEMENT] Transaction parsing error:', parseError.message);
+                    parsedTxs = [];
+                }
             }
         } catch (preprocessError) {
             console.error('[STATEMENT] Preprocessing error:', preprocessError);
-            // Continue with basic file storage even if processing fails
         }
 
         // Step 4: Create BankStatement record
@@ -226,6 +244,13 @@ export const uploadStatement = async (req, res) => {
             year = txDate.getFullYear();
         }
 
+        // Extract opening/closing balances from PDF text
+        const { opening: openingBalance, closing: closingBalance } = rawText
+            ? parseStatementBalances(rawText)
+            : { opening: null, closing: null };
+
+        console.log('[STATEMENT] Balances extracted — opening:', openingBalance, 'closing:', closingBalance);
+
         const bankStatement = await prisma.bankStatement.create({
             data: {
                 bank_id: bankId,
@@ -235,9 +260,20 @@ export const uploadStatement = async (req, res) => {
                 file_hash: fileHash,
                 password_encrypted: password ? encryptPassword(password) : null,
                 transaction_count: parsedTxs.length,
-                processing_status: 'pending'
+                processing_status: 'pending',
+                opening_balance: openingBalance !== null ? openingBalance : undefined,
+                closing_balance: closingBalance !== null ? closingBalance : undefined,
             }
         });
+
+        // Sync bank current_balance with closing balance from statement
+        if (closingBalance !== null) {
+            await prisma.bank.update({
+                where: { id: bankId },
+                data: { current_balance: closingBalance }
+            });
+            console.log('[STATEMENT] Updated bank current_balance to', closingBalance);
+        }
 
         // Step 5: Check for duplicates and auto-categorize
         console.log('[STATEMENT] Checking for duplicates and categorizing...');
@@ -661,6 +697,45 @@ export const deleteStatement = async (req, res) => {
     } catch (error) {
         console.error('Error deleting statement:', error);
         res.status(500).json({ message: 'Failed to delete statement', error: error.message });
+    }
+};
+
+/**
+ * Category-wise breakdown of approved transactions
+ * GET /api/banks/:bankId/category-summary
+ */
+export const getCategorySummary = async (req, res) => {
+    try {
+        const { bankId } = req.params;
+
+        const bank = await prisma.bank.findUnique({
+            where: { id: bankId, user_id: req.user.id }
+        });
+        if (!bank) return res.status(404).json({ message: 'Bank not found' });
+
+        const approved = await prisma.bankTransactionLog.findMany({
+            where: {
+                bank_statement: { bank_id: bankId, bank: { user_id: req.user.id } },
+                user_approved: true
+            },
+            select: { approved_category: true, net_amount: true }
+        });
+
+        const map = {};
+        for (const tx of approved) {
+            const cat = tx.approved_category || 'Other';
+            const amount = Number(tx.net_amount);
+            if (!map[cat]) map[cat] = { category: cat, total: 0, count: 0, credits: 0, debits: 0 };
+            map[cat].count += 1;
+            map[cat].total += amount;
+            if (amount >= 0) map[cat].credits += amount;
+            else map[cat].debits += Math.abs(amount);
+        }
+
+        const rows = Object.values(map).sort((a, b) => Math.abs(b.total) - Math.abs(a.total));
+        res.json({ summary: rows, total_approved: approved.length });
+    } catch (err) {
+        res.status(500).json({ message: 'Failed to fetch category summary' });
     }
 };
 

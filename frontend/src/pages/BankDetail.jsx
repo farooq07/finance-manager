@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { useBank } from '../hooks/useBanks';
+import { useBank, useBankCategorySummary } from '../hooks/useBanks';
 import { useBankAllTransactions } from '../hooks/useStatementTransactions';
 import { fmtPKR } from '../utils/currency';
-import { ArrowLeft, UploadCloud, AlertCircle, Loader2, X, Trash2 } from 'lucide-react';
+import { ArrowLeft, UploadCloud, AlertCircle, Loader2, X, Trash2, TrendingUp, TrendingDown, BarChart3, ChevronsUpDown } from 'lucide-react';
 import { Skeleton, TableSkeleton } from '../components/Skeleton';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../services/api';
@@ -13,11 +13,13 @@ import TextInput from '../components/TextInput';
 import Modal from '../components/Modal';
 import StatementTransactionsModal from '../components/StatementTransactionsModal';
 import BankTransactionsTable from '../components/BankTransactionsTable';
+import StatementFileUpload from '../components/StatementFileUpload';
 
 export default function BankDetail() {
     const { id } = useParams();
     const { data: bank, isLoading } = useBank(id);
     const { data: allTransactions = [], isLoading: txLoading } = useBankAllTransactions(id);
+    const { data: categorySummaryData } = useBankCategorySummary(id);
     const queryClient = useQueryClient();
     const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
     const [uploadFile, setUploadFile] = useState(null);
@@ -91,8 +93,10 @@ export default function BankDetail() {
     const handleFileChange = (e) => {
         const file = e.target.files?.[0];
         if (file) {
-            if (file.type !== 'application/pdf') {
-                toast.error('Only PDF files are allowed');
+            const isPdf = file.type === 'application/pdf';
+            const isCsv = file.type === 'text/csv' || file.type === 'application/csv' || file.name.toLowerCase().endsWith('.csv');
+            if (!isPdf && !isCsv) {
+                toast.error('Only PDF or CSV files are allowed');
                 return;
             }
             if (file.size > 10 * 1024 * 1024) {
@@ -149,14 +153,33 @@ export default function BankDetail() {
             </div>
 
             <div className="bg-white dark:bg-neutral-900 rounded-xl shadow-sm border border-gray-200 dark:border-neutral-800 overflow-hidden transition-colors">
-                <div className="p-6 border-b border-gray-100 dark:border-neutral-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 transition-colors">
-                    <div>
-                        <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100">{bank.name}</h1>
-                        <p className="text-gray-500 dark:text-gray-400 font-mono mt-1 text-sm">{bank.account_no} • {bank.iban_no}</p>
-                    </div>
-                    <div className="text-right">
-                        <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Current Balance</p>
-                        <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mt-1">{fmtPKR(bank.current_balance)}</h2>
+                <div className="p-6 border-b border-gray-100 dark:border-neutral-800 transition-colors">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-start gap-4">
+                        <div>
+                            <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100">{bank.name}</h1>
+                            <p className="text-gray-500 dark:text-gray-400 font-mono mt-1 text-sm">{bank.account_no} • {bank.iban_no}</p>
+                        </div>
+                        <div className="flex gap-4 sm:gap-6 flex-wrap">
+                            {/* Opening balance — from latest statement */}
+                            {(() => {
+                                const latest = bank.statements?.find(s => s.opening_balance != null);
+                                return latest ? (
+                                    <div className="text-right">
+                                        <p className="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">Opening Balance</p>
+                                        <p className="text-lg font-semibold text-gray-600 dark:text-gray-300 mt-0.5">{fmtPKR(latest.opening_balance)}</p>
+                                        <p className="text-xs text-gray-400 dark:text-gray-500">{latest.month} {latest.year}</p>
+                                    </div>
+                                ) : null;
+                            })()}
+                            {/* Current / closing balance */}
+                            <div className="text-right">
+                                <p className="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">Current Balance</p>
+                                <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mt-0.5">{fmtPKR(bank.current_balance)}</h2>
+                                {bank.statements?.some(s => s.closing_balance != null) && (
+                                    <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-0.5">Synced from statement</p>
+                                )}
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -187,23 +210,27 @@ export default function BankDetail() {
                                     key={statement.id}
                                     className="bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-lg p-4 hover:shadow-md transition-shadow"
                                 >
-                                    <div className="flex items-center justify-between mb-3">
+                                    <div className="flex items-start justify-between mb-3 gap-3">
                                         <div>
                                             <h4 className="font-semibold text-gray-900 dark:text-gray-100">
                                                 {statement.month} {statement.year}
                                             </h4>
-                                            <p className="text-xs text-gray-500 dark:text-gray-400">
-                                                {statement.transaction_count} transactions • {statement.processing_status}
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                                {statement.transaction_count} transactions · {new Date(statement.upload_date).toLocaleDateString('en-PK')}
                                             </p>
                                         </div>
-                                        <div className="text-right">
-                                            <p className="text-sm font-medium text-gray-600 dark:text-gray-300">
-                                                {new Date(statement.upload_date).toLocaleDateString('en-PK')}
-                                            </p>
-                                            {statement.total_credits > 0 && (
-                                                <p className="text-xs text-green-600 dark:text-green-400">
-                                                    +{fmtPKR(statement.total_credits)}
-                                                </p>
+                                        <div className="flex gap-4 shrink-0">
+                                            {statement.opening_balance != null && (
+                                                <div className="text-right">
+                                                    <p className="text-[10px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">Opening</p>
+                                                    <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">{fmtPKR(statement.opening_balance)}</p>
+                                                </div>
+                                            )}
+                                            {statement.closing_balance != null && (
+                                                <div className="text-right">
+                                                    <p className="text-[10px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">Closing</p>
+                                                    <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">{fmtPKR(statement.closing_balance)}</p>
+                                                </div>
                                             )}
                                         </div>
                                     </div>
@@ -254,6 +281,11 @@ export default function BankDetail() {
                 </div>
             )}
 
+            {/* Category Breakdown */}
+            {categorySummaryData?.total_approved > 0 && (
+                <CategoryBreakdown data={categorySummaryData} />
+            )}
+
             {/* Statement Transactions Modal */}
             {selectedStatement && (
                 <StatementTransactionsModal
@@ -277,48 +309,12 @@ export default function BankDetail() {
                 title="Upload Bank Statement"
             >
                 <form onSubmit={handleUpload} className="space-y-4">
-                    <div className="space-y-2">
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                            PDF File <span className="text-red-500">*</span>
-                        </label>
-                        <div className="relative">
-                            <input
-                                type="file"
-                                accept=".pdf"
-                                onChange={handleFileChange}
-                                className="hidden"
-                                id="pdf-input"
-                                required
-                            />
-                            <label
-                                htmlFor="pdf-input"
-                                className="flex items-center justify-center w-full px-4 py-8 border-2 border-dashed border-gray-300 dark:border-neutral-600 rounded-lg cursor-pointer hover:border-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/10 transition-colors"
-                            >
-                                <div className="text-center">
-                                    <UploadCloud className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                                    {fileName ? (
-                                        <div>
-                                            <p className="text-sm font-medium text-gray-900 dark:text-gray-100 break-all">{fileName}</p>
-                                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Click to change</p>
-                                        </div>
-                                    ) : (
-                                        <div>
-                                            <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Click to upload or drag and drop</p>
-                                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">PDF files up to 10MB</p>
-                                        </div>
-                                    )}
-                                </div>
-                            </label>
-                        </div>
-                    </div>
-
-                    <TextInput
-                        label="Password (if encrypted)"
-                        type="password"
-                        placeholder="Enter PDF password if required"
-                        value={pdfPassword}
-                        onChange={(e) => setPdfPassword(e.target.value)}
-                        helperText="Only required if your statement PDF is password protected"
+                    <StatementFileUpload
+                        fileName={fileName}
+                        pdfPassword={pdfPassword}
+                        onPasswordChange={setPdfPassword}
+                        onFileChange={handleFileChange}
+                        inputId="bank-pdf-input"
                     />
 
                     <div className="flex gap-3 pt-4">
@@ -345,6 +341,81 @@ export default function BankDetail() {
                     </div>
                 </form>
             </Modal>
+        </div>
+    );
+}
+
+// Category icons & colors
+const CATEGORY_META = {
+    'ATM Withdrawal':   { icon: '🏧', color: 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border-red-100 dark:border-red-800/40' },
+    'Salary':           { icon: '💼', color: 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-800/40' },
+    'Profit/Dividend':  { icon: '📈', color: 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 border-green-100 dark:border-green-800/40' },
+    'Transfer':         { icon: '↔️', color: 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-blue-100 dark:border-blue-800/40' },
+    'Bank Charges':     { icon: '🏦', color: 'bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 border-orange-100 dark:border-orange-800/40' },
+    'Food & Dining':    { icon: '🍽️', color: 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-600 dark:text-yellow-400 border-yellow-100 dark:border-yellow-800/40' },
+    'Groceries':        { icon: '🛒', color: 'bg-lime-50 dark:bg-lime-900/20 text-lime-600 dark:text-lime-400 border-lime-100 dark:border-lime-800/40' },
+    'Utilities':        { icon: '⚡', color: 'bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 border-amber-100 dark:border-amber-800/40' },
+    'Transportation':   { icon: '🚗', color: 'bg-sky-50 dark:bg-sky-900/20 text-sky-600 dark:text-sky-400 border-sky-100 dark:border-sky-800/40' },
+    'Shopping':         { icon: '🛍️', color: 'bg-pink-50 dark:bg-pink-900/20 text-pink-600 dark:text-pink-400 border-pink-100 dark:border-pink-800/40' },
+    'Entertainment':    { icon: '🎬', color: 'bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 border-purple-100 dark:border-purple-800/40' },
+    'Healthcare':       { icon: '💊', color: 'bg-teal-50 dark:bg-teal-900/20 text-teal-600 dark:text-teal-400 border-teal-100 dark:border-teal-800/40' },
+    'Investment':       { icon: '💰', color: 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 border-indigo-100 dark:border-indigo-800/40' },
+    'Other':            { icon: '📦', color: 'bg-gray-50 dark:bg-neutral-800 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-neutral-700' },
+};
+
+function CategoryBreakdown({ data }) {
+    const { summary = [], total_approved } = data;
+
+    const totalDebits  = summary.reduce((s, r) => s + r.debits, 0);
+    const totalCredits = summary.reduce((s, r) => s + r.credits, 0);
+
+    return (
+        <div className="bg-white dark:bg-neutral-900 rounded-xl shadow-sm border border-gray-200 dark:border-neutral-800 overflow-hidden transition-colors">
+            <div className="p-6 border-b border-gray-100 dark:border-neutral-800 flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center">
+                        <BarChart3 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                    </div>
+                    <div>
+                        <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">Category Breakdown</h2>
+                        <p className="text-xs text-gray-400 dark:text-gray-500">{total_approved} approved transactions</p>
+                    </div>
+                </div>
+                {/* Totals pill */}
+                <div className="hidden sm:flex items-center gap-4 text-sm">
+                    <span className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-semibold">
+                        <TrendingUp className="w-4 h-4" /> {fmtPKR(totalCredits)}
+                    </span>
+                    <span className="flex items-center gap-1.5 text-red-500 dark:text-red-400 font-semibold">
+                        <TrendingDown className="w-4 h-4" /> {fmtPKR(totalDebits)}
+                    </span>
+                </div>
+            </div>
+
+            <div className="p-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                    {summary.map(row => {
+                        const meta = CATEGORY_META[row.category] || CATEGORY_META['Other'];
+                        const isCredit = row.credits > row.debits;
+                        const displayAmount = isCredit ? row.credits : row.debits;
+
+                        return (
+                            <div key={row.category} className={`flex items-center gap-3 p-3.5 rounded-xl border ${meta.color} transition-all`}>
+                                <span className="text-xl shrink-0">{meta.icon}</span>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-xs font-semibold truncate">{row.category}</p>
+                                    <p className="text-base font-bold mt-0.5">{fmtPKR(displayAmount)}</p>
+                                    <p className="text-[10px] opacity-60 mt-0.5">{row.count} {row.count === 1 ? 'transaction' : 'transactions'}</p>
+                                </div>
+                                {isCredit
+                                    ? <TrendingUp className="w-4 h-4 shrink-0 opacity-50" />
+                                    : <TrendingDown className="w-4 h-4 shrink-0 opacity-50" />
+                                }
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
         </div>
     );
 }
