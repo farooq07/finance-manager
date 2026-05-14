@@ -1,10 +1,132 @@
 import prisma from '../utils/prisma.js';
 import { extractPdfText, getFileHash } from '../services/pdfParser.service.js';
-import { parseTransactions, validateBalance } from '../services/transactionParser.service.js';
+import { parseTransactions, validateBalance, parseStatementBalances } from '../services/transactionParser.service.js';
 import { parseCsvTransactions } from '../services/csvParser.service.js';
 import { categorizeTransactionBatch, recordUserCategory } from '../services/categorizer.service.js';
 import { findWalletDuplicates, isWalletFilePreviouslyImported, markAsDuplicate } from '../services/duplicateDetector.service.js';
 import fs from 'fs';
+
+// ─── Wallet transaction management ────────────────────────────────────────────
+
+export const getAllTransactions = async (req, res) => {
+    try {
+        const { walletId } = req.params;
+        const wallet = await prisma.wallet.findUnique({ where: { id: walletId, user_id: req.user.id } });
+        if (!wallet) return res.status(404).json({ message: 'Wallet not found' });
+
+        const transactions = await prisma.walletTransactionLog.findMany({
+            where: { wallet_statement: { wallet_id: walletId } },
+            orderBy: { transaction_date: 'desc' }
+        });
+        res.json(transactions);
+    } catch (err) {
+        res.status(500).json({ message: 'Failed to fetch transactions' });
+    }
+};
+
+export const updateTransactionCategory = async (req, res) => {
+    try {
+        const { walletId, txId } = req.params;
+        const { approvedCategory, notes } = req.body;
+        if (!approvedCategory) return res.status(400).json({ message: 'approvedCategory is required' });
+
+        const wallet = await prisma.wallet.findUnique({ where: { id: walletId, user_id: req.user.id } });
+        if (!wallet) return res.status(404).json({ message: 'Wallet not found' });
+
+        const txLog = await prisma.walletTransactionLog.findFirst({
+            where: { id: txId, wallet_statement: { wallet_id: walletId } }
+        });
+        if (!txLog) return res.status(404).json({ message: 'Transaction not found' });
+
+        await prisma.walletTransactionLog.update({
+            where: { id: txId },
+            data: { approved_category: approvedCategory, notes: notes ?? txLog.notes }
+        });
+
+        if (txLog.created_expense_id) {
+            await prisma.expense.update({
+                where: { id: txLog.created_expense_id },
+                data: { category: approvedCategory, notes: notes ?? txLog.notes }
+            });
+        }
+
+        await recordUserCategory(req.user.id, txLog.description, approvedCategory);
+        res.json({ message: 'Transaction updated' });
+    } catch (err) {
+        res.status(500).json({ message: 'Failed to update transaction' });
+    }
+};
+
+export const deleteTransaction = async (req, res) => {
+    try {
+        const { walletId, txId } = req.params;
+        const wallet = await prisma.wallet.findUnique({ where: { id: walletId, user_id: req.user.id } });
+        if (!wallet) return res.status(404).json({ message: 'Wallet not found' });
+
+        const txLog = await prisma.walletTransactionLog.findFirst({
+            where: { id: txId, wallet_statement: { wallet_id: walletId } }
+        });
+        if (!txLog) return res.status(404).json({ message: 'Transaction not found' });
+
+        if (txLog.created_expense_id) {
+            await prisma.expense.deleteMany({ where: { id: txLog.created_expense_id, user_id: req.user.id } });
+        }
+        await prisma.walletTransactionLog.delete({ where: { id: txId } });
+        res.json({ message: 'Transaction deleted' });
+    } catch (err) {
+        res.status(500).json({ message: 'Failed to delete transaction' });
+    }
+};
+
+export const bulkApproveTransactions = async (req, res) => {
+    try {
+        const { walletId } = req.params;
+        const { transactions: items } = req.body;
+        if (!Array.isArray(items) || items.length === 0) {
+            return res.status(400).json({ message: 'No transactions provided' });
+        }
+
+        const wallet = await prisma.wallet.findUnique({ where: { id: walletId, user_id: req.user.id } });
+        if (!wallet) return res.status(404).json({ message: 'Wallet not found' });
+
+        const txIds = items.map(i => i.txId);
+        const txLogs = await prisma.walletTransactionLog.findMany({
+            where: { id: { in: txIds }, wallet_statement: { wallet_id: walletId } }
+        });
+        const txMap = new Map(txLogs.map(t => [t.id, t]));
+
+        let successCount = 0;
+        await Promise.all(items.map(async ({ txId, approvedCategory }) => {
+            const txLog = txMap.get(txId);
+            if (!txLog || txLog.processing_status === 'approved') return;
+            const category = approvedCategory || txLog.suggested_category || 'Other';
+            const isCredit = Number(txLog.net_amount) > 0;
+            let expenseId = null;
+            if (!isCredit) {
+                const expense = await prisma.expense.create({
+                    data: {
+                        user_id: req.user.id,
+                        amount: Math.abs(Number(txLog.net_amount)),
+                        category,
+                        expense_date: txLog.transaction_date,
+                        payment_method: 'Wallet',
+                        notes: txLog.description
+                    }
+                });
+                expenseId = expense.id;
+            }
+            await prisma.walletTransactionLog.update({
+                where: { id: txId },
+                data: { user_approved: true, approved_category: category, created_expense_id: expenseId, processing_status: 'approved' }
+            });
+            successCount++;
+        }));
+
+        res.json({ approved: successCount });
+    } catch (err) {
+        res.status(500).json({ message: 'Failed to bulk approve' });
+    }
+};
 
 function isCsv(file) {
     return file.mimetype === 'text/csv'
@@ -191,6 +313,27 @@ export const uploadStatement = async (req, res) => {
             year = txDate.getFullYear();
         }
 
+        // Extract balances: prefer per-row running balance column, fall back to summary lines
+        let openingBalance = null;
+        let closingBalance = null;
+
+        if (parsedTxs.length > 0) {
+            const withBalance = parsedTxs.filter(tx => tx.balance != null);
+            if (withBalance.length > 0) {
+                const sorted = [...withBalance].sort((a, b) => new Date(a.transaction_date) - new Date(b.transaction_date));
+                openingBalance = sorted[0].balance;
+                closingBalance = sorted[sorted.length - 1].balance;
+            }
+        }
+
+        if (closingBalance === null && rawText) {
+            const parsed = parseStatementBalances(rawText);
+            openingBalance = openingBalance ?? parsed.opening;
+            closingBalance = parsed.closing;
+        }
+
+        console.log('[WALLET_STATEMENT] Balances — opening:', openingBalance, 'closing:', closingBalance);
+
         const walletStatement = await prisma.walletStatement.create({
             data: {
                 wallet_id: walletId,
@@ -200,9 +343,20 @@ export const uploadStatement = async (req, res) => {
                 file_hash: fileHash,
                 password_encrypted: password ? encryptPassword(password) : null,
                 transaction_count: parsedTxs.length,
-                processing_status: 'pending'
+                processing_status: 'pending',
+                opening_balance: openingBalance !== null ? openingBalance : undefined,
+                closing_balance: closingBalance !== null ? closingBalance : undefined,
             }
         });
+
+        // Sync wallet balance with closing balance from statement
+        if (closingBalance !== null) {
+            await prisma.wallet.update({
+                where: { id: walletId },
+                data: { balance: closingBalance }
+            });
+            console.log('[WALLET_STATEMENT] Updated wallet balance to', closingBalance);
+        }
 
         console.log('[WALLET_STATEMENT] Checking for duplicates and categorizing...');
         let duplicateMap = new Map();
@@ -419,6 +573,88 @@ export const deleteStatement = async (req, res) => {
     } catch (error) {
         console.error('Error deleting wallet statement:', error);
         res.status(500).json({ message: 'Failed to delete statement', error: error.message });
+    }
+};
+
+/**
+ * Re-parse a stored wallet statement file and sync the closing balance
+ * POST /api/wallets/:walletId/statements/:statementId/sync
+ */
+export const syncStatementBalance = async (req, res) => {
+    try {
+        const { walletId, statementId } = req.params;
+
+        const wallet = await prisma.wallet.findUnique({
+            where: { id: walletId, user_id: req.user.id }
+        });
+        if (!wallet) return res.status(404).json({ message: 'Wallet not found' });
+
+        const statement = await prisma.walletStatement.findUnique({
+            where: { id: statementId }
+        });
+        if (!statement || statement.wallet_id !== walletId) {
+            return res.status(404).json({ message: 'Statement not found' });
+        }
+
+        if (!statement.file_path || !fs.existsSync(statement.file_path)) {
+            return res.status(400).json({ message: 'Statement file no longer exists on disk' });
+        }
+
+        const isCsvFile = statement.file_path.toLowerCase().endsWith('.csv');
+        let openingBalance = null;
+        let closingBalance = null;
+
+        if (isCsvFile) {
+            const { parseCsvTransactions } = await import('../services/csvParser.service.js');
+            const parsedTxs = parseCsvTransactions(statement.file_path);
+            const withBalance = parsedTxs.filter(tx => tx.balance != null);
+            if (withBalance.length > 0) {
+                const sorted = [...withBalance].sort((a, b) => new Date(a.transaction_date) - new Date(b.transaction_date));
+                openingBalance = sorted[0].balance;
+                closingBalance = sorted[sorted.length - 1].balance;
+            }
+        } else {
+            const password = statement.password_encrypted
+                ? Buffer.from(statement.password_encrypted, 'base64').toString()
+                : undefined;
+            const { rawText } = await extractPdfText(statement.file_path, password);
+
+            const parsedTxs = rawText ? parseTransactions(rawText) : [];
+            const withBalance = parsedTxs.filter(tx => tx.balance != null);
+            if (withBalance.length > 0) {
+                const sorted = [...withBalance].sort((a, b) => new Date(a.transaction_date) - new Date(b.transaction_date));
+                openingBalance = sorted[0].balance;
+                closingBalance = sorted[sorted.length - 1].balance;
+            }
+
+            if (closingBalance === null && rawText) {
+                const parsed = parseStatementBalances(rawText);
+                openingBalance = openingBalance ?? parsed.opening;
+                closingBalance = parsed.closing;
+            }
+        }
+
+        if (closingBalance === null) {
+            return res.status(422).json({ message: 'Could not extract balance from this statement' });
+        }
+
+        await prisma.walletStatement.update({
+            where: { id: statementId },
+            data: {
+                closing_balance: closingBalance,
+                opening_balance: openingBalance !== null ? openingBalance : statement.opening_balance
+            }
+        });
+
+        await prisma.wallet.update({
+            where: { id: walletId },
+            data: { balance: closingBalance }
+        });
+
+        res.json({ message: 'Balance synced', closingBalance, openingBalance });
+    } catch (error) {
+        console.error('Error syncing wallet statement balance:', error);
+        res.status(500).json({ message: 'Failed to sync balance', error: error.message });
     }
 };
 

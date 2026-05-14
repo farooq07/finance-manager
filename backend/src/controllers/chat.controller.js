@@ -1,5 +1,8 @@
 import prisma from '../utils/prisma.js';
 import { chat } from '../services/ragEngine.service.js';
+import { processDocument, deleteDocument, listDocuments } from '../services/documentProcessor.service.js';
+import { extractPdfText } from '../services/pdfParser.service.js';
+import fs from 'fs';
 
 export const createSession = async (req, res) => {
   try {
@@ -63,6 +66,59 @@ export const deleteSession = async (req, res) => {
     res.status(500).json({ message: 'Failed to delete session' });
   }
 };
+
+// ── Document endpoints ───────────────────────────────────────────────────────
+
+export const uploadDocument = async (req, res) => {
+  const filePath = req.file?.path;
+  try {
+    if (!req.file) return res.status(400).json({ message: 'No file provided' });
+
+    const { originalname, mimetype, path: fPath } = req.file;
+    let text = '';
+
+    if (mimetype === 'application/pdf' || originalname.toLowerCase().endsWith('.pdf')) {
+      const pdfData = await extractPdfText(fPath);
+      text = pdfData.rawText;
+    } else {
+      // Plain text / markdown / CSV treated as raw text
+      text = fs.readFileSync(fPath, 'utf-8');
+    }
+
+    if (!text?.trim()) {
+      fs.unlinkSync(fPath);
+      return res.status(400).json({ message: 'Could not extract any text from the file' });
+    }
+
+    const result = await processDocument(req.user.id, originalname, mimetype, text);
+    fs.unlinkSync(fPath); // Don't keep the file — chunks are stored in DB
+    res.status(201).json({ message: 'Document processed', ...result });
+  } catch (err) {
+    if (filePath && fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    console.error('Document upload error:', err.message);
+    res.status(500).json({ message: err.message || 'Failed to process document' });
+  }
+};
+
+export const getDocuments = async (req, res) => {
+  try {
+    const docs = await listDocuments(req.user.id);
+    res.json(docs);
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to fetch documents' });
+  }
+};
+
+export const removeDocument = async (req, res) => {
+  try {
+    await deleteDocument(req.user.id, req.params.docId);
+    res.json({ message: 'Document deleted' });
+  } catch (err) {
+    res.status(err.message === 'Document not found' ? 404 : 500).json({ message: err.message });
+  }
+};
+
+// ────────────────────────────────────────────────────────────────────────────
 
 export const sendMessage = async (req, res) => {
   const { message } = req.body;

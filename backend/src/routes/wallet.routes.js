@@ -1,7 +1,7 @@
 import express from 'express';
 import multer from 'multer';
 import path from 'path';
-import { getWallets, createWallet, updateWalletBalance, deleteWallet, uploadStatement, getStatementTransactions, approveTransaction, deleteStatement } from '../controllers/wallet.controller.js';
+import { getWallets, createWallet, updateWalletBalance, deleteWallet, uploadStatement, syncStatementBalance, getStatementTransactions, approveTransaction, deleteStatement, getAllTransactions, updateTransactionCategory, deleteTransaction, bulkApproveTransactions } from '../controllers/wallet.controller.js';
 import verifyToken from '../middleware/auth.middleware.js';
 import validate, { walletSchema } from '../middleware/validate.js';
 
@@ -51,8 +51,13 @@ router.post('/:walletId/statements/upload', (req, res, next) => {
     });
     next();
 }, uploadStatement);
+router.get('/:walletId/transactions', getAllTransactions);
 router.get('/:walletId/statements/:statementId/transactions', getStatementTransactions);
 router.post('/:walletId/statements/:statementId/transactions/:txId/approve', approveTransaction);
+router.put('/:walletId/statements/:statementId/transactions/:txId', updateTransactionCategory);
+router.delete('/:walletId/statements/:statementId/transactions/:txId', deleteTransaction);
+router.post('/:walletId/bulk-approve', bulkApproveTransactions);
+router.post('/:walletId/statements/:statementId/sync', syncStatementBalance);
 router.delete('/:walletId/statements/:statementId', deleteStatement);
 
 export default router;

@@ -2,7 +2,13 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import prisma from '../utils/prisma.js';
-import { sendOtpEmail } from '../utils/email.js';
+import { sendOtpEmail, sendVerificationEmail } from '../utils/email.js';
+
+const VERIFICATION_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+function generateVerificationToken() {
+    return crypto.randomBytes(32).toString('hex');
+}
 
 export const getAuthConfig = (req, res) => {
     res.json({ registrationEnabled: process.env.ALLOW_REGISTRATION !== 'false' });
@@ -20,41 +26,119 @@ export const register = async (req, res) => {
             return res.status(400).json({ message: 'All fields are required' });
         }
 
-        const existingUser = await prisma.user.findUnique({
-            where: { email }
-        });
-
+        const existingUser = await prisma.user.findUnique({ where: { email } });
         if (existingUser) {
             return res.status(400).json({ message: 'User with this email already exists' });
         }
 
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
+        const verificationToken = generateVerificationToken();
+        const verificationExpires = new Date(Date.now() + VERIFICATION_TTL_MS);
 
-        const user = await prisma.user.create({
-            data: {
-                name,
-                email,
-                password_hash: hashedPassword
-            },
-            select: {
-                id: true,
-                name: true,
-                email: true
-            }
+        // Use raw SQL so this works even before `prisma generate` picks up the new fields
+        const [user] = await prisma.$queryRaw`
+            INSERT INTO users (id, name, email, password_hash, email_verified, email_verification_token, email_verification_expires)
+            VALUES (gen_random_uuid(), ${name}, ${email}, ${hashedPassword}, false, ${verificationToken}, ${verificationExpires})
+            RETURNING id, name, email
+        `;
+
+        try {
+            await sendVerificationEmail(user.email, user.name, verificationToken);
+        } catch (emailError) {
+            console.error('Failed to send verification email:', emailError);
+        }
+
+        res.status(201).json({
+            message: 'Account created. Please check your email to confirm your address before logging in.',
+            email: user.email,
+            requiresVerification: true
         });
-
-        const token = jwt.sign(
-            { id: user.id, email: user.email },
-            process.env.JWT_SECRET,
-            { expiresIn: '7d' }
-        );
-
-        res.status(201).json({ user: { ...user, hasPin: false }, token });
 
     } catch (error) {
         console.error('Register Error:', error);
         res.status(500).json({ message: 'Server error during registration' });
+    }
+};
+
+export const verifyEmail = async (req, res) => {
+    try {
+        const { token } = req.body;
+        if (!token) return res.status(400).json({ message: 'Verification token is required' });
+
+        const rows = await prisma.$queryRaw`
+            SELECT id, email, email_verified, email_verification_expires
+            FROM users WHERE email_verification_token = ${token}
+            LIMIT 1
+        `;
+        const user = rows[0];
+
+        if (!user) {
+            return res.status(400).json({ message: 'Invalid or already-used verification link' });
+        }
+
+        if (user.email_verified) {
+            return res.json({ message: 'Email already verified. You can log in.', alreadyVerified: true });
+        }
+
+        if (!user.email_verification_expires || new Date() > new Date(user.email_verification_expires)) {
+            return res.status(400).json({
+                message: 'Verification link has expired. Please request a new one.',
+                expired: true,
+                email: user.email
+            });
+        }
+
+        await prisma.$executeRaw`
+            UPDATE users
+            SET email_verified = true,
+                email_verification_token = NULL,
+                email_verification_expires = NULL
+            WHERE id = ${user.id}::uuid
+        `;
+
+        res.json({ message: 'Email verified successfully. You can now log in.' });
+    } catch (error) {
+        console.error('Verify Email Error:', error);
+        res.status(500).json({ message: 'Server error verifying email' });
+    }
+};
+
+export const resendVerification = async (req, res) => {
+    try {
+        const { email } = req.body;
+        if (!email) return res.status(400).json({ message: 'Email is required' });
+
+        const rows = await prisma.$queryRaw`
+            SELECT id, name, email_verified FROM users WHERE email = ${email} LIMIT 1
+        `;
+        const user = rows[0];
+
+        const successMessage = 'If an unverified account exists for that email, a new link has been sent.';
+        if (!user || user.email_verified) {
+            return res.json({ message: successMessage });
+        }
+
+        const verificationToken = generateVerificationToken();
+        const verificationExpires = new Date(Date.now() + VERIFICATION_TTL_MS);
+
+        await prisma.$executeRaw`
+            UPDATE users
+            SET email_verification_token = ${verificationToken},
+                email_verification_expires = ${verificationExpires}
+            WHERE id = ${user.id}::uuid
+        `;
+
+        try {
+            await sendVerificationEmail(email, user.name, verificationToken);
+        } catch (emailError) {
+            console.error('Failed to resend verification email:', emailError);
+        }
+
+        res.json({ message: successMessage });
+    } catch (error) {
+        console.error('Resend Verification Error:', error);
+        res.status(500).json({ message: 'Server error resending verification email' });
     }
 };
 
@@ -83,6 +167,18 @@ export const login = async (req, res) => {
         const isMatch = await bcrypt.compare(password, user.password_hash);
         if (!isMatch) {
             return res.status(400).json({ message: 'Invalid email or password' });
+        }
+
+        // Block login if email is not verified
+        const verifiedRows = await prisma.$queryRaw`
+            SELECT email_verified FROM users WHERE id = ${user.id}::uuid LIMIT 1
+        `;
+        if (verifiedRows[0] && verifiedRows[0].email_verified === false) {
+            return res.status(403).json({
+                message: 'Please confirm your email address before logging in. Check your inbox for the verification link.',
+                requiresVerification: true,
+                email: user.email
+            });
         }
 
         // 3. Generate 6-digit OTP

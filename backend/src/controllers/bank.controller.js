@@ -244,10 +244,25 @@ export const uploadStatement = async (req, res) => {
             year = txDate.getFullYear();
         }
 
-        // Extract opening/closing balances from PDF text
-        const { opening: openingBalance, closing: closingBalance } = rawText
-            ? parseStatementBalances(rawText)
-            : { opening: null, closing: null };
+        // Extract balances: prefer per-row running balance column, fall back to summary lines
+        let openingBalance = null;
+        let closingBalance = null;
+
+        if (parsedTxs.length > 0) {
+            const withBalance = parsedTxs.filter(tx => tx.balance != null);
+            if (withBalance.length > 0) {
+                const sorted = [...withBalance].sort((a, b) => new Date(a.transaction_date) - new Date(b.transaction_date));
+                openingBalance = sorted[0].balance;
+                closingBalance = sorted[sorted.length - 1].balance;
+            }
+        }
+
+        // Fall back to summary-line parsing (e.g. "Closing Balance: 1,234.56")
+        if (closingBalance === null && rawText) {
+            const parsed = parseStatementBalances(rawText);
+            openingBalance = openingBalance ?? parsed.opening;
+            closingBalance = parsed.closing;
+        }
 
         console.log('[STATEMENT] Balances extracted — opening:', openingBalance, 'closing:', closingBalance);
 
@@ -531,11 +546,7 @@ export const deleteTransaction = async (req, res) => {
 export const updateTransactionCategory = async (req, res) => {
     try {
         const { bankId, txId } = req.params;
-        const { approvedCategory, notes } = req.body;
-
-        if (!approvedCategory) {
-            return res.status(400).json({ message: 'approvedCategory is required' });
-        }
+        const { approvedCategory, notes, transaction_type, amount } = req.body;
 
         const bank = await prisma.bank.findUnique({
             where: { id: bankId, user_id: req.user.id }
@@ -547,21 +558,65 @@ export const updateTransactionCategory = async (req, res) => {
         });
         if (!txLog) return res.status(404).json({ message: 'Transaction not found' });
 
-        // Update the transaction log
-        await prisma.bankTransactionLog.update({
-            where: { id: txId },
-            data: { approved_category: approvedCategory, notes: notes ?? txLog.notes }
-        });
+        const updateData = {};
 
-        // Update the linked expense if it exists
-        if (txLog.created_expense_id) {
-            await prisma.expense.update({
-                where: { id: txLog.created_expense_id },
-                data: { category: approvedCategory, notes: notes ?? txLog.notes }
-            });
+        // Apply category/notes if provided
+        if (approvedCategory) {
+            updateData.approved_category = approvedCategory;
+            updateData.suggested_category = approvedCategory;
+        }
+        if (notes !== undefined) updateData.notes = notes;
+
+        // Apply amount correction if provided
+        if (amount != null) {
+            const correctedAbs = Math.abs(Number(amount));
+            const isCredit = transaction_type
+                ? transaction_type === 'credit'
+                : Number(txLog.net_amount) > 0;
+            updateData.net_amount = isCredit ? correctedAbs : -correctedAbs;
+            updateData.debit_amount = isCredit ? null : correctedAbs;
+            updateData.credit_amount = isCredit ? correctedAbs : null;
         }
 
-        await recordUserCategory(req.user.id, txLog.description, approvedCategory);
+        // Apply type correction if requested (without amount — flips sign of existing amount)
+        if (transaction_type && amount == null) {
+            const currentIsCredit = Number(txLog.net_amount) > 0;
+            const wantsCredit = transaction_type === 'credit';
+
+            if (currentIsCredit !== wantsCredit) {
+                const absAmount = Math.abs(Number(txLog.net_amount));
+                updateData.net_amount = wantsCredit ? absAmount : -absAmount;
+                updateData.debit_amount = wantsCredit ? null : absAmount;
+                updateData.credit_amount = wantsCredit ? absAmount : null;
+
+                if (txLog.created_expense_id && wantsCredit) {
+                    await prisma.expense.deleteMany({
+                        where: { id: txLog.created_expense_id, user_id: req.user.id }
+                    });
+                    updateData.created_expense_id = null;
+                }
+            }
+        }
+
+        await prisma.bankTransactionLog.update({ where: { id: txId }, data: updateData });
+
+        // Sync linked expense category / notes / amount
+        if (txLog.created_expense_id) {
+            const expenseUpdate = {};
+            if (approvedCategory) expenseUpdate.category = approvedCategory;
+            if (notes !== undefined) expenseUpdate.notes = notes;
+            if (amount != null) expenseUpdate.amount = Math.abs(Number(amount));
+            if (Object.keys(expenseUpdate).length > 0) {
+                await prisma.expense.update({
+                    where: { id: txLog.created_expense_id },
+                    data: expenseUpdate
+                });
+            }
+        }
+
+        if (approvedCategory) {
+            await recordUserCategory(req.user.id, txLog.description, approvedCategory);
+        }
 
         res.json({ message: 'Transaction updated' });
     } catch (error) {
@@ -736,6 +791,87 @@ export const getCategorySummary = async (req, res) => {
         res.json({ summary: rows, total_approved: approved.length });
     } catch (err) {
         res.status(500).json({ message: 'Failed to fetch category summary' });
+    }
+};
+
+/**
+ * Re-parse a stored statement file and sync the closing balance to the bank
+ * POST /api/banks/:bankId/statements/:statementId/sync
+ */
+export const syncStatementBalance = async (req, res) => {
+    try {
+        const { bankId, statementId } = req.params;
+
+        const bank = await prisma.bank.findUnique({
+            where: { id: bankId, user_id: req.user.id }
+        });
+        if (!bank) return res.status(404).json({ message: 'Bank not found' });
+
+        const statement = await prisma.bankStatement.findUnique({
+            where: { id: statementId }
+        });
+        if (!statement || statement.bank_id !== bankId) {
+            return res.status(404).json({ message: 'Statement not found' });
+        }
+
+        if (!statement.file_path || !fs.existsSync(statement.file_path)) {
+            return res.status(400).json({ message: 'Statement file no longer exists on disk' });
+        }
+
+        const isCsvFile = statement.file_path.toLowerCase().endsWith('.csv');
+        let openingBalance = null;
+        let closingBalance = null;
+
+        if (isCsvFile) {
+            const parsedTxs = parseCsvTransactions(statement.file_path);
+            const withBalance = parsedTxs.filter(tx => tx.balance != null);
+            if (withBalance.length > 0) {
+                const sorted = [...withBalance].sort((a, b) => new Date(a.transaction_date) - new Date(b.transaction_date));
+                openingBalance = sorted[0].balance;
+                closingBalance = sorted[sorted.length - 1].balance;
+            }
+        } else {
+            const password = statement.password_encrypted
+                ? Buffer.from(statement.password_encrypted, 'base64').toString()
+                : undefined;
+            const { rawText } = await extractPdfText(statement.file_path, password);
+
+            const parsedTxs = rawText ? parseTransactions(rawText) : [];
+            const withBalance = parsedTxs.filter(tx => tx.balance != null);
+            if (withBalance.length > 0) {
+                const sorted = [...withBalance].sort((a, b) => new Date(a.transaction_date) - new Date(b.transaction_date));
+                openingBalance = sorted[0].balance;
+                closingBalance = sorted[sorted.length - 1].balance;
+            }
+
+            if (closingBalance === null && rawText) {
+                const parsed = parseStatementBalances(rawText);
+                openingBalance = openingBalance ?? parsed.opening;
+                closingBalance = parsed.closing;
+            }
+        }
+
+        if (closingBalance === null) {
+            return res.status(422).json({ message: 'Could not extract balance from this statement' });
+        }
+
+        await prisma.bankStatement.update({
+            where: { id: statementId },
+            data: {
+                closing_balance: closingBalance,
+                opening_balance: openingBalance !== null ? openingBalance : statement.opening_balance
+            }
+        });
+
+        await prisma.bank.update({
+            where: { id: bankId },
+            data: { current_balance: closingBalance }
+        });
+
+        res.json({ message: 'Balance synced', closingBalance, openingBalance });
+    } catch (error) {
+        console.error('Error syncing statement balance:', error);
+        res.status(500).json({ message: 'Failed to sync balance', error: error.message });
     }
 };
 

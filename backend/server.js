@@ -21,6 +21,7 @@ import dividendRoutes from './src/routes/dividend.routes.js';
 import roleRoutes from './src/routes/role.routes.js';
 import beneficiaryRoutes from './src/routes/beneficiary.routes.js';
 import chatRoutes from './src/routes/chat.routes.js';
+import menuVisibilityRoutes from './src/routes/menuVisibility.routes.js';
 import { initCronJobs } from './src/services/cron.service.js';
 
 dotenv.config();
@@ -51,7 +52,9 @@ const authLimiter = rateLimit({
     max: 10,
     message: 'Too many login attempts. Please try again later.',
     standardHeaders: true,
-    legacyHeaders: false
+    legacyHeaders: false,
+    // Skip rate limiting for GET /auth/me — it's a token validation check, not a login attempt
+    skip: (req) => req.method === 'GET' && req.path === '/me'
 });
 
 // Routes
@@ -74,6 +77,7 @@ app.use('/api/dividends', dividendRoutes);
 app.use('/api/roles', roleRoutes);
 app.use('/api/beneficiaries', beneficiaryRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/menu-visibility', menuVisibilityRoutes);
 
 // Root route / Health check
 app.get('/', (req, res) => {

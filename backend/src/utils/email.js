@@ -50,6 +50,62 @@ export const sendOtpEmail = async (to, otp) => {
 };
 
 /**
+ * Sends an account verification email after signup.
+ * @param {string} to - Recipient email address
+ * @param {string} name - Recipient display name
+ * @param {string} token - The opaque verification token
+ */
+export const sendVerificationEmail = async (to, name, token) => {
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const verifyLink = `${frontendUrl}/verify-email?token=${encodeURIComponent(token)}`;
+
+    if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
+        console.warn('⚠️ GMAIL_USER or GMAIL_APP_PASSWORD not set — verification email will not be sent.');
+        console.warn(`[DEV MODE] Verification link for ${to}: ${verifyLink}`);
+        return;
+    }
+
+    const mailOptions = {
+        from: `"FSWealth Axis" <${process.env.GMAIL_USER}>`,
+        to,
+        subject: 'Confirm your FSWealth Axis account',
+        html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #eaeaec; border-radius: 10px;">
+                <h2 style="color: #059669; text-align: center; margin-bottom: 8px;">FSWealth Axis</h2>
+                <p style="text-align: center; color: #6b7280; margin-top: 0;">Personal finance, sorted.</p>
+                <p style="font-size: 16px; color: #111827;">Hi ${name || 'there'},</p>
+                <p style="font-size: 15px; color: #374151; line-height: 1.6;">
+                    Welcome! Please confirm your email address to activate your account. This link will expire in <strong>24 hours</strong>.
+                </p>
+                <div style="text-align: center; margin: 32px 0;">
+                    <a href="${verifyLink}"
+                       style="display: inline-block; padding: 14px 32px; background-color: #059669; color: #ffffff;
+                              text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 15px;">
+                        Confirm my email
+                    </a>
+                </div>
+                <p style="font-size: 13px; color: #6b7280; word-break: break-all;">
+                    Or paste this URL into your browser:<br/>
+                    <a href="${verifyLink}" style="color: #059669;">${verifyLink}</a>
+                </p>
+                <hr style="border: none; border-top: 1px solid #eaeaec; margin: 24px 0;" />
+                <p style="font-size: 13px; color: #9ca3af; text-align: center;">
+                    Didn't sign up? You can safely ignore this email.
+                </p>
+            </div>
+        `
+    };
+
+    try {
+        await transporter.sendMail(mailOptions);
+        console.log(`Verification email sent to ${to}`);
+    } catch (error) {
+        console.error('Error sending verification email:', error);
+        throw new Error('Failed to send verification email');
+    }
+};
+
+/**
  * Sends a reminder email to a person about pending dues.
  * @param {string} to - Recipient email address
  * @param {string} personName - Name of the recipient

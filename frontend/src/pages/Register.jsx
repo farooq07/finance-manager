@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, TrendingUp, PieChart, Wallet, ShieldCheck, BarChart3, Landmark, UserPlus } from 'lucide-react';
+import { ArrowLeft, TrendingUp, PieChart, Wallet, ShieldCheck, BarChart3, Landmark, UserPlus, Mail, CheckCircle2 } from 'lucide-react';
 import logo from '../assets/logo.svg';
 
 /* ─── Bento Illustration Cards ─── */
@@ -70,7 +70,7 @@ const CircularProgress = ({ percent, color, label }) => {
 };
 
 export default function Register() {
-    const { register } = useAuth();
+    const { register, resendVerification } = useAuth();
 
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
@@ -78,6 +78,9 @@ export default function Register() {
 
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+    const [submittedEmail, setSubmittedEmail] = useState('');
+    const [resending, setResending] = useState(false);
+    const [resentNote, setResentNote] = useState('');
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -85,6 +88,7 @@ export default function Register() {
         setLoading(true);
         try {
             await register(name, email, password);
+            setSubmittedEmail(email);
         } catch (err) {
             const status = err.response?.status;
             const message = err.response?.data?.message;
@@ -95,6 +99,19 @@ export default function Register() {
             }
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleResend = async () => {
+        setResentNote('');
+        setResending(true);
+        try {
+            await resendVerification(submittedEmail);
+            setResentNote('A new verification link has been sent.');
+        } catch {
+            setResentNote('Could not resend right now. Please try again shortly.');
+        } finally {
+            setResending(false);
         }
     };
 
@@ -170,6 +187,50 @@ export default function Register() {
             <div className="w-full lg:w-[45%] xl:w-[42%] flex items-center justify-center p-6 sm:p-8 lg:p-12 bg-white dark:bg-gray-950 border-l border-gray-100 dark:border-gray-800">
                 <div className="w-full max-w-[420px]">
 
+                    {submittedEmail ? (
+                        /* ─── Email-sent success state ─── */
+                        <div className="text-center">
+                            <img src={logo} alt="WealthAxis Logo" className="h-10 w-auto mb-8 lg:hidden mx-auto" />
+                            <div className="mx-auto w-16 h-16 rounded-full bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center mb-6">
+                                <Mail className="w-8 h-8 text-emerald-600 dark:text-emerald-400" />
+                            </div>
+                            <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">
+                                Confirm your email
+                            </h1>
+                            <p className="mt-3 text-gray-500 dark:text-gray-400 text-sm leading-relaxed">
+                                We've sent a verification link to
+                                <br />
+                                <span className="font-semibold text-gray-900 dark:text-gray-100">{submittedEmail}</span>
+                            </p>
+                            <p className="mt-2 text-gray-400 dark:text-gray-500 text-xs">
+                                Click the link in your inbox to activate your account. The link expires in 24 hours.
+                            </p>
+
+                            {resentNote && (
+                                <div className="mt-5 inline-flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400">
+                                    <CheckCircle2 className="w-4 h-4" />
+                                    {resentNote}
+                                </div>
+                            )}
+
+                            <div className="mt-8 space-y-3">
+                                <button
+                                    onClick={handleResend}
+                                    disabled={resending}
+                                    className="w-full py-2.5 px-4 rounded-xl text-sm font-semibold text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 hover:bg-primary-100 dark:hover:bg-primary-900/30 border border-primary-200 dark:border-primary-800/40 transition-all disabled:opacity-50"
+                                >
+                                    {resending ? 'Sending…' : 'Resend verification email'}
+                                </button>
+                                <Link
+                                    to="/login"
+                                    className="block w-full py-2.5 px-4 rounded-xl text-sm font-semibold text-white bg-primary-600 hover:bg-primary-700 transition-all shadow-sm hover:shadow-md"
+                                >
+                                    Back to sign in
+                                </Link>
+                            </div>
+                        </div>
+                    ) : (
+                        <>
                     {/* Logo & Header */}
                     <div className="mb-10">
                         <img src={logo} alt="WealthAxis Logo" className="h-10 w-auto mb-8 lg:hidden" />
@@ -268,6 +329,8 @@ export default function Register() {
                     >
                         Sign in instead
                     </Link>
+                        </>
+                    )}
                 </div>
             </div>
         </div>

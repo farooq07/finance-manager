@@ -16,13 +16,27 @@ export const TOOL_DEFINITIONS = [
   },
   {
     name: 'getTransactionList',
-    description: 'Get a list of recent bank or wallet transactions. Use for questions like "show me my recent transactions" or "what did I spend on yesterday".',
+    description: 'Get a list of recent approved transactions from both bank accounts and wallets. Use for "show me my recent transactions", "what did I spend on yesterday", or "show debit transactions".',
     parameters: {
       type: 'object',
       properties: {
         limit: { type: 'number', description: 'Number of transactions to return (default 10, max 50).' },
         type: { type: 'string', description: '"debit" for outgoing, "credit" for incoming, or omit for both.' },
-        days: { type: 'number', description: 'How many past days to include. Default 30.' }
+        days: { type: 'number', description: 'How many past days to include. Default 30.' },
+        source: { type: 'string', description: '"bank" for bank-only, "wallet" for wallet-only, or omit for both.' }
+      },
+      required: []
+    }
+  },
+  {
+    name: 'getWalletTransactions',
+    description: 'Get approved transactions from wallet accounts (EasyPaisa, JazzCash, NayaPay, etc). Use when user specifically asks about wallet or mobile money transactions.',
+    parameters: {
+      type: 'object',
+      properties: {
+        limit: { type: 'number', description: 'Number of transactions to return (default 10, max 50).' },
+        days: { type: 'number', description: 'How many past days to include. Default 30.' },
+        type: { type: 'string', description: '"debit" for outgoing, "credit" for incoming.' }
       },
       required: []
     }
@@ -170,25 +184,61 @@ export async function executeTool(toolName, args, userId) {
       const since = new Date();
       since.setDate(since.getDate() - (args.days || 30));
       const limit = Math.min(args.limit || 10, 50);
+      const amountFilter = args.type === 'debit' ? { lt: 0 } : args.type === 'credit' ? { gt: 0 } : undefined;
 
-      const where = {
-        bank_statement: { bank: { user_id: userId } },
-        transaction_date: { gte: since },
-        user_approved: true
-      };
-      if (args.type === 'debit') where.net_amount = { lt: 0 };
-      if (args.type === 'credit') where.net_amount = { gt: 0 };
+      const [bankTxns, walletTxns] = await Promise.all([
+        args.source === 'wallet' ? [] : prisma.bankTransactionLog.findMany({
+          where: {
+            bank_statement: { bank: { user_id: userId } },
+            transaction_date: { gte: since },
+            user_approved: true,
+            ...(amountFilter ? { net_amount: amountFilter } : {})
+          },
+          orderBy: { transaction_date: 'desc' },
+          take: limit,
+          select: { transaction_date: true, description: true, net_amount: true, approved_category: true }
+        }),
+        args.source === 'bank' ? [] : prisma.walletTransactionLog.findMany({
+          where: {
+            wallet_statement: { wallet: { user_id: userId } },
+            transaction_date: { gte: since },
+            user_approved: true,
+            ...(amountFilter ? { net_amount: amountFilter } : {})
+          },
+          orderBy: { transaction_date: 'desc' },
+          take: limit,
+          select: { transaction_date: true, description: true, net_amount: true, approved_category: true }
+        })
+      ]);
 
-      const txns = await prisma.bankTransactionLog.findMany({
-        where,
+      return [...bankTxns, ...walletTxns]
+        .sort((a, b) => new Date(b.transaction_date) - new Date(a.transaction_date))
+        .slice(0, limit)
+        .map(t => ({
+          date: t.transaction_date,
+          description: t.description,
+          amount: Math.abs(Number(t.net_amount)),
+          type: Number(t.net_amount) < 0 ? 'debit' : 'credit',
+          category: t.approved_category
+        }));
+    }
+
+    case 'getWalletTransactions': {
+      const since = new Date();
+      since.setDate(since.getDate() - (args.days || 30));
+      const limit = Math.min(args.limit || 10, 50);
+      const amountFilter = args.type === 'debit' ? { lt: 0 } : args.type === 'credit' ? { gt: 0 } : undefined;
+
+      const txns = await prisma.walletTransactionLog.findMany({
+        where: {
+          wallet_statement: { wallet: { user_id: userId } },
+          transaction_date: { gte: since },
+          user_approved: true,
+          ...(amountFilter ? { net_amount: amountFilter } : {})
+        },
         orderBy: { transaction_date: 'desc' },
         take: limit,
-        select: {
-          transaction_date: true,
-          description: true,
-          net_amount: true,
-          approved_category: true
-        }
+        select: { transaction_date: true, description: true, net_amount: true, approved_category: true }
       });
 
       return txns.map(t => ({

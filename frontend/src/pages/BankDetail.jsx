@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { useBank, useBankCategorySummary } from '../hooks/useBanks';
 import { useBankAllTransactions } from '../hooks/useStatementTransactions';
 import { fmtPKR } from '../utils/currency';
-import { ArrowLeft, UploadCloud, AlertCircle, Loader2, X, Trash2, TrendingUp, TrendingDown, BarChart3, ChevronsUpDown } from 'lucide-react';
+import { ArrowLeft, UploadCloud, AlertCircle, Loader2, X, Trash2, TrendingUp, TrendingDown, BarChart3, ChevronsUpDown, RefreshCw } from 'lucide-react';
 import { Skeleton, TableSkeleton } from '../components/Skeleton';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../services/api';
@@ -50,6 +50,22 @@ export default function BankDetail() {
         }
         deleteStatementMutation.mutate(statementId);
     };
+
+    // Sync statement balance mutation
+    const syncBalanceMutation = useMutation({
+        mutationFn: async (statementId) => {
+            const { data } = await api.post(`/banks/${id}/statements/${statementId}/sync`);
+            return data;
+        },
+        onSuccess: (data) => {
+            queryClient.invalidateQueries({ queryKey: ['banks', id] });
+            queryClient.invalidateQueries({ queryKey: ['banks'] });
+            toast.success(`Balance synced — ${fmtPKR(data.closingBalance)}`);
+        },
+        onError: (error) => {
+            toast.error(error.response?.data?.message || 'Failed to sync balance');
+        }
+    });
 
     // Upload statement mutation
     const uploadStatementMutation = useMutation({
@@ -243,6 +259,14 @@ export default function BankDetail() {
                                             Review Transactions
                                         </button>
                                         <button
+                                            onClick={() => syncBalanceMutation.mutate(statement.id)}
+                                            disabled={syncBalanceMutation.isPending && syncBalanceMutation.variables === statement.id}
+                                            className="px-3 py-2 text-sm bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors disabled:opacity-50"
+                                            title="Sync balance from this statement"
+                                        >
+                                            <RefreshCw className={`w-4 h-4 ${syncBalanceMutation.isPending && syncBalanceMutation.variables === statement.id ? 'animate-spin' : ''}`} />
+                                        </button>
+                                        <button
                                             onClick={() => handleDeleteStatement(statement.id, `${statement.month} ${statement.year}`)}
                                             disabled={deleteStatementMutation.isPending}
                                             className="px-3 py-2 text-sm bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors disabled:opacity-50"
@@ -257,6 +281,11 @@ export default function BankDetail() {
                     )}
                 </div>
             </div>
+
+            {/* Category Breakdown */}
+            {categorySummaryData?.total_approved > 0 && (
+                <CategoryBreakdown data={categorySummaryData} />
+            )}
 
             {/* All Transactions Table */}
             {(txLoading || allTransactions.length > 0) && (
@@ -279,11 +308,6 @@ export default function BankDetail() {
                         />
                     )}
                 </div>
-            )}
-
-            {/* Category Breakdown */}
-            {categorySummaryData?.total_approved > 0 && (
-                <CategoryBreakdown data={categorySummaryData} />
             )}
 
             {/* Statement Transactions Modal */}
@@ -347,26 +371,26 @@ export default function BankDetail() {
 
 // Category icons & colors
 const CATEGORY_META = {
-    'ATM Withdrawal':   { icon: '🏧', color: 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border-red-100 dark:border-red-800/40' },
-    'Salary':           { icon: '💼', color: 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-800/40' },
-    'Profit/Dividend':  { icon: '📈', color: 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 border-green-100 dark:border-green-800/40' },
-    'Transfer':         { icon: '↔️', color: 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-blue-100 dark:border-blue-800/40' },
-    'Bank Charges':     { icon: '🏦', color: 'bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 border-orange-100 dark:border-orange-800/40' },
-    'Food & Dining':    { icon: '🍽️', color: 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-600 dark:text-yellow-400 border-yellow-100 dark:border-yellow-800/40' },
-    'Groceries':        { icon: '🛒', color: 'bg-lime-50 dark:bg-lime-900/20 text-lime-600 dark:text-lime-400 border-lime-100 dark:border-lime-800/40' },
-    'Utilities':        { icon: '⚡', color: 'bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 border-amber-100 dark:border-amber-800/40' },
-    'Transportation':   { icon: '🚗', color: 'bg-sky-50 dark:bg-sky-900/20 text-sky-600 dark:text-sky-400 border-sky-100 dark:border-sky-800/40' },
-    'Shopping':         { icon: '🛍️', color: 'bg-pink-50 dark:bg-pink-900/20 text-pink-600 dark:text-pink-400 border-pink-100 dark:border-pink-800/40' },
-    'Entertainment':    { icon: '🎬', color: 'bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 border-purple-100 dark:border-purple-800/40' },
-    'Healthcare':       { icon: '💊', color: 'bg-teal-50 dark:bg-teal-900/20 text-teal-600 dark:text-teal-400 border-teal-100 dark:border-teal-800/40' },
-    'Investment':       { icon: '💰', color: 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 border-indigo-100 dark:border-indigo-800/40' },
-    'Other':            { icon: '📦', color: 'bg-gray-50 dark:bg-neutral-800 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-neutral-700' },
+    'ATM Withdrawal': { icon: '🏧', color: 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border-red-100 dark:border-red-800/40' },
+    'Salary': { icon: '💼', color: 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-800/40' },
+    'Profit/Dividend': { icon: '📈', color: 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 border-green-100 dark:border-green-800/40' },
+    'Transfer': { icon: '↔️', color: 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-blue-100 dark:border-blue-800/40' },
+    'Bank Charges': { icon: '🏦', color: 'bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 border-orange-100 dark:border-orange-800/40' },
+    'Food & Dining': { icon: '🍽️', color: 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-600 dark:text-yellow-400 border-yellow-100 dark:border-yellow-800/40' },
+    'Groceries': { icon: '🛒', color: 'bg-lime-50 dark:bg-lime-900/20 text-lime-600 dark:text-lime-400 border-lime-100 dark:border-lime-800/40' },
+    'Utilities': { icon: '⚡', color: 'bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 border-amber-100 dark:border-amber-800/40' },
+    'Transportation': { icon: '🚗', color: 'bg-sky-50 dark:bg-sky-900/20 text-sky-600 dark:text-sky-400 border-sky-100 dark:border-sky-800/40' },
+    'Shopping': { icon: '🛍️', color: 'bg-pink-50 dark:bg-pink-900/20 text-pink-600 dark:text-pink-400 border-pink-100 dark:border-pink-800/40' },
+    'Entertainment': { icon: '🎬', color: 'bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 border-purple-100 dark:border-purple-800/40' },
+    'Healthcare': { icon: '💊', color: 'bg-teal-50 dark:bg-teal-900/20 text-teal-600 dark:text-teal-400 border-teal-100 dark:border-teal-800/40' },
+    'Investment': { icon: '💰', color: 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 border-indigo-100 dark:border-indigo-800/40' },
+    'Other': { icon: '📦', color: 'bg-gray-50 dark:bg-neutral-800 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-neutral-700' },
 };
 
 function CategoryBreakdown({ data }) {
     const { summary = [], total_approved } = data;
 
-    const totalDebits  = summary.reduce((s, r) => s + r.debits, 0);
+    const totalDebits = summary.reduce((s, r) => s + r.debits, 0);
     const totalCredits = summary.reduce((s, r) => s + r.credits, 0);
 
     return (

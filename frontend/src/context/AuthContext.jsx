@@ -42,9 +42,20 @@ export const AuthProvider = ({ children }) => {
     };
 
     const register = async (name, email, password) => {
+        // After signup the user must confirm via email before they can log in.
+        // No token is returned — caller should show a "check your email" screen.
         const { data } = await api.post('/auth/register', { name, email, password });
-        localStorage.setItem('token', data.token);
-        setUser(data.user);
+        return data;
+    };
+
+    const resendVerification = async (email) => {
+        const { data } = await api.post('/auth/resend-verification', { email });
+        return data;
+    };
+
+    const verifyEmail = async (token) => {
+        const { data } = await api.post('/auth/verify-email', { token });
+        return data;
     };
 
     const forgotPassword = async (email) => {
@@ -63,7 +74,7 @@ export const AuthProvider = ({ children }) => {
     };
 
     return (
-        <AuthContext.Provider value={{ user, loading, login, verifyOtp, register, forgotPassword, resetPassword, logout, refreshUser }}>
+        <AuthContext.Provider value={{ user, loading, login, verifyOtp, register, verifyEmail, resendVerification, forgotPassword, resetPassword, logout, refreshUser }}>
             {!loading && children}
         </AuthContext.Provider>
     );

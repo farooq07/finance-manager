@@ -11,6 +11,7 @@ import {
     updateBankBalance,
     deleteBank,
     uploadStatement,
+    syncStatementBalance,
     getAllTransactions,
     getStatementTransactions,
     approveTransaction,
@@ -78,6 +79,7 @@ router.post('/:bankId/statements/:statementId/transactions/:txId/approve', appro
 router.put('/:bankId/statements/:statementId/transactions/:txId', updateTransactionCategory);
 router.delete('/:bankId/statements/:statementId/transactions/:txId', deleteTransaction);
 router.post('/:bankId/bulk-approve', bulkApproveTransactions);
+router.post('/:bankId/statements/:statementId/sync', syncStatementBalance);
 router.delete('/:bankId/statements/:statementId', deleteStatement);
 
 export default router;

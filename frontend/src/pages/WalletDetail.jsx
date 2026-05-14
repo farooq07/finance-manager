@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useWallets } from '../hooks/useWallets';
 import { fmtPKR } from '../utils/currency';
-import { ArrowLeft, UploadCloud, Loader2, Trash2 } from 'lucide-react';
+import { ArrowLeft, UploadCloud, Loader2, Trash2, RefreshCw } from 'lucide-react';
 import api from '../services/api';
 import { toast } from 'sonner';
 import Button from '../components/Button';
@@ -46,6 +46,20 @@ export default function WalletDetail() {
             );
         },
         enabled: !!wallet
+    });
+
+    const syncBalanceMutation = useMutation({
+        mutationFn: async (statementId) => {
+            const { data } = await api.post(`/wallets/${id}/statements/${statementId}/sync`);
+            return data;
+        },
+        onSuccess: (data) => {
+            queryClient.invalidateQueries({ queryKey: ['wallets'] });
+            toast.success(`Balance synced — ${fmtPKR(data.closingBalance)}`);
+        },
+        onError: (error) => {
+            toast.error(error.response?.data?.message || 'Failed to sync balance');
+        }
     });
 
     const deleteStatementMutation = useMutation({
@@ -217,6 +231,14 @@ export default function WalletDetail() {
                                             className="flex-1 px-3 py-2 text-sm bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 rounded hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors font-medium"
                                         >
                                             Review Transactions
+                                        </button>
+                                        <button
+                                            onClick={() => syncBalanceMutation.mutate(statement.id)}
+                                            disabled={syncBalanceMutation.isPending && syncBalanceMutation.variables === statement.id}
+                                            className="px-3 py-2 text-sm bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors disabled:opacity-50"
+                                            title="Sync balance from this statement"
+                                        >
+                                            <RefreshCw className={`w-4 h-4 ${syncBalanceMutation.isPending && syncBalanceMutation.variables === statement.id ? 'animate-spin' : ''}`} />
                                         </button>
                                         <button
                                             onClick={() => handleDeleteStatement(statement.id, `${statement.month} ${statement.year}`)}

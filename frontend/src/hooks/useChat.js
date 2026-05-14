@@ -37,3 +37,33 @@ export const useSendMessage = (sessionId) => {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['chat-sessions', sessionId] })
   });
 };
+
+// ── Document (RAG) hooks ─────────────────────────────────────────────────────
+
+export const useDocuments = () =>
+  useQuery({
+    queryKey: ['chat-documents'],
+    queryFn: () => api.get('/chat/documents').then(r => r.data)
+  });
+
+export const useUploadDocument = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (file) => {
+      const form = new FormData();
+      form.append('file', file);
+      return api.post('/chat/documents/upload', form, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      }).then(r => r.data);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['chat-documents'] })
+  });
+};
+
+export const useDeleteDocument = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (docId) => api.delete(`/chat/documents/${docId}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['chat-documents'] })
+  });
+};

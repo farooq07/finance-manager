@@ -6,27 +6,18 @@ import logo from '../assets/logo.svg';
 import logosm from '../assets/logosm.svg';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '@/components/ui/button';
+import { useQuery } from '@tanstack/react-query';
+import api from '../services/api';
 
-const baseNavItems = [
-    { name: 'Dashboard', path: '/', icon: Home },
-    { name: 'Accounts', path: '/accounts', icon: Wallet },
-    { name: 'Expenses', path: '/expenses', icon: Receipt },
-    { name: 'Mutual Funds', path: '/mutual-funds', icon: TrendingUp },
-    { name: 'Stocks', path: '/stocks', icon: BarChart2 },
-    { name: 'Dues Ledger', path: '/dues', icon: Users },
-    { name: 'Beneficiaries', path: '/beneficiaries', icon: Contact },
-    { name: 'Rent Tracker', path: '/rents', icon: Building },
-    { name: 'Zakat', path: '/zakat', icon: HeartHandshake },
-    { name: 'Physical Assets', path: '/assets', icon: Box },
-    { name: 'AI Assistant', path: '/assistant', icon: MessageSquare },
-    { name: 'Reports', path: '/reports', icon: FileText },
-    { name: 'Settings', path: '/settings', icon: Settings },
-    { name: 'Design System', path: '/design-system', icon: Layers },
-];
+// Map of icon names (from DB) → lucide components
+const ICONS = {
+    Home, Receipt, TrendingUp, BarChart2, Users, FileText, Building, Wallet,
+    Settings, Layers, HeartHandshake, Box, Shield, Contact, MessageSquare
+};
 
 const adminNavItems = [
-    { name: 'Users', path: '/users', icon: Users, adminOnly: true },
-    { name: 'Roles', path: '/roles', icon: Shield, adminOnly: true },
+    { name: 'Users', path: '/users', icon: Users },
+    { name: 'Roles', path: '/roles', icon: Shield },
 ];
 
 export default function Sidebar() {
@@ -34,9 +25,27 @@ export default function Sidebar() {
     const { user } = useAuth();
     const [isExpanded, setIsExpanded] = useState(true);
 
-    // Provide a small hint of animation after mount to prevent layout thrashing on load
     const [mounted, setMounted] = useState(false);
     useEffect(() => { setMounted(true); }, []);
+
+    // Fetch menu visibility config from the backend
+    const { data: menuItems = [] } = useQuery({
+        queryKey: ['menu-visibility'],
+        queryFn: () => api.get('/menu-visibility').then(r => r.data),
+        staleTime: 60_000,
+        enabled: !!user,
+    });
+
+    const isAdmin = ['admin', 'super.admin'].includes(user?.role);
+
+    // Filter items: admins see everything; regular users only see visible_to_user items
+    const baseNavItems = menuItems
+        .filter(item => isAdmin || item.visible_to_user)
+        .map(item => ({
+            name: item.name,
+            path: item.path,
+            icon: ICONS[item.icon] || Home,
+        }));
 
     return (
         <aside className={clsx(
@@ -64,9 +73,7 @@ export default function Sidebar() {
             {/* Navigation */}
             <nav className="flex-1 flex flex-col gap-1 w-full px-2 mt-2">
                 {(() => {
-                    const allItems = baseNavItems.concat(
-                        ['admin', 'super.admin'].includes(user?.role) ? adminNavItems : []
-                    );
+                    const allItems = baseNavItems.concat(isAdmin ? adminNavItems : []);
                     return allItems.map((item) => {
                         const isActive = location.pathname === item.path ||
                             (item.path !== '/' && location.pathname.startsWith(item.path));

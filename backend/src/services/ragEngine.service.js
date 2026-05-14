@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import Groq from 'groq-sdk';
 import { TOOL_DEFINITIONS, GROQ_TOOL_DEFINITIONS, executeTool } from './financialTools.js';
+import { searchChunks } from './documentProcessor.service.js';
 import prisma from '../utils/prisma.js';
 
 // ---------------------------------------------------------------------------
@@ -38,24 +39,34 @@ function getProvider() {
 
 const TODAY = () => new Date().toLocaleDateString('en-PK', { year: 'numeric', month: 'long', day: 'numeric' });
 
-const SYSTEM_PROMPT = `You are a personal finance assistant. All monetary amounts are in PKR (Pakistani Rupees) unless stated otherwise. Today is {DATE}.
+const BASE_SYSTEM_PROMPT = `You are a personal finance assistant. All monetary amounts are in PKR (Pakistani Rupees) unless stated otherwise. Today is {DATE}.
 
 RULES:
-- Answer ONLY using the data returned by the tools — never invent or estimate numbers.
+- Answer ONLY using the data returned by the tools or the document excerpts provided — never invent or estimate numbers.
 - Always mention the time period the data covers.
 - Format PKR amounts with commas: PKR 1,23,456.
 - If asked something the tools cannot answer, say so clearly and suggest what the user could do.
 - Keep answers concise. Use bullet points for lists of items.
-- When referencing percentages, round to 2 decimal places.`;
+- When referencing percentages, round to 2 decimal places.
+{DOCUMENT_CONTEXT}`;
+
+function buildSystemPrompt(docContext) {
+  const contextSection = docContext
+    ? `\nRELEVANT DOCUMENT EXCERPTS (use these to answer document-specific questions):\n${docContext}`
+    : '';
+  return BASE_SYSTEM_PROMPT
+    .replace('{DATE}', TODAY())
+    .replace('{DOCUMENT_CONTEXT}', contextSection);
+}
 
 // ---------------------------------------------------------------------------
 // Gemini provider
 // ---------------------------------------------------------------------------
-async function chatWithGemini(history, userMessage) {
+async function chatWithGemini(history, userMessage, systemPrompt) {
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
   const model = genAI.getGenerativeModel({
     model: GEMINI_MODEL,
-    systemInstruction: SYSTEM_PROMPT.replace('{DATE}', TODAY()),
+    systemInstruction: systemPrompt,
     tools: [{ functionDeclarations: TOOL_DEFINITIONS }]
   });
 
@@ -89,9 +100,9 @@ async function geminiTurn2(session, toolName, toolData) {
 // ---------------------------------------------------------------------------
 // Groq / OpenAI-compatible provider (same code path, different client)
 // ---------------------------------------------------------------------------
-async function chatWithOpenAICompat(client, model, history, userMessage) {
+async function chatWithOpenAICompat(client, model, history, userMessage, systemPrompt) {
   const messages = [
-    { role: 'system', content: SYSTEM_PROMPT.replace('{DATE}', TODAY()) },
+    { role: 'system', content: systemPrompt },
     ...history.map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content })),
     { role: 'user', content: userMessage }
   ];
@@ -158,17 +169,32 @@ export async function chat(userId, sessionId, userMessage) {
     data: { session_id: sessionId, role: 'user', content: userMessage }
   });
 
+  // Search user's uploaded documents for relevant context
+  let docContext = '';
+  try {
+    const relevantChunks = await searchChunks(userId, userMessage, 5);
+    if (relevantChunks.length > 0) {
+      docContext = relevantChunks
+        .map((c, i) => `[${i + 1}] From "${c.filename}" (similarity ${Number(c.similarity).toFixed(2)}):\n${c.content}`)
+        .join('\n\n');
+    }
+  } catch {
+    // pgvector not available or no documents — proceed without context
+  }
+
+  const systemPrompt = buildSystemPrompt(docContext);
+
   let turn1;
   if (provider === 'gemini') {
-    turn1 = await chatWithGemini(history, userMessage);
+    turn1 = await chatWithGemini(history, userMessage, systemPrompt);
   } else if (provider === 'groq') {
     const client = new Groq({ apiKey: process.env.GROQ_API_KEY });
-    turn1 = await chatWithOpenAICompat(client, GROQ_MODEL, history, userMessage);
+    turn1 = await chatWithOpenAICompat(client, GROQ_MODEL, history, userMessage, systemPrompt);
   } else if (provider === 'openai') {
     // Dynamic import so openai package is optional
     const { default: OpenAI } = await import('openai');
     const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-    turn1 = await chatWithOpenAICompat(client, OPENAI_MODEL, history, userMessage);
+    turn1 = await chatWithOpenAICompat(client, OPENAI_MODEL, history, userMessage, systemPrompt);
   }
 
   let toolName = turn1.toolName;

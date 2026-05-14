@@ -8,6 +8,8 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import ForgotPassword from './pages/ForgotPassword';
 import OTPVerification from './pages/OTPVerification';
+import VerifyEmail from './pages/VerifyEmail';
+import Landing from './pages/Landing';
 import Dashboard from './pages/Dashboard';
 import Expenses from './pages/Expenses';
 import MutualFunds from './pages/MutualFunds';
@@ -33,7 +35,7 @@ import AiAssistant from './pages/AiAssistant';
 
 const ProtectedRoute = ({ children }) => {
   const { user } = useAuth();
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user) return <Navigate to="/welcome" replace />;
   if (user.must_change_password) return <Navigate to="/change-password" replace />;
   return children;
 };
@@ -63,6 +65,8 @@ function App() {
             <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
             <Route path="/forgot-password" element={<PublicRoute><ForgotPassword /></PublicRoute>} />
             <Route path="/verify-otp" element={<PublicRoute><OTPVerification /></PublicRoute>} />
+            <Route path="/verify-email" element={<VerifyEmail />} />
+            <Route path="/welcome" element={<PublicRoute><Landing /></PublicRoute>} />
             <Route path="/change-password" element={<ChangeFirstPassword />} />
 
             <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>

@@ -25,6 +25,10 @@ export default function BankTransactionsTable({ bankId, transactions = [] }) {
     const [editingApprovedId, setEditingApprovedId] = useState(null);
     const [editCategory, setEditCategory] = useState('');
     const [editNotes, setEditNotes] = useState('');
+    const [editType, setEditType] = useState('');
+    const [editAmount, setEditAmount] = useState('');
+    const [pendingTypeOverrides, setPendingTypeOverrides] = useState({});
+    const [pendingAmountOverrides, setPendingAmountOverrides] = useState({});
 
     const TypeBadge = ({ tx }) => {
         const isCredit = Number(tx.net_amount) > 0 || (tx.credit_amount && !tx.debit_amount);
@@ -54,6 +58,22 @@ export default function BankTransactionsTable({ bankId, transactions = [] }) {
         const tx = transactions.find(t => t.id === txId);
         if (!tx) return;
         try {
+            const typeOverride = pendingTypeOverrides[txId];
+            const amountOverride = pendingAmountOverrides[txId];
+            const currentType = Number(tx.net_amount) > 0 ? 'credit' : 'debit';
+            const currentAbs = Math.abs(Number(tx.net_amount));
+            const typeChanged = typeOverride && typeOverride !== currentType;
+            const amountChanged = amountOverride != null && parseFloat(amountOverride) !== currentAbs;
+
+            if (typeChanged || amountChanged) {
+                await updateMutation.mutateAsync({
+                    bankId,
+                    statementId: tx.bank_statement_id,
+                    txId,
+                    transaction_type: typeChanged ? typeOverride : undefined,
+                    amount: amountChanged ? parseFloat(amountOverride) : undefined
+                });
+            }
             await approveMutation.mutateAsync({
                 bankId,
                 statementId: tx.bank_statement_id,
@@ -63,6 +83,8 @@ export default function BankTransactionsTable({ bankId, transactions = [] }) {
             });
             setCategoryOverrides(prev => { const n = { ...prev }; delete n[txId]; return n; });
             setNotesOverrides(prev => { const n = { ...prev }; delete n[txId]; return n; });
+            setPendingTypeOverrides(prev => { const n = { ...prev }; delete n[txId]; return n; });
+            setPendingAmountOverrides(prev => { const n = { ...prev }; delete n[txId]; return n; });
             setExpandedTxId(null);
             toast.success('Transaction approved');
         } catch (error) {
@@ -110,16 +132,23 @@ export default function BankTransactionsTable({ bankId, transactions = [] }) {
         setEditingApprovedId(tx.id);
         setEditCategory(tx.approved_category || tx.suggested_category || 'Other');
         setEditNotes(tx.notes || '');
+        setEditType(Number(tx.net_amount) > 0 ? 'credit' : 'debit');
+        setEditAmount(String(Math.abs(Number(tx.net_amount))));
     };
 
     const handleSaveEdit = async (tx) => {
         try {
+            const currentType = Number(tx.net_amount) > 0 ? 'credit' : 'debit';
+            const currentAbs = Math.abs(Number(tx.net_amount));
+            const newAbs = parseFloat(editAmount);
             await updateMutation.mutateAsync({
                 bankId,
                 statementId: tx.bank_statement_id,
                 txId: tx.id,
                 approvedCategory: editCategory,
-                notes: editNotes || null
+                notes: editNotes || null,
+                transaction_type: editType !== currentType ? editType : undefined,
+                amount: !isNaN(newAbs) && newAbs !== currentAbs ? newAbs : undefined
             });
             setEditingApprovedId(null);
             toast.success('Category updated');
@@ -324,6 +353,41 @@ export default function BankTransactionsTable({ bankId, transactions = [] }) {
                                             <tr className="bg-gray-50 dark:bg-neutral-800/50 border-b border-gray-200 dark:border-gray-700">
                                                 <td colSpan="8" className="px-4 py-4">
                                                     <div className="flex flex-wrap gap-3 items-end">
+                                                        <div>
+                                                            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Transaction Type</label>
+                                                            <div className="flex rounded-lg overflow-hidden border border-gray-300 dark:border-gray-600 text-sm">
+                                                                {['debit', 'credit'].map(t => {
+                                                                    const current = pendingTypeOverrides[tx.id] ?? (Number(tx.net_amount) > 0 ? 'credit' : 'debit');
+                                                                    const active = current === t;
+                                                                    return (
+                                                                        <button
+                                                                            key={t}
+                                                                            type="button"
+                                                                            onClick={() => setPendingTypeOverrides(prev => ({ ...prev, [tx.id]: t }))}
+                                                                            className={`px-3 py-2 capitalize font-medium transition-colors ${active
+                                                                                ? t === 'credit'
+                                                                                    ? 'bg-emerald-600 text-white'
+                                                                                    : 'bg-red-500 text-white'
+                                                                                : 'bg-white dark:bg-neutral-900 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-neutral-700'
+                                                                            }`}
+                                                                        >
+                                                                            {t}
+                                                                        </button>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        </div>
+                                                        <div className="w-36">
+                                                            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Amount (PKR)</label>
+                                                            <input
+                                                                type="number"
+                                                                min="0"
+                                                                step="0.01"
+                                                                value={pendingAmountOverrides[tx.id] ?? Math.abs(Number(tx.net_amount))}
+                                                                onChange={(e) => setPendingAmountOverrides(prev => ({ ...prev, [tx.id]: e.target.value }))}
+                                                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-neutral-900 text-gray-900 dark:text-gray-100"
+                                                            />
+                                                        </div>
                                                         <div className="flex-1 min-w-[180px]">
                                                             <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Category</label>
                                                             <select
@@ -440,6 +504,40 @@ export default function BankTransactionsTable({ bankId, transactions = [] }) {
                                             <tr className="bg-green-100/60 dark:bg-green-900/20 border-b border-green-200 dark:border-green-800">
                                                 <td colSpan="7" className="px-4 py-4">
                                                     <div className="flex flex-wrap gap-3 items-end">
+                                                        <div>
+                                                            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Transaction Type</label>
+                                                            <div className="flex rounded-lg overflow-hidden border border-gray-300 dark:border-gray-600 text-sm">
+                                                                {['debit', 'credit'].map(t => {
+                                                                    const active = editType === t;
+                                                                    return (
+                                                                        <button
+                                                                            key={t}
+                                                                            type="button"
+                                                                            onClick={() => setEditType(t)}
+                                                                            className={`px-3 py-2 capitalize font-medium transition-colors ${active
+                                                                                ? t === 'credit'
+                                                                                    ? 'bg-emerald-600 text-white'
+                                                                                    : 'bg-red-500 text-white'
+                                                                                : 'bg-white dark:bg-neutral-900 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-neutral-700'
+                                                                            }`}
+                                                                        >
+                                                                            {t}
+                                                                        </button>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        </div>
+                                                        <div className="w-36">
+                                                            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Amount (PKR)</label>
+                                                            <input
+                                                                type="number"
+                                                                min="0"
+                                                                step="0.01"
+                                                                value={editAmount}
+                                                                onChange={(e) => setEditAmount(e.target.value)}
+                                                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-neutral-900 text-gray-900 dark:text-gray-100"
+                                                            />
+                                                        </div>
                                                         <div className="flex-1 min-w-[180px]">
                                                             <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Category</label>
                                                             <select

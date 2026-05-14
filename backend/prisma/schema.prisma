@@ -1,11 +1,13 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  directUrl  = env("DIRECT_URL")
+  extensions = [vector]
 }
 
 model User {
@@ -18,6 +20,9 @@ model User {
   otp_code            String?             @db.VarChar(6)
   otp_expires_at      DateTime?           @db.Timestamptz(6)
   must_change_password Boolean            @default(false)
+  email_verified      Boolean             @default(false)
+  email_verification_token String?        @db.VarChar(128)
+  email_verification_expires DateTime?    @db.Timestamptz(6)
   created_at          DateTime            @default(now()) @db.Timestamptz(6)
   expenses            Expense[]
   mutual_funds        MutualFund[]
@@ -40,8 +45,22 @@ model User {
   category_cache      CategoryCache[]
   beneficiaries       Beneficiary[]
   chat_sessions       ChatSession[]
+  chat_documents      ChatDocument[]
 
   @@map("users")
+}
+
+// Controls which sidebar menu items are visible to regular users.
+// Admins/super.admins always see everything regardless of these flags.
+model MenuVisibility {
+  path            String   @id @db.VarChar(100)
+  name            String   @db.VarChar(80)
+  icon            String   @db.VarChar(40)
+  visible_to_user Boolean  @default(true)
+  sort_order      Int      @default(0)
+  updated_at      DateTime @updatedAt
+
+  @@map("menu_visibility")
 }
 
 model ChatSession {
@@ -67,6 +86,31 @@ model ChatMessage {
   session    ChatSession @relation(fields: [session_id], references: [id], onDelete: Cascade)
 
   @@map("chat_messages")
+}
+
+model ChatDocument {
+  id         String          @id @default(cuid())
+  user_id    String          @db.Uuid
+  filename   String          @db.VarChar(255)
+  mime_type  String          @db.VarChar(100)
+  char_count Int             @default(0)
+  created_at DateTime        @default(now())
+  user       User            @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  chunks     DocumentChunk[]
+
+  @@map("chat_documents")
+}
+
+model DocumentChunk {
+  id          String       @id @default(cuid())
+  document_id String
+  chunk_index Int
+  content     String       @db.Text
+  embedding   Unsupported("vector(3072)")?
+  document    ChatDocument @relation(fields: [document_id], references: [id], onDelete: Cascade)
+
+  @@index([document_id])
+  @@map("document_chunks")
 }
 
 model Expense {

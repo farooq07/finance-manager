@@ -62,10 +62,10 @@ export const useDeleteTransaction = () => {
 export const useUpdateTransactionCategory = () => {
     const queryClient = useQueryClient();
     return useMutation({
-        mutationFn: async ({ bankId, statementId, txId, approvedCategory, notes }) => {
+        mutationFn: async ({ bankId, statementId, txId, approvedCategory, notes, transaction_type, amount }) => {
             const { data } = await api.put(
                 `/banks/${bankId}/statements/${statementId}/transactions/${txId}`,
-                { approvedCategory, notes }
+                { approvedCategory, notes, transaction_type, amount }
             );
             return data;
         },
