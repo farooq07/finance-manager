@@ -41,6 +41,71 @@ function useClock() {
   return new Date(t);
 }
 
+/* ─── RotatingWord — cycles through synonyms with fade+rise anime.js transition
+       Reserves space for the longest word so the layout never shifts.        ─── */
+function RotatingWord({ words, interval = 2800, style, className, initialDelay = 0 }) {
+  const ref = useRef(null);
+  const [index, setIndex] = useState(0);
+  const longest = words.reduce((a, b) => (b.length > a.length ? b : a), '');
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      const el = ref.current;
+      if (!el) return;
+      // Out
+      animate(el, {
+        opacity: [1, 0],
+        translateY: [0, -14],
+        rotate: [0, -3],
+        duration: 380,
+        ease: 'inQuad',
+        complete: () => {
+          setIndex((i) => (i + 1) % words.length);
+          // In
+          animate(el, {
+            opacity: [0, 1],
+            translateY: [14, 0],
+            rotate: [3, 0],
+            duration: 520,
+            ease: 'outBack',
+          });
+        },
+      });
+    }, interval);
+    return () => clearInterval(id);
+  }, [words, interval]);
+
+  return (
+    <span
+      className={className}
+      style={{
+        position: 'relative',
+        display: 'inline-block',
+        whiteSpace: 'nowrap',
+        ...style,
+      }}
+    >
+      {/* Invisible sizer — reserves the width of the longest word */}
+      <span aria-hidden="true" style={{ visibility: 'hidden' }}>
+        {longest}
+      </span>
+      {/* Animated current word — overlays the sizer */}
+      <span
+        ref={ref}
+        style={{
+          position: 'absolute',
+          left: 0,
+          top: 0,
+          display: 'inline-block',
+          willChange: 'transform, opacity',
+        }}
+      >
+        {words[index]}
+      </span>
+    </span>
+  );
+}
+
 export default function Landing() {
   return (
     <div
@@ -180,7 +245,12 @@ function Hero() {
               <span className="word inline-block opacity-0" style={{ fontStyle: 'italic', fontWeight: 300, marginRight: '0.18em' }}>finally</span>
               {renderWords('in one')}
               <br />
-              <span className="word inline-block opacity-0" style={{ color: palette.brand, marginRight: '0.18em' }}>quiet</span>
+              <span className="word inline-block opacity-0" style={{ color: palette.brand, marginRight: '0.18em' }}>
+                <RotatingWord
+                  words={['quiet', 'single', 'honest', 'clear']}
+                  interval={2600}
+                />
+              </span>
               <span className="word inline-block opacity-0">place.</span>
             </h1>
 
@@ -246,6 +316,38 @@ function HeroVisual() {
   const tagsRef = useRef(null);
   const [balance, setBalance] = useState(0);
   const target = 1284520;
+
+  // Mouse-based 3D tilt on the card
+  useEffect(() => {
+    const wrap = wrapRef.current;
+    const card = cardRef.current;
+    if (!wrap || !card) return;
+    let frame;
+    const onMove = (e) => {
+      const r = wrap.getBoundingClientRect();
+      const cx = (e.clientX - r.left) / r.width - 0.5;   // -0.5 .. 0.5
+      const cy = (e.clientY - r.top) / r.height - 0.5;
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        card.style.transform = `perspective(1200px) rotateX(${-cy * 4}deg) rotateY(${cx * 6}deg) translateZ(0)`;
+      });
+    };
+    const onLeave = () => {
+      cancelAnimationFrame(frame);
+      animate(card, {
+        rotateX: 0, rotateY: 0,
+        duration: 700,
+        ease: 'outQuart',
+      });
+    };
+    wrap.addEventListener('mousemove', onMove);
+    wrap.addEventListener('mouseleave', onLeave);
+    return () => {
+      wrap.removeEventListener('mousemove', onMove);
+      wrap.removeEventListener('mouseleave', onLeave);
+      cancelAnimationFrame(frame);
+    };
+  }, []);
 
   useEffect(() => {
     const tl = createTimeline({ defaults: { ease: 'outQuart' } });
@@ -456,6 +558,31 @@ function HeroVisual() {
           </div>
         </div>
       </div>
+
+      {/* Floating transaction tags — rendered AFTER the card so they paint on top */}
+      <div ref={tagsRef} className="absolute inset-0 pointer-events-none z-20">
+        <FloatTag
+          style={{ top: '-3%', left: '-8%' }}
+          icon={<ArrowDownRight className="w-3 h-3" />}
+          label="Salary"
+          amount="+450,000"
+          tone="credit"
+        />
+        <FloatTag
+          style={{ top: '38%', right: '-12%' }}
+          icon={<ArrowUpRight className="w-3 h-3" />}
+          label="K-Electric"
+          amount="−12,450"
+          tone="debit"
+        />
+        <FloatTag
+          style={{ bottom: '-5%', left: '12%' }}
+          icon={<Sparkles className="w-3 h-3" />}
+          label="Auto-categorised"
+          amount="847 rows"
+          tone="ai"
+        />
+      </div>
     </div>
   );
 }
@@ -545,7 +672,14 @@ function CategoryIndex() {
           >
             Twelve kinds of money,
             <br />
-            <span style={{ fontStyle: 'italic', color: palette.brand }}>one quiet</span> ledger.
+            <span style={{ fontStyle: 'italic', color: palette.brand }}>
+              one{' '}
+              <RotatingWord
+                words={['quiet', 'honest', 'clear', 'orderly']}
+                interval={3000}
+              />
+            </span>{' '}
+            ledger.
           </h2>
         </div>
 
@@ -928,7 +1062,12 @@ function ClosingCta() {
             >
               Take your money
               <br />
-              <span style={{ fontStyle: 'italic', color: palette.brand }}>seriously</span>, gently.
+              <span style={{ fontStyle: 'italic', color: palette.brand }}>
+                <RotatingWord
+                  words={['seriously', 'calmly', 'thoughtfully', 'kindly']}
+                  interval={3200}
+                />
+              </span>, gently.
             </h2>
           </div>
 

@@ -1,9 +1,10 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Settings as SettingsIcon, Building, CreditCard, Banknote, Plus, Trash2, ShieldAlert, Users, Tags, FileText, ChevronRight, Lock, Briefcase, Loader2, ArrowRight, Shield, Mail, Calendar, Eye, EyeOff, Menu, Save, RotateCcw } from 'lucide-react';
 import { useInstitutions, useCreateInstitution, useDeleteInstitution, useSeedInstitutions } from '../hooks/useInstitutions';
 import { useBrokerAccounts, useCreateBrokerAccount, useDeleteBrokerAccount } from '../hooks/useBrokerAccounts';
 import { usePin } from '../context/PinContext';
 import { useAuth } from '../context/AuthContext';
+import RolesManagement from './RolesManagement';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../services/api';
 import { TableSkeleton } from '../components/Skeleton';
@@ -199,7 +200,8 @@ export default function Settings() {
         {
             title: "System",
             items: [
-                { id: 'users', label: 'Users & Roles', icon: Users },
+                { id: 'users', label: 'Users', icon: Users },
+                { id: 'roles', label: 'Roles', icon: Shield },
                 { id: 'security', label: 'Security & PIN', icon: ShieldAlert },
                 ...(isSuperAdmin ? [{ id: 'menu_access', label: 'Menu Access', icon: Menu }] : []),
             ]
@@ -622,8 +624,20 @@ export default function Settings() {
                     </div>
                 )}
 
-                {activeTab === 'menu_access' && isSuperAdmin && (
-                    <MenuAccessView setFeedbackModal={setFeedbackModal} />
+                {activeTab === 'roles' && (
+                    <div className="flex-1 flex flex-col h-full overflow-hidden">
+                        <div className="px-8 py-5 border-b border-gray-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 shrink-0">
+                            <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Roles</h2>
+                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Manage role definitions used across the application.</p>
+                        </div>
+                        <div className="flex-1 overflow-auto p-8 bg-gray-50/30 dark:bg-neutral-900/50">
+                            <RolesManagement />
+                        </div>
+                    </div>
+                )}
+
+                {activeTab === 'menu_access' && (
+                    <MenuAccessView setFeedbackModal={setFeedbackModal} canEdit={isSuperAdmin} />
                 )}
 
                 {/* Add Broker Accounts Modal */}
@@ -1043,9 +1057,27 @@ function PinSettingsView({ setFeedbackModal }) {
 // MenuAccessView — super.admin only — controls which sidebar items regular
 // users can see. Admins / super.admins always see everything.
 // =============================================================================
-function MenuAccessView({ setFeedbackModal }) {
+function MenuAccessView({ setFeedbackModal, canEdit = false }) {
     const queryClient = useQueryClient();
     const [draft, setDraft] = useState(null);
+
+    // Fetch all users so we can derive the live set of roles.
+    // The /users endpoint wraps the array as { users: [...] }.
+    // Non-admins get 403 — that's fine, we just fall back to the default 3 roles.
+    const { data: usersList = [] } = useQuery({
+        queryKey: ['users'],
+        queryFn: async () => {
+            try {
+                const r = await api.get('/users');
+                if (Array.isArray(r.data)) return r.data;
+                if (Array.isArray(r.data?.users)) return r.data.users;
+                return [];
+            } catch {
+                return [];
+            }
+        },
+        retry: false,
+    });
 
     const { data: items = [], isLoading } = useQuery({
         queryKey: ['menu-visibility'],
@@ -1055,6 +1087,17 @@ function MenuAccessView({ setFeedbackModal }) {
     useEffect(() => {
         if (items.length && !draft) setDraft(items);
     }, [items, draft]);
+
+    // Derive the set of all roles currently in use, fall back to defaults
+    const allRoles = useMemo(() => {
+        const fromUsers = new Set(
+            (Array.isArray(usersList) ? usersList : [])
+                .map(u => u?.role)
+                .filter(Boolean)
+        );
+        ['user', 'admin', 'super.admin'].forEach(r => fromUsers.add(r));
+        return ['user', 'admin', 'super.admin', ...[...fromUsers].filter(r => !['user', 'admin', 'super.admin'].includes(r))];
+    }, [usersList]);
 
     const saveMutation = useMutation({
         mutationFn: (payload) => api.put('/menu-visibility', { items: payload }).then(r => r.data),
@@ -1068,15 +1111,31 @@ function MenuAccessView({ setFeedbackModal }) {
         }
     });
 
-    const toggle = (path) => {
-        setDraft(prev => prev.map(it => it.path === path ? { ...it, visible_to_user: !it.visible_to_user } : it));
+    const toggleRole = (path, role) => {
+        setDraft(prev => prev.map(it => {
+            if (it.path !== path) return it;
+            const roles = Array.isArray(it.visible_to_roles) ? it.visible_to_roles : [];
+            const next = roles.includes(role)
+                ? roles.filter(r => r !== role)
+                : [...roles, role];
+            return { ...it, visible_to_roles: next };
+        }));
     };
 
     const reset = () => setDraft(items);
-
     const isDirty = draft && JSON.stringify(draft) !== JSON.stringify(items);
-    const visibleCount = draft?.filter(d => d.visible_to_user).length ?? 0;
-    const hiddenCount = (draft?.length ?? 0) - visibleCount;
+
+    const roleLabel = (r) => r === 'super.admin' ? 'Super' : r.charAt(0).toUpperCase() + r.slice(1);
+
+    // Counts per role
+    const counts = useMemo(() => {
+        if (!draft) return {};
+        const c = {};
+        for (const role of allRoles) {
+            c[role] = draft.filter(d => Array.isArray(d.visible_to_roles) && d.visible_to_roles.includes(role)).length;
+        }
+        return c;
+    }, [draft, allRoles]);
 
     return (
         <div className="flex-1 flex flex-col h-full overflow-hidden">
@@ -1084,97 +1143,133 @@ function MenuAccessView({ setFeedbackModal }) {
                 <div>
                     <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Menu Access</h2>
                     <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-                        Control which sidebar items regular users can see. Admins always see everything.
+                        Each sidebar item is visible to the roles you tick below. Users with that role see those items.
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
-                    {isDirty && (
+                    {isDirty && canEdit && (
                         <Button color="light" onClick={reset}>
                             <RotateCcw className="w-4 h-4 mr-1.5" /> Reset
                         </Button>
                     )}
-                    <Button
-                        color="blue"
-                        disabled={!isDirty || saveMutation.isPending}
-                        onClick={() => saveMutation.mutate(draft)}
-                    >
-                        {saveMutation.isPending
-                            ? <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> Saving…</>
-                            : <><Save className="w-4 h-4 mr-1.5" /> Save changes</>}
-                    </Button>
+                    {canEdit && (
+                        <Button
+                            color="blue"
+                            disabled={!isDirty || saveMutation.isPending}
+                            onClick={() => saveMutation.mutate(draft)}
+                        >
+                            {saveMutation.isPending
+                                ? <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> Saving…</>
+                                : <><Save className="w-4 h-4 mr-1.5" /> Save changes</>}
+                        </Button>
+                    )}
+                    {!canEdit && (
+                        <span className="text-xs px-3 py-1.5 rounded-full bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/40">
+                            Read-only · super-admin required to edit
+                        </span>
+                    )}
                 </div>
             </div>
 
             <div className="flex-1 overflow-auto p-8 bg-gray-50/30 dark:bg-neutral-900/50 transition-colors">
-                {/* Summary cards */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+                {/* Per-role summary cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                     <div className="bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-xl p-4">
                         <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Total Items</p>
                         <p className="text-2xl font-bold text-gray-900 dark:text-gray-100 mt-1">{draft?.length ?? 0}</p>
                     </div>
-                    <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/40 rounded-xl p-4">
-                        <p className="text-xs font-medium text-emerald-700 dark:text-emerald-400 uppercase tracking-wide flex items-center gap-1.5">
-                            <Eye className="w-3.5 h-3.5" /> Visible to Users
-                        </p>
-                        <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-400 mt-1">{visibleCount}</p>
-                    </div>
-                    <div className="bg-gray-100 dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-xl p-4">
-                        <p className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide flex items-center gap-1.5">
-                            <EyeOff className="w-3.5 h-3.5" /> Hidden from Users
-                        </p>
-                        <p className="text-2xl font-bold text-gray-600 dark:text-gray-400 mt-1">{hiddenCount}</p>
-                    </div>
+                    {allRoles.slice(0, 3).map(role => (
+                        <div key={role} className="bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-xl p-4">
+                            <p className="text-xs font-medium text-emerald-700 dark:text-emerald-400 uppercase tracking-wide flex items-center gap-1.5">
+                                <Eye className="w-3.5 h-3.5" /> {roleLabel(role)} sees
+                            </p>
+                            <p className="text-2xl font-bold text-gray-900 dark:text-gray-100 mt-1">
+                                {counts[role] ?? 0}
+                                <span className="text-sm font-normal text-gray-400 dark:text-gray-500"> / {draft?.length ?? 0}</span>
+                            </p>
+                        </div>
+                    ))}
                 </div>
 
-                {/* Menu list */}
+                {/* Matrix: rows = menu items, columns = roles */}
                 <div className="bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-xl overflow-hidden">
                     {isLoading ? (
                         <div className="p-8 text-center text-gray-500 dark:text-gray-400">
                             <Loader2 className="w-5 h-5 animate-spin inline mr-2" /> Loading menu items…
                         </div>
                     ) : (
-                        <div className="divide-y divide-gray-100 dark:divide-neutral-800">
-                            {draft?.map((item) => (
-                                <div
-                                    key={item.path}
-                                    className="flex items-center justify-between px-5 py-3.5 hover:bg-gray-50 dark:hover:bg-neutral-800/50 transition-colors"
-                                >
-                                    <div className="flex items-center gap-3 min-w-0">
-                                        <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
-                                            item.visible_to_user
-                                                ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400'
-                                                : 'bg-gray-100 dark:bg-neutral-800 text-gray-400 dark:text-gray-500'
-                                        }`}>
-                                            <Menu className="w-4 h-4" />
-                                        </div>
-                                        <div className="min-w-0">
-                                            <p className="font-medium text-gray-900 dark:text-gray-100 truncate">{item.name}</p>
-                                            <p className="text-xs text-gray-500 dark:text-gray-400 font-mono">{item.path}</p>
-                                        </div>
-                                    </div>
+                        <>
+                            {/* Header row */}
+                            <div className="hidden sm:flex items-center px-5 py-3 border-b border-gray-100 dark:border-neutral-800 bg-gray-50/60 dark:bg-neutral-800/40 text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">
+                                <span className="flex-1">Menu Item</span>
+                                {allRoles.slice(0, 3).map(role => (
+                                    <span key={role} className="w-24 text-center">{roleLabel(role)}</span>
+                                ))}
+                            </div>
 
-                                    <button
-                                        onClick={() => toggle(item.path)}
-                                        role="switch"
-                                        aria-checked={item.visible_to_user}
-                                        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 ${
-                                            item.visible_to_user ? 'bg-emerald-600' : 'bg-gray-300 dark:bg-neutral-700'
-                                        }`}
-                                    >
-                                        <span
-                                            className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                                                item.visible_to_user ? 'translate-x-5' : 'translate-x-0'
-                                            }`}
-                                        />
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
+                            <div className="divide-y divide-gray-100 dark:divide-neutral-800">
+                                {draft?.map((item) => {
+                                    const roles = Array.isArray(item.visible_to_roles) ? item.visible_to_roles : [];
+                                    return (
+                                        <div
+                                            key={item.path}
+                                            className="flex flex-col sm:flex-row sm:items-center px-5 py-3.5 hover:bg-gray-50 dark:hover:bg-neutral-800/50 transition-colors"
+                                        >
+                                            <div className="flex items-center gap-3 flex-1 min-w-0 mb-3 sm:mb-0">
+                                                <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
+                                                    roles.length > 0
+                                                        ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400'
+                                                        : 'bg-gray-100 dark:bg-neutral-800 text-gray-400 dark:text-gray-500'
+                                                }`}>
+                                                    <Menu className="w-4 h-4" />
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <p className="font-medium text-gray-900 dark:text-gray-100 truncate">{item.name}</p>
+                                                    <p className="text-xs text-gray-500 dark:text-gray-400 font-mono">{item.path}</p>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex items-center gap-2 sm:gap-0">
+                                                {allRoles.slice(0, 3).map(role => {
+                                                    const on = roles.includes(role);
+                                                    return (
+                                                        <div key={role} className="sm:w-24 flex sm:justify-center">
+                                                            <button
+                                                                onClick={() => canEdit && toggleRole(item.path, role)}
+                                                                disabled={!canEdit}
+                                                                role="switch"
+                                                                aria-checked={on}
+                                                                title={`${roleLabel(role)} can ${on ? 'see' : 'NOT see'} this item`}
+                                                                className={`relative inline-flex h-6 w-11 shrink-0 rounded-full transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 ${
+                                                                    canEdit ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'
+                                                                } ${
+                                                                    on ? 'bg-emerald-600' : 'bg-gray-300 dark:bg-neutral-700'
+                                                                }`}
+                                                            >
+                                                                <span
+                                                                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                                                                        on ? 'translate-x-5' : 'translate-x-0.5'
+                                                                    }`}
+                                                                    style={{ marginTop: '2px' }}
+                                                                />
+                                                            </button>
+                                                            {/* Inline role label on mobile only */}
+                                                            <span className="sm:hidden ml-2 text-xs text-gray-500 dark:text-gray-400 self-center">{roleLabel(role)}</span>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </>
                     )}
                 </div>
 
                 <p className="text-xs text-gray-400 dark:text-gray-500 mt-4">
-                    Note: Admin-only items like <span className="font-medium">Users</span> and <span className="font-medium">Roles</span> are not in this list — they're always hidden from regular users by the role check.
+                    A user with role <span className="font-medium text-gray-600 dark:text-gray-300">User</span> sees only items where the User toggle is on.
+                    The same goes for Admin and Super.Admin. To hide an item entirely, turn off all three.
                 </p>
             </div>
         </div>

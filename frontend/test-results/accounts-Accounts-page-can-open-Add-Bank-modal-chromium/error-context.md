@@ -56,123 +56,115 @@ Call log:
           - /url: /stocks
           - img [ref=e30]
           - generic [ref=e31]: Stocks
-        - link "Dues Ledger" [ref=e32] [cursor=pointer]:
-          - /url: /dues
-          - img [ref=e33]
-          - generic [ref=e38]: Dues Ledger
-        - link "Beneficiaries" [ref=e39] [cursor=pointer]:
+        - link "Beneficiaries" [ref=e32] [cursor=pointer]:
           - /url: /beneficiaries
-          - img [ref=e40]
-          - generic [ref=e44]: Beneficiaries
-        - link "Rent Tracker" [ref=e45] [cursor=pointer]:
+          - img [ref=e33]
+          - generic [ref=e37]: Beneficiaries
+        - link "Rent Tracker" [ref=e38] [cursor=pointer]:
           - /url: /rents
-          - img [ref=e46]
-          - generic [ref=e49]: Rent Tracker
-        - link "Zakat" [ref=e50] [cursor=pointer]:
+          - img [ref=e39]
+          - generic [ref=e42]: Rent Tracker
+        - link "Zakat" [ref=e43] [cursor=pointer]:
           - /url: /zakat
-          - img [ref=e51]
-          - generic [ref=e53]: Zakat
-        - link "Physical Assets" [ref=e54] [cursor=pointer]:
+          - img [ref=e44]
+          - generic [ref=e46]: Zakat
+        - link "Physical Assets" [ref=e47] [cursor=pointer]:
           - /url: /assets
-          - img [ref=e55]
-          - generic [ref=e58]: Physical Assets
-        - link "AI Assistant" [ref=e59] [cursor=pointer]:
+          - img [ref=e48]
+          - generic [ref=e51]: Physical Assets
+        - link "AI Assistant" [ref=e52] [cursor=pointer]:
           - /url: /assistant
-          - img [ref=e60]
-          - generic [ref=e62]: AI Assistant
-        - link "Reports" [ref=e63] [cursor=pointer]:
+          - img [ref=e53]
+          - generic [ref=e55]: AI Assistant
+        - link "Reports" [ref=e56] [cursor=pointer]:
           - /url: /reports
-          - img [ref=e64]
-          - generic [ref=e67]: Reports
-        - link "Settings" [ref=e68] [cursor=pointer]:
+          - img [ref=e57]
+          - generic [ref=e60]: Reports
+        - link "Settings" [ref=e61] [cursor=pointer]:
           - /url: /settings
-          - img [ref=e69]
-          - generic [ref=e72]: Settings
-        - link "Design System" [ref=e73] [cursor=pointer]:
-          - /url: /design-system
-          - img [ref=e74]
-          - generic [ref=e78]: Design System
-      - button [ref=e79] [cursor=pointer]:
+          - img [ref=e62]
+          - generic [ref=e65]: Settings
+      - button [ref=e66] [cursor=pointer]:
         - img
-    - generic [ref=e80]:
-      - banner [ref=e81]:
-        - heading "WealthAxis" [level=1] [ref=e82]
+    - generic [ref=e67]:
+      - banner [ref=e68]:
+        - heading "WealthAxis" [level=1] [ref=e69]
+        - generic [ref=e70]:
+          - button "Toggle Theme" [ref=e71] [cursor=pointer]:
+            - img [ref=e72]
+          - generic [ref=e74]:
+            - generic [ref=e76]: F
+            - generic [ref=e77]: farooq
+          - button "Logout" [ref=e78] [cursor=pointer]:
+            - img [ref=e79]
+      - main [ref=e82]:
         - generic [ref=e83]:
-          - button "Toggle Theme" [ref=e84] [cursor=pointer]:
-            - img [ref=e85]
-          - generic [ref=e87]:
-            - generic [ref=e89]: F
-            - generic [ref=e90]: farooq
-          - button "Logout" [ref=e91] [cursor=pointer]:
-            - img [ref=e92]
-      - main [ref=e95]:
-        - generic [ref=e96]:
-          - generic [ref=e97]:
-            - generic [ref=e98]:
-              - heading "Total Liquidity" [level=1] [ref=e99]
-              - paragraph [ref=e100]: Aggregated balance across all your banks and mapped wallets.
-            - generic [ref=e102]:
-              - generic [ref=e103]: ••••••
-              - button "Click to unlock with PIN" [ref=e104] [cursor=pointer]:
-                - img [ref=e105]
-          - generic [ref=e108]:
-            - generic [ref=e109]:
-              - heading "Formal Banking" [level=2] [ref=e110]:
-                - img [ref=e111]
+          - generic [ref=e84]:
+            - generic [ref=e85]:
+              - heading "Total Liquidity" [level=1] [ref=e86]
+              - paragraph [ref=e87]: Aggregated balance across all your banks and mapped wallets.
+            - generic [ref=e89]:
+              - generic [ref=e90]: ••••••
+              - button "Click to unlock with PIN" [ref=e91] [cursor=pointer]:
+                - img [ref=e92]
+          - generic [ref=e95]:
+            - generic [ref=e96]:
+              - heading "Formal Banking" [level=2] [ref=e97]:
+                - img [ref=e98]
                 - text: Formal Banking
-              - button "Add Bank" [active] [ref=e115] [cursor=pointer]:
+              - button "Add Bank" [active] [ref=e102] [cursor=pointer]:
                 - img
                 - text: Add Bank
-            - generic [ref=e117]:
-              - img [ref=e118]
-              - paragraph [ref=e122]: No bank accounts linked yet.
-          - generic [ref=e123]:
-            - generic [ref=e124]:
-              - heading "Wallets & Cash" [level=2] [ref=e125]:
-                - img [ref=e126]
+            - generic [ref=e104]:
+              - img [ref=e105]
+              - paragraph [ref=e109]: No bank accounts linked yet.
+          - generic [ref=e110]:
+            - generic [ref=e111]:
+              - heading "Wallets & Cash" [level=2] [ref=e112]:
+                - img [ref=e113]
                 - text: Wallets & Cash
-              - button "Add Wallet" [ref=e129] [cursor=pointer]:
+              - button "Add Wallet" [ref=e116] [cursor=pointer]:
                 - img
                 - text: Add Wallet
-            - button "Link New Wallet" [ref=e131] [cursor=pointer]:
+            - button "Link New Wallet" [ref=e118] [cursor=pointer]:
               - img
-              - generic [ref=e132]: Link New Wallet
-          - generic [ref=e134]:
-            - generic [ref=e135]:
-              - heading "Add Formal Bank Account" [level=2] [ref=e136]
-              - button "✕" [ref=e137] [cursor=pointer]
-            - generic [ref=e138]:
-              - generic [ref=e140]:
-                - generic [ref=e142]: Bank Institution
-                - combobox [ref=e143] [cursor=pointer]:
+              - generic [ref=e119]: Link New Wallet
+          - generic [ref=e121]:
+            - generic [ref=e122]:
+              - heading "Add Formal Bank Account" [level=2] [ref=e123]
+              - button "✕" [ref=e124] [cursor=pointer]
+            - generic [ref=e125]:
+              - generic [ref=e127]:
+                - generic [ref=e129]: Bank Institution
+                - combobox [ref=e130] [cursor=pointer]:
                   - generic: Select bank...
-                  - img [ref=e144]
-                - combobox [ref=e146]
-                - paragraph [ref=e147]: Please add a Formal Bank via Console Settings first.
-              - generic [ref=e148]:
-                - generic [ref=e149]: Account Number
-                - textbox [ref=e152]
-              - generic [ref=e153]:
-                - generic [ref=e154]: IBAN Number
-                - textbox [ref=e157]
-              - generic [ref=e158]:
-                - generic [ref=e159]: Starting Balance
-                - spinbutton [ref=e162]
-              - generic [ref=e163]:
-                - generic [ref=e164]:
-                  - generic [ref=e165]: Currency
-                  - generic [ref=e166]:
-                    - combobox [ref=e167] [cursor=pointer]:
+                  - img [ref=e131]
+                - combobox [ref=e133]
+                - paragraph [ref=e134]: Please add a Formal Bank via Console Settings first.
+              - generic [ref=e135]:
+                - generic [ref=e136]: Account Number
+                - textbox [ref=e139]
+              - generic [ref=e140]:
+                - generic [ref=e141]: IBAN Number
+                - textbox [ref=e144]
+              - generic [ref=e145]:
+                - generic [ref=e146]: Starting Balance
+                - spinbutton [ref=e149]
+              - generic [ref=e150]:
+                - generic [ref=e151]:
+                  - generic [ref=e152]: Currency
+                  - generic [ref=e153]:
+                    - combobox [ref=e154] [cursor=pointer]:
                       - generic:
                         - generic:
                           - generic: PKR - Pakistan Rupee
-                      - img [ref=e168]
-                    - combobox [ref=e170]
-                - generic [ref=e171]:
-                  - generic [ref=e173]: Exchange Rate (to PKR)
-                  - spinbutton [disabled] [ref=e176]: "1"
-              - generic [ref=e177]:
-                - button "Cancel" [ref=e178] [cursor=pointer]
+                      - img [ref=e155]
+                    - combobox [ref=e157]
+                - generic [ref=e158]:
+                  - generic [ref=e160]: Exchange Rate (to PKR)
+                  - spinbutton [disabled] [ref=e163]: "1"
+              - generic [ref=e164]:
+                - button "Cancel" [ref=e165] [cursor=pointer]
                 - button "Link Bank" [disabled]
 ```
 

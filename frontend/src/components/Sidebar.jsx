@@ -15,11 +15,6 @@ const ICONS = {
     Settings, Layers, HeartHandshake, Box, Shield, Contact, MessageSquare
 };
 
-const adminNavItems = [
-    { name: 'Users', path: '/users', icon: Users },
-    { name: 'Roles', path: '/roles', icon: Shield },
-];
-
 export default function Sidebar() {
     const location = useLocation();
     const { user } = useAuth();
@@ -36,11 +31,10 @@ export default function Sidebar() {
         enabled: !!user,
     });
 
-    const isAdmin = ['admin', 'super.admin'].includes(user?.role);
-
-    // Filter items: admins see everything; regular users only see visible_to_user items
-    const baseNavItems = menuItems
-        .filter(item => isAdmin || item.visible_to_user)
+    // Filter items: each item lists which roles can see it.
+    // Users and Roles are NOT in the sidebar — they live inside Settings.
+    const navItems = menuItems
+        .filter(item => Array.isArray(item.visible_to_roles) && item.visible_to_roles.includes(user?.role))
         .map(item => ({
             name: item.name,
             path: item.path,
@@ -73,8 +67,7 @@ export default function Sidebar() {
             {/* Navigation */}
             <nav className="flex-1 flex flex-col gap-1 w-full px-2 mt-2">
                 {(() => {
-                    const allItems = baseNavItems.concat(isAdmin ? adminNavItems : []);
-                    return allItems.map((item) => {
+                    return navItems.map((item) => {
                         const isActive = location.pathname === item.path ||
                             (item.path !== '/' && location.pathname.startsWith(item.path));
                         return (
