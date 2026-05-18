@@ -2,15 +2,13 @@ import prisma from '../utils/prisma.js';
 
 /**
  * GET /api/menu-visibility
- * Returns the full list of menu items with their visibility flag.
- * Any authenticated user can call this — the Sidebar uses it to filter
- * what's displayed. Admins/super.admins always see everything regardless
- * of the visible_to_user flag (enforced by the frontend Sidebar).
+ * Returns the menu items + which roles can see each.
+ * Any authenticated user can read; the Sidebar uses this to filter.
  */
 export const getMenuVisibility = async (req, res) => {
     try {
         const items = await prisma.$queryRaw`
-            SELECT path, name, icon, visible_to_user, sort_order
+            SELECT path, name, icon, visible_to_roles, sort_order
             FROM menu_visibility
             ORDER BY sort_order ASC
         `;
@@ -23,13 +21,13 @@ export const getMenuVisibility = async (req, res) => {
 
 /**
  * PUT /api/menu-visibility
- * Body: { items: [{ path, visible_to_user }] }
- * Super-admin only — bulk update which menu items are visible to regular users.
+ * Body: { items: [{ path, visible_to_roles: [string] }] }
+ * Super-admin only — bulk update which roles can see each menu item.
  */
 export const updateMenuVisibility = async (req, res) => {
     try {
         if (req.user.role !== 'super.admin') {
-            return res.status(403).json({ message: 'Only super-admins can update menu visibility' });
+            return res.status(403).json({ message: 'Only super-admins can update menu access' });
         }
 
         const { items } = req.body;
@@ -38,22 +36,27 @@ export const updateMenuVisibility = async (req, res) => {
         }
 
         for (const item of items) {
-            if (typeof item.path !== 'string' || typeof item.visible_to_user !== 'boolean') continue;
+            if (typeof item.path !== 'string' || !Array.isArray(item.visible_to_roles)) continue;
+            // Sanitise — only allow known role strings
+            const cleanRoles = item.visible_to_roles
+                .filter(r => typeof r === 'string')
+                .map(r => r.trim())
+                .filter(Boolean);
             await prisma.$executeRaw`
                 UPDATE menu_visibility
-                SET visible_to_user = ${item.visible_to_user}, updated_at = NOW()
+                SET visible_to_roles = ${cleanRoles}::text[], updated_at = NOW()
                 WHERE path = ${item.path}
             `;
         }
 
         const updated = await prisma.$queryRaw`
-            SELECT path, name, icon, visible_to_user, sort_order
+            SELECT path, name, icon, visible_to_roles, sort_order
             FROM menu_visibility
             ORDER BY sort_order ASC
         `;
         res.json(updated);
     } catch (error) {
         console.error('Update menu visibility error:', error);
-        res.status(500).json({ message: 'Failed to update menu visibility' });
+        res.status(500).json({ message: 'Failed to update menu access' });
     }
 };

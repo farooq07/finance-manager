@@ -30,6 +30,15 @@ if (!process.env.JWT_SECRET) {
     throw new Error('JWT_SECRET environment variable is required');
 }
 
+// In production: silence non-essential console output to reduce log noise / cost.
+// Errors and warnings still go through.
+if (process.env.NODE_ENV === 'production') {
+    const noop = () => {};
+    console.log = noop;
+    console.info = noop;
+    console.debug = noop;
+}
+
 const app = express();
 
 // CORS: Lock to specific origins

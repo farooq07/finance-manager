@@ -50,15 +50,16 @@ model User {
   @@map("users")
 }
 
-// Controls which sidebar menu items are visible to regular users.
-// Admins/super.admins always see everything regardless of these flags.
+// Controls which sidebar menu items are visible to each role.
+// Each row lists the role names allowed to see that menu item.
+// Admins/super.admins must still be in this list to see admin-only items.
 model MenuVisibility {
-  path            String   @id @db.VarChar(100)
-  name            String   @db.VarChar(80)
-  icon            String   @db.VarChar(40)
-  visible_to_user Boolean  @default(true)
-  sort_order      Int      @default(0)
-  updated_at      DateTime @updatedAt
+  path             String   @id @db.VarChar(100)
+  name             String   @db.VarChar(80)
+  icon             String   @db.VarChar(40)
+  visible_to_roles String[] @default(["user", "admin", "super.admin"])
+  sort_order       Int      @default(0)
+  updated_at       DateTime @updatedAt
 
   @@map("menu_visibility")
 }

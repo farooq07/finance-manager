@@ -1,4 +1,5 @@
 import prisma from '../utils/prisma.js';
+import { encryptSecret, decryptSecret } from '../utils/crypto.js';
 import { extractPdfText, getFileHash } from '../services/pdfParser.service.js';
 import { parseTransactions, validateBalance, parseStatementBalances } from '../services/transactionParser.service.js';
 import { parseCsvTransactions } from '../services/csvParser.service.js';
@@ -273,7 +274,7 @@ export const uploadStatement = async (req, res) => {
                 year,
                 file_path: filePath,
                 file_hash: fileHash,
-                password_encrypted: password ? encryptPassword(password) : null,
+                password_encrypted: encryptSecret(password),
                 transaction_count: parsedTxs.length,
                 processing_status: 'pending',
                 opening_balance: openingBalance !== null ? openingBalance : undefined,
@@ -831,9 +832,7 @@ export const syncStatementBalance = async (req, res) => {
                 closingBalance = sorted[sorted.length - 1].balance;
             }
         } else {
-            const password = statement.password_encrypted
-                ? Buffer.from(statement.password_encrypted, 'base64').toString()
-                : undefined;
+            const password = decryptSecret(statement.password_encrypted) ?? undefined;
             const { rawText } = await extractPdfText(statement.file_path, password);
 
             const parsedTxs = rawText ? parseTransactions(rawText) : [];
@@ -875,10 +874,3 @@ export const syncStatementBalance = async (req, res) => {
     }
 };
 
-/**
- * Helper: Encrypt password (simple encoding for now)
- * TODO: Use proper encryption
- */
-function encryptPassword(password) {
-    return Buffer.from(password).toString('base64');
-}
