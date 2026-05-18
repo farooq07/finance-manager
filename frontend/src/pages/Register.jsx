@@ -190,7 +190,7 @@ export default function Register() {
                     {submittedEmail ? (
                         /* ─── Email-sent success state ─── */
                         <div className="text-center">
-                            <img src={logo} alt="WealthAxis Logo" className="h-10 w-auto mb-8 lg:hidden mx-auto" />
+                            <img src={logo} alt="WealthAxis Logo" className="h-10 w-auto mb-8 mx-auto" />
                             <div className="mx-auto w-16 h-16 rounded-full bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center mb-6">
                                 <Mail className="w-8 h-8 text-emerald-600 dark:text-emerald-400" />
                             </div>
@@ -233,7 +233,7 @@ export default function Register() {
                         <>
                     {/* Logo & Header */}
                     <div className="mb-10">
-                        <img src={logo} alt="WealthAxis Logo" className="h-10 w-auto mb-8 lg:hidden" />
+                        <img src={logo} alt="WealthAxis Logo" className="h-10 w-auto mb-8" />
                         <h1 className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">
                             Create an account
                         </h1>

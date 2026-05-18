@@ -269,7 +269,7 @@ export default function Login() {
                         <>
                             {/* Logo & Header */}
                             <div className="mb-10">
-                                <img src={logo} alt="WealthAxis Logo" className="h-10 w-auto mb-8 lg:hidden" />
+                                <img src={logo} alt="WealthAxis Logo" className="h-10 w-auto mb-8" />
                                 <h1 className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">
                                     Welcome back
                                 </h1>
