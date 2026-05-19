@@ -21,10 +21,10 @@ adminTest.describe('Admin routes — admin user', () => {
     await expect(page.getByRole('heading', { name: /users management/i })).toBeVisible({ timeout: 15_000 });
   });
 
-  adminTest('sidebar shows Users and Roles links', async ({ page }) => {
-    await page.goto('/');
-    await expect(page.locator('a[href="/users"]')).toBeVisible();
-    await expect(page.locator('a[href="/roles"]')).toBeVisible();
+  adminTest('Settings page shows Users & Roles section', async ({ page }) => {
+    await page.goto('/settings');
+    await page.getByRole('button', { name: /^users$/i }).click();
+    await expect(page.getByRole('heading', { name: /users & roles/i })).toBeVisible({ timeout: 15_000 });
   });
 
   adminTest('users table has Name, Email and Role columns', async ({ page }) => {

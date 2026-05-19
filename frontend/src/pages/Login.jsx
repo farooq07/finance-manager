@@ -91,7 +91,7 @@ export default function Login() {
     useEffect(() => {
         api.get('/auth/config')
             .then(({ data }) => setRegistrationEnabled(data.registrationEnabled))
-            .catch(() => {}); // silently ignore
+            .catch(() => { }); // silently ignore
     }, []);
 
     const handleLoginSubmit = async (e) => {
@@ -169,7 +169,7 @@ export default function Login() {
 
                 {/* Bento Grid */}
                 <div className="relative z-10 flex-1 flex items-center py-8">
-                    <div className="w-full max-w-2xl mx-auto grid grid-cols-3 grid-rows-3 gap-4">
+                    <div className="w-full max-w-2xl  grid grid-cols-3 grid-rows-3 gap-4">
 
                         {/* Card 1 — Large: Portfolio Overview */}
                         <div className="col-span-2 row-span-1 rounded-2xl p-6 border border-white/10 overflow-hidden"
@@ -432,7 +432,19 @@ export default function Login() {
 
                             <div className="text-sm text-center mt-8">
                                 <span className="text-gray-400 dark:text-gray-500">Didn't receive the email? </span>
-                                <button type="button" className="font-semibold text-primary-600 dark:text-emerald-400 hover:text-primary-500 transition-colors">
+                                <button
+                                    type="button"
+                                    disabled={loading}
+                                    onClick={async () => {
+                                        try {
+                                            await api.post('/auth/resend-otp', { userId });
+                                            setError('');
+                                        } catch {
+                                            setError('Failed to resend OTP. Please try again.');
+                                        }
+                                    }}
+                                    className="font-semibold text-primary-600 dark:text-emerald-400 hover:text-primary-500 transition-colors disabled:opacity-50"
+                                >
                                     Click to resend
                                 </button>
                             </div>

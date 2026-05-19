@@ -1,0 +1,35 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "tool_name == 'Bash' && tool_input.command =~ 'prisma db push|prisma migrate deploy'",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '[HOOK] WARNING: prisma db push detected — run /prisma-check first to confirm schema matches DB state!' >&2"
+          }
+        ]
+      },
+      {
+        "matcher": "tool_name == 'Bash' && tool_input.command =~ 'git push.*--force|git push.*-f '",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '[HOOK] BLOCKED: Force push is not allowed. Use --force-with-lease or ask the user to confirm.' >&2; exit 1"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "tool_name == 'Bash' && tool_input.command =~ 'playwright test'",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '[HOOK] E2E run complete. If all tests pass, commit the fixes.' >&2"
+          }
+        ]
+      }
+    ]
+  }
+}

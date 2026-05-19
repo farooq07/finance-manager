@@ -217,6 +217,30 @@ export const login = async (req, res) => {
     }
 };
 
+export const resendOtp = async (req, res) => {
+    try {
+        const { userId } = req.body;
+        if (!userId) return res.status(400).json({ message: 'userId is required' });
+
+        const user = await prisma.user.findUnique({ where: { id: userId } });
+        if (!user) return res.status(404).json({ message: 'User not found' });
+
+        const otpCode = crypto.randomInt(100000, 999999).toString();
+        const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+        await prisma.user.update({
+            where: { id: userId },
+            data: { otp_code: otpCode, otp_expires_at: otpExpiresAt }
+        });
+
+        await sendOtpEmail(user.email, otpCode);
+        res.json({ message: 'OTP resent successfully' });
+    } catch (error) {
+        console.error('Resend OTP error:', error);
+        res.status(500).json({ message: 'Failed to resend OTP' });
+    }
+};
+
 export const getMe = async (req, res) => {
     try {
         const user = await prisma.user.findUnique({

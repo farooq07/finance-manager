@@ -170,7 +170,7 @@ export default function ForgotPassword() {
                 </div>
 
                 <div className="relative z-10 flex-1 flex items-center py-8">
-                    <div className="w-full max-w-2xl mx-auto grid grid-cols-3 grid-rows-3 gap-4">
+                    <div className="w-full max-w-2xl  grid grid-cols-3 grid-rows-3 gap-4">
                         <div className="col-span-2 row-span-1 rounded-2xl p-6 border border-white/10 overflow-hidden"
                             style={{ background: 'linear-gradient(135deg, rgba(56,189,248,0.12) 0%, rgba(15,23,42,0.8) 100%)' }}>
                             <div className="flex items-center justify-between mb-1">

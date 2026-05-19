@@ -16,7 +16,6 @@ import MutualFunds from './pages/MutualFunds';
 import Stocks from './pages/Stocks';
 import StockDetail from './pages/StockDetail';
 import DuesLedger from './pages/DuesLedger';
-import RentTracker from './pages/RentTracker';
 import Accounts from './pages/Accounts';
 import BankDetail from './pages/BankDetail';
 import WalletDetail from './pages/WalletDetail';
@@ -24,8 +23,7 @@ import Settings from './pages/Settings';
 import Users from './pages/Users';
 import Reports from './pages/Reports';
 import DesignSystem from './pages/DesignSystem';
-import Zakat from './pages/Zakat';
-import Assets from './pages/Assets';
+import Personal from './pages/Personal';
 import RolesManagement from './pages/RolesManagement';
 import Beneficiaries from './pages/Beneficiaries';
 import BeneficiaryDetail from './pages/BeneficiaryDetail';
@@ -76,7 +74,11 @@ function App() {
               <Route path="stocks" element={<Stocks />} />
               <Route path="stocks/:id" element={<StockDetail />} />
               <Route path="dues" element={<DuesLedger />} />
-              <Route path="rents" element={<RentTracker />} />
+              <Route path="personal" element={<Personal />} />
+              {/* Legacy redirects */}
+              <Route path="rents" element={<Navigate to="/personal?tab=rent" replace />} />
+              <Route path="zakat" element={<Navigate to="/personal?tab=zakat" replace />} />
+              <Route path="assets" element={<Navigate to="/personal?tab=assets" replace />} />
               <Route path="psx-engine" element={<Stocks />} />
               <Route path="accounts" element={<Accounts />} />
               <Route path="banks/:id" element={<BankDetail />} />
@@ -86,8 +88,6 @@ function App() {
               <Route path="users" element={<AdminRoute><Users /></AdminRoute>} />
               <Route path="roles" element={<AdminRoute><RolesManagement /></AdminRoute>} />
               <Route path="reports" element={<Reports />} />
-              <Route path="zakat" element={<Zakat />} />
-              <Route path="assets" element={<Assets />} />
               <Route path="design-system" element={<DesignSystem />} />
               <Route path="beneficiaries" element={<Beneficiaries />} />
               <Route path="beneficiaries/:id" element={<BeneficiaryDetail />} />

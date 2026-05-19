@@ -17,13 +17,13 @@ test.describe('Login page', () => {
     await expect(page.locator('text=/invalid|incorrect|failed|not found/i').first()).toBeVisible({ timeout: 8000 });
   });
 
-  test('unauthenticated user is redirected from / to /login', async ({ page }) => {
+  test('unauthenticated user is redirected from / to /welcome', async ({ page }) => {
     await page.goto('/');
-    await expect(page).toHaveURL(/\/login/);
+    await expect(page).toHaveURL(/\/welcome/);
   });
 
-  test('unauthenticated user is redirected from /expenses to /login', async ({ page }) => {
+  test('unauthenticated user is redirected from /expenses to /welcome', async ({ page }) => {
     await page.goto('/expenses');
-    await expect(page).toHaveURL(/\/login/);
+    await expect(page).toHaveURL(/\/welcome/);
   });
 });

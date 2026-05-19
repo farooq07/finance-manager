@@ -126,7 +126,7 @@ export default function Register() {
 
                 {/* Top: Brand */}
                 <div className="relative z-10 flex items-center justify-between">
-                    <img src={logo} alt="WealthAxis" className="h-8 brightness-0 invert opacity-90" />
+                    <span class="text-2xl font-bold text-white tracking-tight">FSWealth <span class="text-emerald-400">Axis</span></span>
                     <span className="px-4 py-1.5 rounded-full bg-white/10 text-white border border-white/20 text-xs font-medium tracking-wide">
                         Join 2,000+ Users
                     </span>
@@ -134,7 +134,7 @@ export default function Register() {
 
                 {/* Bento Grid */}
                 <div className="relative z-10 flex-1 flex items-center py-8">
-                    <div className="w-full max-w-2xl mx-auto grid grid-cols-3 grid-rows-3 gap-4">
+                    <div className="w-full max-w-2xl grid grid-cols-3 grid-rows-3 gap-4">
 
                         {/* Card 1 — Large: Growth Overview */}
                         <div className="col-span-2 row-span-1 rounded-2xl p-6 border border-white/10 overflow-hidden"
@@ -231,104 +231,104 @@ export default function Register() {
                         </div>
                     ) : (
                         <>
-                    {/* Logo & Header */}
-                    <div className="mb-10">
-                        <img src={logo} alt="WealthAxis Logo" className="h-10 w-auto mb-8" />
-                        <h1 className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">
-                            Create an account
-                        </h1>
-                        <p className="mt-2 text-gray-500 dark:text-gray-400 text-sm">
-                            Join WealthAxis to take control of your financial future.
-                        </p>
-                    </div>
-
-                    {/* Register Form */}
-                    <form className="space-y-5" onSubmit={handleSubmit}>
-                        {error && (
-                            <div className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-3.5 rounded-xl text-sm border border-red-100 dark:border-red-900/40 flex items-center gap-2">
-                                <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-red-500" />
-                                {error}
+                            {/* Logo & Header */}
+                            <div className="mb-10">
+                                <img src={logo} alt="WealthAxis Logo" className="h-10 w-auto mb-8" />
+                                <h1 className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">
+                                    Create an account
+                                </h1>
+                                <p className="mt-2 text-gray-500 dark:text-gray-400 text-sm">
+                                    Join WealthAxis to take control of your financial future.
+                                </p>
                             </div>
-                        )}
 
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                                Full Name
-                            </label>
-                            <input
-                                type="text"
-                                required
-                                placeholder="John Doe"
-                                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500/40 focus:border-primary-500 text-sm transition-all duration-200"
-                                value={name}
-                                onChange={(e) => setName(e.target.value)}
-                            />
-                        </div>
+                            {/* Register Form */}
+                            <form className="space-y-5" onSubmit={handleSubmit}>
+                                {error && (
+                                    <div className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-3.5 rounded-xl text-sm border border-red-100 dark:border-red-900/40 flex items-center gap-2">
+                                        <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-red-500" />
+                                        {error}
+                                    </div>
+                                )}
 
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                                Email address
-                            </label>
-                            <input
-                                type="email"
-                                required
-                                placeholder="you@example.com"
-                                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500/40 focus:border-primary-500 text-sm transition-all duration-200"
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                            />
-                        </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                                        Full Name
+                                    </label>
+                                    <input
+                                        type="text"
+                                        required
+                                        placeholder="John Doe"
+                                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500/40 focus:border-primary-500 text-sm transition-all duration-200"
+                                        value={name}
+                                        onChange={(e) => setName(e.target.value)}
+                                    />
+                                </div>
 
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                                Password
-                            </label>
-                            <input
-                                type="password"
-                                required
-                                placeholder="Create a strong password"
-                                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500/40 focus:border-primary-500 text-sm transition-all duration-200"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                            />
-                        </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                                        Email address
+                                    </label>
+                                    <input
+                                        type="email"
+                                        required
+                                        placeholder="you@example.com"
+                                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500/40 focus:border-primary-500 text-sm transition-all duration-200"
+                                        value={email}
+                                        onChange={(e) => setEmail(e.target.value)}
+                                    />
+                                </div>
 
-                        <button
-                            type="submit"
-                            disabled={loading}
-                            className="w-full py-2.5 px-4 rounded-xl text-sm font-semibold text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-sm hover:shadow-md active:scale-[0.98]"
-                        >
-                            {loading ? (
-                                <span className="flex items-center justify-center gap-2">
-                                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                                    </svg>
-                                    Creating account...
-                                </span>
-                            ) : 'Sign up'}
-                        </button>
-                    </form>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                                        Password
+                                    </label>
+                                    <input
+                                        type="password"
+                                        required
+                                        placeholder="Create a strong password"
+                                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500/40 focus:border-primary-500 text-sm transition-all duration-200"
+                                        value={password}
+                                        onChange={(e) => setPassword(e.target.value)}
+                                    />
+                                </div>
 
-                    {/* Divider */}
-                    <div className="relative my-8">
-                        <div className="absolute inset-0 flex items-center">
-                            <div className="w-full border-t border-gray-200 dark:border-gray-800" />
-                        </div>
-                        <div className="relative flex justify-center text-xs">
-                            <span className="px-3 bg-white dark:bg-gray-950 text-gray-400 dark:text-gray-500 font-medium">
-                                Already have an account?
-                            </span>
-                        </div>
-                    </div>
+                                <button
+                                    type="submit"
+                                    disabled={loading}
+                                    className="w-full py-2.5 px-4 rounded-xl text-sm font-semibold text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-sm hover:shadow-md active:scale-[0.98]"
+                                >
+                                    {loading ? (
+                                        <span className="flex items-center justify-center gap-2">
+                                            <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                            </svg>
+                                            Creating account...
+                                        </span>
+                                    ) : 'Sign up'}
+                                </button>
+                            </form>
 
-                    {/* Login Link */}
-                    <Link
-                        to="/login"
-                        className="w-full flex justify-center py-2.5 px-4 rounded-xl text-sm font-semibold text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 hover:bg-primary-100 dark:hover:bg-primary-900/30 border border-primary-200 dark:border-primary-800/40 transition-all duration-200"
-                    >
-                        Sign in instead
-                    </Link>
+                            {/* Divider */}
+                            <div className="relative my-8">
+                                <div className="absolute inset-0 flex items-center">
+                                    <div className="w-full border-t border-gray-200 dark:border-gray-800" />
+                                </div>
+                                <div className="relative flex justify-center text-xs">
+                                    <span className="px-3 bg-white dark:bg-gray-950 text-gray-400 dark:text-gray-500 font-medium">
+                                        Already have an account?
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* Login Link */}
+                            <Link
+                                to="/login"
+                                className="w-full flex justify-center py-2.5 px-4 rounded-xl text-sm font-semibold text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 hover:bg-primary-100 dark:hover:bg-primary-900/30 border border-primary-200 dark:border-primary-800/40 transition-all duration-200"
+                            >
+                                Sign in instead
+                            </Link>
                         </>
                     )}
                 </div>

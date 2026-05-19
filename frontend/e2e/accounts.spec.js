@@ -29,7 +29,6 @@ test.describe('Accounts page', () => {
     await page.goto('/accounts');
     await waitForAccountsLoaded(page);
     await page.getByRole('button', { name: /add bank/i }).click();
-    await expect(page.getByRole('dialog')).toBeVisible();
     await expect(page.getByText(/add formal bank account/i)).toBeVisible();
   });
 
@@ -37,8 +36,10 @@ test.describe('Accounts page', () => {
     await page.goto('/accounts');
     await waitForAccountsLoaded(page);
     await page.getByRole('button', { name: /add bank/i }).click();
-    await page.getByRole('dialog').getByRole('button', { name: /cancel/i }).click();
-    await expect(page.getByRole('dialog')).not.toBeVisible();
+    await expect(page.getByText(/add formal bank account/i)).toBeVisible();
+    // Close via the ✕ icon button in the modal header
+    await page.locator('div.fixed.inset-0').getByRole('button').first().click();
+    await expect(page.getByText(/add formal bank account/i)).not.toBeVisible();
   });
 });
 

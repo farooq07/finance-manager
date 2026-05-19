@@ -8,37 +8,36 @@ test.describe('Expenses page', () => {
   });
 
   test('shows Expenses heading', async ({ page }) => {
-    await expect(page.getByRole('heading', { name: /expenses/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /expenses/i }).first()).toBeVisible();
   });
 
   test('shows Single Expense and Log Monthly Bills buttons', async ({ page }) => {
     await expect(page.getByRole('button', { name: /log monthly bills/i })).toBeVisible();
   });
 
-  test('opens add expense modal', async ({ page }) => {
+  test('opens add expense form', async ({ page }) => {
     await page.getByRole('button', { name: /single expense/i }).click();
-    await expect(page.getByRole('dialog')).toBeVisible();
     await expect(page.locator('#exp-amount')).toBeVisible();
     await expect(page.locator('#exp-category')).toBeVisible();
   });
 
-  test('cancel closes the modal', async ({ page }) => {
+  test('cancel hides the expense form', async ({ page }) => {
     await page.getByRole('button', { name: /single expense/i }).click();
-    await page.getByRole('dialog').getByRole('button', { name: /cancel/i }).click();
-    await expect(page.getByRole('dialog')).not.toBeVisible();
+    await expect(page.locator('#exp-amount')).toBeVisible();
+    await page.getByRole('button', { name: /^cancel$/i }).click();
+    await expect(page.locator('#exp-amount')).not.toBeVisible();
   });
 
   test('adds a new expense', async ({ page }) => {
     await page.getByRole('button', { name: /single expense/i }).click();
     await page.locator('#exp-amount').fill('500');
     await page.locator('#exp-category').fill('Food & Dining');
-    await page.getByRole('dialog').getByRole('button', { name: /save expense/i }).click();
-    await expect(page.getByRole('dialog')).not.toBeVisible({ timeout: 15_000 });
+    await page.getByRole('button', { name: /save expense/i }).click();
+    await expect(page.locator('#exp-amount')).not.toBeVisible({ timeout: 15_000 });
   });
 
-  test('opens monthly bills modal', async ({ page }) => {
+  test('opens monthly bills panel', async ({ page }) => {
     await page.getByRole('button', { name: /log monthly bills/i }).click();
-    await expect(page.getByRole('dialog')).toBeVisible();
     await expect(page.getByText(/monthly bill run/i)).toBeVisible();
   });
 });
