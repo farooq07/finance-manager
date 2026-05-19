@@ -76,21 +76,22 @@ TimeoutError: page.waitForResponse: Timeout 10000ms exceeded while waiting for e
         - paragraph [ref=e86]: Trusted by 2,000+ users worldwide
     - generic [ref=e90]:
       - generic [ref=e91]:
-        - heading "Welcome back" [level=1] [ref=e92]
-        - paragraph [ref=e93]: Sign in to your WealthAxis account to continue.
-      - generic [ref=e94]:
-        - generic [ref=e95]:
-          - generic [ref=e96]: Email or Username
-          - textbox "you@example.com" [ref=e97]
-        - generic [ref=e98]:
-          - generic [ref=e99]:
-            - generic [ref=e100]: Password
-            - link "Forgot password?" [ref=e101] [cursor=pointer]:
+        - img "WealthAxis Logo" [ref=e92]
+        - heading "Welcome back" [level=1] [ref=e93]
+        - paragraph [ref=e94]: Sign in to your WealthAxis account to continue.
+      - generic [ref=e95]:
+        - generic [ref=e96]:
+          - generic [ref=e97]: Email or Username
+          - textbox "you@example.com" [ref=e98]
+        - generic [ref=e99]:
+          - generic [ref=e100]:
+            - generic [ref=e101]: Password
+            - link "Forgot password?" [ref=e102] [cursor=pointer]:
               - /url: /forgot-password
-          - textbox "Enter your password" [ref=e102]
-        - button "Sign in" [ref=e103] [cursor=pointer]
-      - generic [ref=e108]: New to WealthAxis?
-      - link "Create an account" [ref=e109] [cursor=pointer]:
+          - textbox "Enter your password" [ref=e103]
+        - button "Sign in" [ref=e104] [cursor=pointer]
+      - generic [ref=e109]: New to WealthAxis?
+      - link "Create an account" [ref=e110] [cursor=pointer]:
         - /url: /register
 ```
 
