@@ -44,9 +44,11 @@ grep -r '"PKR"\|'\''PKR'\''' frontend/src --include="*.jsx" --include="*.js" -l 
 WARN for any file outside `currency.js` that hardcodes "PKR".
 
 ### 7. Environment variables reminder (manual check)
+Secrets are managed in **Doppler** locally and injected by **Railway** in production.
 Print a reminder — these cannot be verified programmatically:
 - Vercel dashboard: `VITE_API_URL` must be `https://finance-manager-production-73ad.up.railway.app/api`
-- Railway service vars: `JWT_SECRET`, `DATABASE_URL`, `DIRECT_URL`, `FRONTEND_URL`, `GEMINI_API_KEY`, `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS`
+- Railway service vars: `JWT_SECRET`, `DATABASE_URL`, `DIRECT_URL`, `FRONTEND_URL`, `GEMINI_API_KEY`, `GMAIL_USER`, `GMAIL_APP_PASSWORD`
+- Do NOT look for or create a `backend/.env` file — use `doppler run --` locally.
 
 ### 8. E2E tests (optional — requires dev servers)
 Check if frontend :5173 is reachable. If yes:

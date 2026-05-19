@@ -2,6 +2,24 @@
   "hooks": {
     "PreToolUse": [
       {
+        "matcher": "tool_name == 'Write' && tool_input.file_path =~ '\\.env$'",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '[HOOK] BLOCKED: Do not write .env files. This project uses Doppler. Add secrets at dashboard.doppler.com → fs-wealth-axis → dev, then restart npm run dev.' >&2; exit 1"
+          }
+        ]
+      },
+      {
+        "matcher": "tool_name == 'Bash' && tool_input.command =~ '(^|\\s)nodemon server\\.js|node server\\.js' && !(tool_input.command =~ 'doppler')",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '[HOOK] WARNING: Run the backend via \"npm run dev\" (Doppler-aware) not directly with nodemon/node — otherwise secrets will be missing.' >&2"
+          }
+        ]
+      },
+      {
         "matcher": "tool_name == 'Bash' && tool_input.command =~ 'prisma db push|prisma migrate deploy'",
         "hooks": [
           {
