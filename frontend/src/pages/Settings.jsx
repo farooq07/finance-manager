@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Settings as SettingsIcon, Building, CreditCard, Banknote, Plus, Trash2, ShieldAlert, Users, Tags, FileText, ChevronRight, Lock, Briefcase, Loader2, ArrowRight, Shield, Mail, Calendar, Eye, EyeOff, Menu, Save, RotateCcw } from 'lucide-react';
+import { Settings as SettingsIcon, Building, CreditCard, Banknote, Plus, Trash2, ShieldAlert, Users, Tags, FileText, ChevronRight, Lock, Briefcase, Loader2, ArrowRight, Shield, Mail, Calendar, Eye, EyeOff, Menu, Save, RotateCcw, Download } from 'lucide-react';
 import { useInstitutions, useCreateInstitution, useDeleteInstitution, useSeedInstitutions } from '../hooks/useInstitutions';
 import { useBrokerAccounts, useCreateBrokerAccount, useDeleteBrokerAccount } from '../hooks/useBrokerAccounts';
 import { usePin } from '../context/PinContext';
@@ -204,6 +204,12 @@ export default function Settings() {
                 { id: 'roles', label: 'Roles', icon: Shield },
                 { id: 'security', label: 'Security & PIN', icon: ShieldAlert },
                 ...(isSuperAdmin ? [{ id: 'menu_access', label: 'Menu Access', icon: Menu }] : []),
+            ]
+        },
+        {
+            title: "Data",
+            items: [
+                { id: 'export', label: 'Export Data', icon: Download },
             ]
         }
     ];
@@ -640,6 +646,8 @@ export default function Settings() {
                     <MenuAccessView setFeedbackModal={setFeedbackModal} canEdit={isSuperAdmin} />
                 )}
 
+                {activeTab === 'export' && <ExportDataView />}
+
                 {/* Add Broker Accounts Modal */}
                 {isAddBrokerModalOpen && (
                     <div className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center z-50 p-4 transition-colors">
@@ -1049,6 +1057,127 @@ function PinSettingsView({ setFeedbackModal }) {
             <Button color="light" onClick={() => { setMode('idle'); setPinSequence({ current: '', next: '', confirm: '' }); }} className="w-full">
                 Cancel
             </Button>
+        </div>
+    );
+}
+
+// =============================================================================
+// ExportDataView — lets the user download their own data for portability
+// and compliance ("right to access"). All exports are scoped to req.user.id
+// server-side; the client only specifies which dataset.
+// =============================================================================
+function ExportDataView() {
+    const [busy, setBusy] = useState(null);
+    const [error, setError] = useState('');
+
+    async function download(endpoint, filename) {
+        setError('');
+        setBusy(endpoint);
+        try {
+            const response = await api.get(endpoint, { responseType: 'blob' });
+            const url = window.URL.createObjectURL(response.data);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(url);
+        } catch (err) {
+            setError(err?.response?.data?.message || 'Download failed. Please try again.');
+        } finally {
+            setBusy(null);
+        }
+    }
+
+    const today = new Date().toISOString().slice(0, 10);
+
+    const items = [
+        {
+            key: '/export/transactions.csv',
+            file: `transactions-${today}.csv`,
+            title: 'Transactions (CSV)',
+            desc: 'All bank and wallet transaction logs in a single sheet.',
+        },
+        {
+            key: '/export/expenses.csv',
+            file: `expenses-${today}.csv`,
+            title: 'Expenses (CSV)',
+            desc: 'Manually-tracked expense entries.',
+        },
+        {
+            key: '/export/dues.csv',
+            file: `dues-${today}.csv`,
+            title: 'Dues Ledger (CSV)',
+            desc: 'Money you owe people and people who owe you.',
+        },
+        {
+            key: '/export/all.json',
+            file: `fswealth-axis-export-${today}.json`,
+            title: 'Full data dump (JSON)',
+            desc: 'Everything we hold about your account — banks, wallets, investments, dues, assets, beneficiaries, and more. Use this for a full backup or to migrate elsewhere.',
+        },
+    ];
+
+    return (
+        <div className="flex-1 overflow-y-auto p-6 lg:p-10">
+            <div className="max-w-3xl">
+                <h2 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">
+                    Export your data
+                </h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-2 leading-relaxed">
+                    Your data is yours. Download any of the files below at any time. Files are
+                    generated on demand and contain only records owned by your account.
+                </p>
+
+                {error && (
+                    <div className="mt-4 px-4 py-3 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 text-sm text-red-700 dark:text-red-300">
+                        {error}
+                    </div>
+                )}
+
+                <div className="mt-6 space-y-3">
+                    {items.map((item) => {
+                        const isBusy = busy === item.key;
+                        return (
+                            <div
+                                key={item.key}
+                                className="flex items-start gap-4 p-4 rounded-xl border border-gray-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/40 transition-colors"
+                            >
+                                <div className="w-10 h-10 rounded-lg bg-blue-50 dark:bg-blue-950/40 flex items-center justify-center shrink-0">
+                                    <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                                        {item.title}
+                                    </h3>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 leading-relaxed">
+                                        {item.desc}
+                                    </p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => download(item.key, item.file)}
+                                    disabled={isBusy}
+                                    className="shrink-0 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gray-900 hover:bg-black dark:bg-neutral-100 dark:hover:bg-white text-white dark:text-neutral-900 text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    {isBusy ? (
+                                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                    ) : (
+                                        <Download className="w-3.5 h-3.5" />
+                                    )}
+                                    {isBusy ? 'Preparing…' : 'Download'}
+                                </button>
+                            </div>
+                        );
+                    })}
+                </div>
+
+                <p className="mt-8 text-xs text-gray-400 dark:text-gray-500 leading-relaxed">
+                    For a one-time PDF report, open the Reports page and use your browser's
+                    Print → Save as PDF. We don't yet support generating PDFs server-side.
+                </p>
+            </div>
         </div>
     );
 }
