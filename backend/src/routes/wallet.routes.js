@@ -1,6 +1,7 @@
 import express from 'express';
 import multer from 'multer';
 import path from 'path';
+import logger from '../utils/logger.js';
 import { getWallets, createWallet, updateWalletBalance, deleteWallet, uploadStatement, syncStatementBalance, getStatementTransactions, approveTransaction, deleteStatement, getAllTransactions, updateTransactionCategory, deleteTransaction, bulkApproveTransactions } from '../controllers/wallet.controller.js';
 import verifyToken from '../middleware/auth.middleware.js';
 import validate, { walletSchema } from '../middleware/validate.js';
@@ -38,13 +39,13 @@ router.delete('/:id', deleteWallet);
 
 // Wallet Statement routes
 router.post('/:walletId/statements/upload', (req, res, next) => {
-    console.log('[ROUTE] Wallet statement upload - before multer:', {
+    logger.log('[ROUTE] Wallet statement upload - before multer:', {
         walletId: req.params.walletId,
         path: req.path
     });
     next();
 }, upload.single('file'), (req, res, next) => {
-    console.log('[ROUTE] Wallet statement upload - after multer:', {
+    logger.log('[ROUTE] Wallet statement upload - after multer:', {
         hasFile: !!req.file,
         fileName: req.file?.originalname,
         fileSize: req.file?.size

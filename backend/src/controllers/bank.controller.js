@@ -1,4 +1,5 @@
 import prisma from '../utils/prisma.js';
+import logger from '../utils/logger.js';
 import { encryptSecret, decryptSecret } from '../utils/crypto.js';
 import { extractPdfText, getFileHash } from '../services/pdfParser.service.js';
 import { parseTransactions, validateBalance, parseStatementBalances } from '../services/transactionParser.service.js';
@@ -151,7 +152,7 @@ export const uploadStatement = async (req, res) => {
         const { bankId } = req.params;
         const { password } = req.body;
 
-        console.log('[STATEMENT] Upload request:', {
+        logger.log('[STATEMENT] Upload request:', {
             bankId,
             hasFile: !!req.file,
             fileName: req.file?.originalname,
@@ -172,7 +173,7 @@ export const uploadStatement = async (req, res) => {
         }
 
         filePath = req.file.path;
-        console.log('[STATEMENT] File saved at:', filePath);
+        logger.log('[STATEMENT] File saved at:', filePath);
 
         // Declare variables outside try block
         let fileHash = '';
@@ -183,7 +184,7 @@ export const uploadStatement = async (req, res) => {
 
         try {
             // Step 1: Check for duplicate file
-            console.log('[STATEMENT] Checking for duplicate file...');
+            logger.log('[STATEMENT] Checking for duplicate file...');
             fileHash = getFileHash(filePath);
             const isDuplicate = await isFilePreviouslyImported(req.user.id, fileHash, bankId);
 
@@ -194,24 +195,24 @@ export const uploadStatement = async (req, res) => {
 
             if (fileIsCsv) {
                 // Step 2a: Parse CSV directly
-                console.log('[STATEMENT] Parsing CSV file...');
+                logger.log('[STATEMENT] Parsing CSV file...');
                 try {
                     parsedTxs = parseCsvTransactions(filePath);
-                    console.log('[STATEMENT] CSV parsed:', parsedTxs.length, 'transactions');
+                    logger.log('[STATEMENT] CSV parsed:', parsedTxs.length, 'transactions');
                 } catch (csvError) {
                     fs.unlinkSync(filePath);
                     return res.status(400).json({ message: csvError.message });
                 }
             } else {
                 // Step 2b: Extract PDF text
-                console.log('[STATEMENT] Extracting text from PDF...');
+                logger.log('[STATEMENT] Extracting text from PDF...');
                 try {
                     const pdfData = await extractPdfText(filePath, password);
                     rawText = pdfData.rawText;
                     pageCount = pdfData.pageCount;
-                    console.log('[STATEMENT] PDF extracted successfully, text length:', rawText.length);
+                    logger.log('[STATEMENT] PDF extracted successfully, text length:', rawText.length);
                     if (rawText.length > 0) {
-                        console.log('[STATEMENT] First 500 chars of extracted text:', rawText.substring(0, 500));
+                        logger.log('[STATEMENT] First 500 chars of extracted text:', rawText.substring(0, 500));
                     }
                 } catch (pdfError) {
                     console.error('[STATEMENT] PDF extraction error:', pdfError.message);
@@ -219,10 +220,10 @@ export const uploadStatement = async (req, res) => {
                 }
 
                 // Step 3: Parse transactions
-                console.log('[STATEMENT] Parsing transactions...');
+                logger.log('[STATEMENT] Parsing transactions...');
                 try {
                     parsedTxs = rawText ? parseTransactions(rawText) : [];
-                    console.log('[STATEMENT] Parsed transactions count:', parsedTxs.length);
+                    logger.log('[STATEMENT] Parsed transactions count:', parsedTxs.length);
                 } catch (parseError) {
                     console.error('[STATEMENT] Transaction parsing error:', parseError.message);
                     parsedTxs = [];
@@ -233,7 +234,7 @@ export const uploadStatement = async (req, res) => {
         }
 
         // Step 4: Create BankStatement record
-        console.log('[STATEMENT] Creating bank statement record...');
+        logger.log('[STATEMENT] Creating bank statement record...');
 
         // Extract month and year from first transaction or use current
         let month = new Date().toLocaleString('en-US', { month: 'long' });
@@ -265,7 +266,7 @@ export const uploadStatement = async (req, res) => {
             closingBalance = parsed.closing;
         }
 
-        console.log('[STATEMENT] Balances extracted — opening:', openingBalance, 'closing:', closingBalance);
+        logger.log('[STATEMENT] Balances extracted — opening:', openingBalance, 'closing:', closingBalance);
 
         const bankStatement = await prisma.bankStatement.create({
             data: {
@@ -288,11 +289,11 @@ export const uploadStatement = async (req, res) => {
                 where: { id: bankId },
                 data: { current_balance: closingBalance }
             });
-            console.log('[STATEMENT] Updated bank current_balance to', closingBalance);
+            logger.log('[STATEMENT] Updated bank current_balance to', closingBalance);
         }
 
         // Step 5: Check for duplicates and auto-categorize
-        console.log('[STATEMENT] Checking for duplicates and categorizing...');
+        logger.log('[STATEMENT] Checking for duplicates and categorizing...');
         let duplicateMap = new Map();
         let transactionLogs = [];
 
@@ -342,7 +343,7 @@ export const uploadStatement = async (req, res) => {
             }
         }
 
-        console.log(`[STATEMENT] Imported ${transactionLogs.length} transactions (${duplicateMap.size} duplicates)`);
+        logger.log(`[STATEMENT] Imported ${transactionLogs.length} transactions (${duplicateMap.size} duplicates)`);
 
         // Auto-link transactions to beneficiaries
         await linkTransactionsToBeneficiaries(req.user.id, transactionLogs);

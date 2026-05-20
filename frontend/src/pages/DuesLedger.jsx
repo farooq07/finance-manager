@@ -45,11 +45,6 @@ export default function DuesLedger() {
     const fetchPeople = async () => {
         try {
             const { data } = await api.get('/dues');
-            console.log('Dues API Response:', data);
-            console.log('Number of people:', data?.length);
-            if (data && Array.isArray(data) && data.length > 0) {
-                console.log('First person:', data[0]);
-            }
             setPeople(data || []);
         } catch (error) {
             console.error('Error fetching dues', error);
@@ -255,7 +250,6 @@ export default function DuesLedger() {
     const testDebugEndpoint = async () => {
         try {
             const { data } = await api.get('/dues/debug/user-info');
-            console.log('Debug info:', data);
             toast.success(`Found ${data.peopleCount} people and ${data.transactionCount} transactions`);
         } catch (error) {
             console.error('Debug error:', error);

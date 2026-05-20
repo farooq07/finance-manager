@@ -1,4 +1,5 @@
 import prisma from '../utils/prisma.js';
+import logger from '../utils/logger.js';
 import { scrapePSX, scrapeTradingViewNews } from '../services/scraper.service.js';
 
 // Get user's stock portfolio
@@ -148,7 +149,7 @@ export const syncPsxStocks = async (req, res) => {
             return res.status(403).json({ message: 'Unauthorized - Admin access required' });
         }
 
-        console.log('[SYNC] Starting manual PSX Scraping Job...');
+        logger.log('[SYNC] Starting manual PSX Scraping Job...');
         const results = await scrapePSX(TARGET_STOCKS);
 
         if (!results || results.length === 0) {
@@ -195,7 +196,7 @@ export const syncPsxStocks = async (req, res) => {
             updatedCount++;
         }
 
-        console.log(`[SYNC] Successfully updated ${updatedCount} PSX stocks (skipped ${skippedCount}).`);
+        logger.log(`[SYNC] Successfully updated ${updatedCount} PSX stocks (skipped ${skippedCount}).`);
         res.status(200).json({
             message: `✓ Updated ${updatedCount} stocks`,
             success: true,
@@ -235,7 +236,7 @@ export const syncStockNews = async (req, res) => {
             return res.json({ message: 'No stocks found to sync news for.', success: false });
         }
 
-        console.log(`[NEWS SYNC] Syncing news for ${tickers.join(', ')}`);
+        logger.log(`[NEWS SYNC] Syncing news for ${tickers.join(', ')}`);
 
         const results = {
             success: [],
@@ -248,7 +249,7 @@ export const syncStockNews = async (req, res) => {
 
             if (error) {
                 // Log error but don't retry
-                console.log(`[NEWS SKIP] ${sym}: ${error}`);
+                logger.log(`[NEWS SKIP] ${sym}: ${error}`);
                 results.failed.push({ ticker: sym, reason: error });
                 continue;
             }

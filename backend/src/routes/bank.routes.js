@@ -2,6 +2,7 @@ import express from 'express';
 import multer from 'multer';
 import path from 'path';
 import verifyToken from '../middleware/auth.middleware.js';
+import logger from '../utils/logger.js';
 import validate, { bankSchema } from '../middleware/validate.js';
 import {
     createBank,
@@ -59,13 +60,13 @@ router.delete('/:id', deleteBank);
 
 // Bank Statement routes with logging
 router.post('/:bankId/statements/upload', (req, res, next) => {
-    console.log('[ROUTE] Statement upload - before multer:', {
+    logger.log('[ROUTE] Statement upload - before multer:', {
         bankId: req.params.bankId,
         path: req.path
     });
     next();
 }, upload.single('file'), (req, res, next) => {
-    console.log('[ROUTE] Statement upload - after multer:', {
+    logger.log('[ROUTE] Statement upload - after multer:', {
         hasFile: !!req.file,
         fileName: req.file?.originalname,
         fileSize: req.file?.size

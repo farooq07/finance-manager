@@ -1,4 +1,5 @@
 import prisma from '../utils/prisma.js';
+import logger from '../utils/logger.js';
 
 // ─── Beneficiary CRUD ───────────────────────────────────────────────────────
 
@@ -251,7 +252,7 @@ async function retroactiveScan(userId, accountNo, beneficiaryId) {
 
         if (links.length) {
             await prisma.beneficiaryTransaction.createMany({ data: links, skipDuplicates: true });
-            console.log(`[BENEFICIARY] Retroactive scan: linked ${links.length} existing transactions`);
+            logger.log(`[BENEFICIARY] Retroactive scan: linked ${links.length} existing transactions`);
         }
 
         return links.length;
@@ -306,7 +307,7 @@ export async function linkTransactionsToBeneficiaries(userId, txLogs) {
 
         if (links.length) {
             await prisma.beneficiaryTransaction.createMany({ data: links, skipDuplicates: true });
-            console.log(`[BENEFICIARY] Linked ${links.length} transactions to beneficiaries`);
+            logger.log(`[BENEFICIARY] Linked ${links.length} transactions to beneficiaries`);
         }
     } catch (err) {
         console.error('[BENEFICIARY] Auto-link error:', err.message);

@@ -1,4 +1,5 @@
 import prisma from '../utils/prisma.js';
+import logger from '../utils/logger.js';
 import { encryptSecret, decryptSecret } from '../utils/crypto.js';
 import { extractPdfText, getFileHash } from '../services/pdfParser.service.js';
 import { parseTransactions, validateBalance, parseStatementBalances } from '../services/transactionParser.service.js';
@@ -231,7 +232,7 @@ export const uploadStatement = async (req, res) => {
         const { walletId } = req.params;
         const { password } = req.body;
 
-        console.log('[WALLET_STATEMENT] Upload request:', {
+        logger.log('[WALLET_STATEMENT] Upload request:', {
             walletId,
             hasFile: !!req.file,
             fileName: req.file?.originalname,
@@ -251,7 +252,7 @@ export const uploadStatement = async (req, res) => {
         }
 
         filePath = req.file.path;
-        console.log('[WALLET_STATEMENT] File saved at:', filePath);
+        logger.log('[WALLET_STATEMENT] File saved at:', filePath);
 
         let fileHash = '';
         let rawText = '';
@@ -260,7 +261,7 @@ export const uploadStatement = async (req, res) => {
         const fileIsCsv = isCsv(req.file);
 
         try {
-            console.log('[WALLET_STATEMENT] Checking for duplicate file...');
+            logger.log('[WALLET_STATEMENT] Checking for duplicate file...');
             fileHash = getFileHash(filePath);
             const isDuplicate = await isWalletFilePreviouslyImported(req.user.id, fileHash, walletId);
 
@@ -270,30 +271,30 @@ export const uploadStatement = async (req, res) => {
             }
 
             if (fileIsCsv) {
-                console.log('[WALLET_STATEMENT] Parsing CSV...');
+                logger.log('[WALLET_STATEMENT] Parsing CSV...');
                 try {
                     parsedTxs = parseCsvTransactions(filePath);
-                    console.log('[WALLET_STATEMENT] CSV parsed:', parsedTxs.length, 'transactions');
+                    logger.log('[WALLET_STATEMENT] CSV parsed:', parsedTxs.length, 'transactions');
                 } catch (csvError) {
                     fs.unlinkSync(filePath);
                     return res.status(400).json({ message: csvError.message });
                 }
             } else {
-                console.log('[WALLET_STATEMENT] Extracting text from PDF...');
+                logger.log('[WALLET_STATEMENT] Extracting text from PDF...');
                 try {
                     const pdfData = await extractPdfText(filePath, password);
                     rawText = pdfData.rawText;
                     pageCount = pdfData.pageCount;
-                    console.log('[WALLET_STATEMENT] PDF extracted, text length:', rawText.length);
+                    logger.log('[WALLET_STATEMENT] PDF extracted, text length:', rawText.length);
                 } catch (pdfError) {
                     console.error('[WALLET_STATEMENT] PDF extraction error:', pdfError.message);
                     rawText = '';
                 }
 
-                console.log('[WALLET_STATEMENT] Parsing transactions...');
+                logger.log('[WALLET_STATEMENT] Parsing transactions...');
                 try {
                     parsedTxs = rawText ? parseTransactions(rawText) : [];
-                    console.log('[WALLET_STATEMENT] Parsed transactions count:', parsedTxs.length);
+                    logger.log('[WALLET_STATEMENT] Parsed transactions count:', parsedTxs.length);
                 } catch (parseError) {
                     console.error('[WALLET_STATEMENT] Transaction parsing error:', parseError.message);
                     parsedTxs = [];
@@ -303,7 +304,7 @@ export const uploadStatement = async (req, res) => {
             console.error('[WALLET_STATEMENT] Preprocessing error:', preprocessError);
         }
 
-        console.log('[WALLET_STATEMENT] Creating wallet statement record...');
+        logger.log('[WALLET_STATEMENT] Creating wallet statement record...');
 
         let month = new Date().toLocaleString('en-US', { month: 'long' });
         let year = new Date().getFullYear();
@@ -333,7 +334,7 @@ export const uploadStatement = async (req, res) => {
             closingBalance = parsed.closing;
         }
 
-        console.log('[WALLET_STATEMENT] Balances — opening:', openingBalance, 'closing:', closingBalance);
+        logger.log('[WALLET_STATEMENT] Balances — opening:', openingBalance, 'closing:', closingBalance);
 
         const walletStatement = await prisma.walletStatement.create({
             data: {
@@ -356,10 +357,10 @@ export const uploadStatement = async (req, res) => {
                 where: { id: walletId },
                 data: { balance: closingBalance }
             });
-            console.log('[WALLET_STATEMENT] Updated wallet balance to', closingBalance);
+            logger.log('[WALLET_STATEMENT] Updated wallet balance to', closingBalance);
         }
 
-        console.log('[WALLET_STATEMENT] Checking for duplicates and categorizing...');
+        logger.log('[WALLET_STATEMENT] Checking for duplicates and categorizing...');
         let duplicateMap = new Map();
         let transactionLogs = [];
 
@@ -408,7 +409,7 @@ export const uploadStatement = async (req, res) => {
             }
         }
 
-        console.log(`[WALLET_STATEMENT] Imported ${transactionLogs.length} transactions (${duplicateMap.size} duplicates)`);
+        logger.log(`[WALLET_STATEMENT] Imported ${transactionLogs.length} transactions (${duplicateMap.size} duplicates)`);
 
         res.status(201).json({
             message: 'Statement uploaded and processed',

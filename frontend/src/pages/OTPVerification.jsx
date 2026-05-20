@@ -61,7 +61,6 @@ export default function OTPVerification() {
         // Simulate API call
         try {
             await new Promise(resolve => setTimeout(resolve, 1000));
-            console.log('OTP Verified:', otpString);
             // In a real app, you would redirect or handle success here
         } catch (err) {
             setError('Invalid code. Please try again.');
@@ -73,7 +72,6 @@ export default function OTPVerification() {
     const handleResend = (e) => {
         e.preventDefault();
         // Simulate resend API call
-        console.log('Resending email to:', email);
     };
 
     // Auto-inject OTP in development mode

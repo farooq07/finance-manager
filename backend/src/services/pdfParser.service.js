@@ -2,6 +2,7 @@ import Tesseract from 'tesseract.js';
 import fs from 'fs';
 import crypto from 'crypto';
 import pdfreader from 'pdfreader';
+import logger from '../utils/logger.js';
 
 let pdfParse;
 
@@ -107,11 +108,11 @@ export async function extractPdfText(filePath, password = null) {
 
     // For non-encrypted PDFs, prefer pdfreader for better table structure preservation
     try {
-        console.log('[PDF_PARSER] Trying pdfreader for table reconstruction...');
+        logger.log('[PDF_PARSER] Trying pdfreader for table reconstruction...');
         const pdfreaderData = await extractTextWithPdfreader(filePath);
 
         if (pdfreaderData.rawText && pdfreaderData.rawText.trim().length > 0) {
-            console.log('[PDF_PARSER] pdfreader succeeded, text length:', pdfreaderData.rawText.length);
+            logger.log('[PDF_PARSER] pdfreader succeeded, text length:', pdfreaderData.rawText.length);
             return {
                 rawText: pdfreaderData.rawText,
                 pageCount: pdfreaderData.pageCount || 0,
@@ -120,9 +121,9 @@ export async function extractPdfText(filePath, password = null) {
             };
         }
 
-        console.log('[PDF_PARSER] pdfreader returned empty, falling back to pdf-parse...');
+        logger.log('[PDF_PARSER] pdfreader returned empty, falling back to pdf-parse...');
     } catch (pdfreaderError) {
-        console.log('[PDF_PARSER] pdfreader failed:', pdfreaderError.message, '- falling back to pdf-parse');
+        logger.log('[PDF_PARSER] pdfreader failed:', pdfreaderError.message, '- falling back to pdf-parse');
     }
 
     return await extractWithPdfParse(filePath, password);

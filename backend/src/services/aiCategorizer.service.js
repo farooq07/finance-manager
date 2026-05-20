@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import Groq from 'groq-sdk';
 import prisma from '../utils/prisma.js';
+import logger from '../utils/logger.js';
 
 const CATEGORIES = [
     'ATM Withdrawal', 'Profit/Dividend', 'Salary', 'Bank Charges', 'Transfer',
@@ -97,7 +98,7 @@ export async function aiCategorizeBatch(descriptions) {
             }
         });
 
-        console.log(`[AI_CAT] ${provider} categorised ${descriptions.length} descriptions`);
+        logger.log(`[AI_CAT] ${provider} categorised ${descriptions.length} descriptions`);
     } catch (err) {
         console.error(`[AI_CAT] ${provider} batch failed:`, err.message);
         descriptions.forEach(d => results.set(d, { category: 'Other', confidence: 0.1, source: 'ai_error' }));

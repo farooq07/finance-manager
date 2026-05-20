@@ -1,4 +1,5 @@
 import { createRequire } from 'module';
+import logger from './logger.js';
 const require = createRequire(import.meta.url);
 const pdf = require('pdf-parse');
 
@@ -38,10 +39,10 @@ export async function parsePdfHoldings(buffer) {
     }
 
     const text = data.text;
-    console.log('Extracted PDF Text (first 500 chars):', text.substring(0, 500));
+    logger.log('Extracted PDF Text (first 500 chars):', text.substring(0, 500));
 
     const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-    console.log(`Processing ${lines.length} lines from PDF`);
+    logger.log(`Processing ${lines.length} lines from PDF`);
 
     const holdings = [];
 

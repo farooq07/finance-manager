@@ -1,4 +1,5 @@
 import fs from 'fs';
+import logger from '../utils/logger.js';
 
 // Column name aliases → our standard fields
 const DATE_ALIASES    = ['date', 'transaction date', 'txn date', 'value date', 'posting date', 'trans date', 'tran date', 'created at', 'time'];
@@ -175,6 +176,6 @@ export function parseCsvTransactions(filePath) {
         });
     }
 
-    console.log(`[CSV_PARSER] Parsed ${transactions.length} transactions from ${rawLines.length - headerIdx - 1} data rows`);
+    logger.log(`[CSV_PARSER] Parsed ${transactions.length} transactions from ${rawLines.length - headerIdx - 1} data rows`);
     return transactions;
 }

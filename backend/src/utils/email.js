@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer';
+import logger from './logger.js';
 
 // Create a transporter using Gmail SMTP.
 // Gmail App Passwords are displayed with spaces in the Google UI — strip them,
@@ -55,7 +56,7 @@ export const sendOtpEmail = async (to, otp) => {
 
     try {
         await transporter.sendMail(mailOptions);
-        console.log(`OTP email sent successfully to ${to}`);
+        logger.log(`OTP email sent successfully to ${to}`);
     } catch (error) {
         console.error('Error sending OTP email:', error);
         throw new Error('Failed to send OTP email');
@@ -111,7 +112,7 @@ export const sendVerificationEmail = async (to, name, token) => {
 
     try {
         await transporter.sendMail(mailOptions);
-        console.log(`Verification email sent to ${to}`);
+        logger.log(`Verification email sent to ${to}`);
     } catch (error) {
         console.error('Error sending verification email:', error);
         throw new Error('Failed to send verification email');
@@ -153,7 +154,7 @@ export const sendReminderEmail = async (to, personName, netBalance) => {
 
     try {
         await transporter.sendMail(mailOptions);
-        console.log(`Reminder email sent successfully to ${to}`);
+        logger.log(`Reminder email sent successfully to ${to}`);
     } catch (error) {
         console.error('Error sending reminder email:', error);
         throw new Error('Failed to send reminder email');
@@ -231,7 +232,7 @@ export const sendSummaryEmail = async (to, userName, metrics) => {
 
     try {
         await transporter.sendMail(mailOptions);
-        console.log(`Summary email sent successfully to ${to}`);
+        logger.log(`Summary email sent successfully to ${to}`);
     } catch (error) {
         console.error('Error sending summary email:', error);
         throw new Error('Failed to send summary email');

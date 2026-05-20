@@ -1,4 +1,5 @@
 import Decimal from 'decimal.js';
+import logger from '../utils/logger.js';
 
 const monthMap = {
     'jan': 0, 'feb': 1, 'mar': 2, 'apr': 3, 'may': 4, 'jun': 5,
@@ -57,13 +58,13 @@ export function parseTransactions(rawText) {
         }
     }
 
-    console.log(`[PARSER] Found ${dateMarkers.length} date markers in ${lines.length} lines`);
+    logger.log(`[PARSER] Found ${dateMarkers.length} date markers in ${lines.length} lines`);
 
     if (dateMarkers.length === 0) {
         if (lines.length > 0) {
-            console.log('[PARSER] No date markers found. Sample lines (first 15):');
+            logger.log('[PARSER] No date markers found. Sample lines (first 15):');
             for (let i = 0; i < Math.min(15, lines.length); i++) {
-                console.log(`  [${i}] ${lines[i].substring(0, 150)}`);
+                logger.log(`  [${i}] ${lines[i].substring(0, 150)}`);
             }
         }
         return [];
@@ -83,7 +84,7 @@ export function parseTransactions(rawText) {
         const amounts = extractAmountsFromText(blockText);
 
         if (!amounts.length) {
-            console.log(`[PARSER] Block ${m} has date but no amounts: ${blockText.substring(0, 100)}`);
+            logger.log(`[PARSER] Block ${m} has date but no amounts: ${blockText.substring(0, 100)}`);
             continue;
         }
 
@@ -123,7 +124,7 @@ export function parseTransactions(rawText) {
     }
 
     const valid = transactions.filter(tx => tx.net_amount !== 0);
-    console.log(`[PARSER] Extracted ${valid.length} valid transactions (${transactions.length - valid.length} zero-amount rows skipped)`);
+    logger.log(`[PARSER] Extracted ${valid.length} valid transactions (${transactions.length - valid.length} zero-amount rows skipped)`);
     return valid;
 }
 
