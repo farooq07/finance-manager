@@ -74,7 +74,7 @@ const CircularProgress = ({ percent, color, label }) => {
 };
 
 export default function Login() {
-    const { login, verifyOtp } = useAuth();
+    const { login, verifyOtp, resendVerification } = useAuth();
     const [step, setStep] = useState('CREDENTIALS');
     const [userId, setUserId] = useState(null);
 
@@ -88,6 +88,10 @@ export default function Login() {
     const [loading, setLoading] = useState(false);
     const [registrationEnabled, setRegistrationEnabled] = useState(true);
 
+    const [unverifiedEmail, setUnverifiedEmail] = useState('');
+    const [resendingVerify, setResendingVerify] = useState(false);
+    const [verifyResentNote, setVerifyResentNote] = useState('');
+
     useEffect(() => {
         api.get('/auth/config')
             .then(({ data }) => setRegistrationEnabled(data.registrationEnabled))
@@ -97,6 +101,8 @@ export default function Login() {
     const handleLoginSubmit = async (e) => {
         e.preventDefault();
         setError('');
+        setUnverifiedEmail('');
+        setVerifyResentNote('');
         setLoading(true);
         try {
             const response = await login(identifier, password);
@@ -106,9 +112,29 @@ export default function Login() {
                 setStep('OTP');
             }
         } catch (err) {
-            setError(err.response?.data?.message || 'Failed to login');
+            const data = err.response?.data;
+            if (data?.requiresVerification && data?.email) {
+                setUnverifiedEmail(data.email);
+                setError(data.message || 'Please confirm your email address before logging in.');
+            } else {
+                setError(data?.message || 'Failed to login');
+            }
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleResendVerification = async () => {
+        if (!unverifiedEmail) return;
+        setVerifyResentNote('');
+        setResendingVerify(true);
+        try {
+            await resendVerification(unverifiedEmail);
+            setVerifyResentNote('Verification email sent. Please check your inbox.');
+        } catch {
+            setVerifyResentNote('Could not resend right now. Please try again shortly.');
+        } finally {
+            setResendingVerify(false);
         }
     };
 
@@ -284,6 +310,33 @@ export default function Login() {
                                     <div className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-3.5 rounded-xl text-sm border border-red-100 dark:border-red-900/40 flex items-center gap-2">
                                         <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-red-500" />
                                         {error}
+                                    </div>
+                                )}
+
+                                {unverifiedEmail && (
+                                    <div className="bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 p-3.5 rounded-xl text-sm border border-amber-200 dark:border-amber-800/40">
+                                        <div className="flex items-start gap-2">
+                                            <Mail className="w-4 h-4 mt-0.5 shrink-0" />
+                                            <div className="flex-1">
+                                                <p className="font-medium">Email not confirmed yet</p>
+                                                <p className="mt-1 text-xs text-amber-600/90 dark:text-amber-300/80">
+                                                    We sent a verification link to <span className="font-semibold">{unverifiedEmail}</span>. Click it to activate your account.
+                                                </p>
+                                                <button
+                                                    type="button"
+                                                    onClick={handleResendVerification}
+                                                    disabled={resendingVerify}
+                                                    className="mt-2.5 inline-flex items-center gap-1.5 text-xs font-semibold text-amber-700 dark:text-amber-200 underline underline-offset-2 hover:no-underline disabled:opacity-60"
+                                                >
+                                                    {resendingVerify ? 'Sending…' : 'Resend verification email'}
+                                                </button>
+                                                {verifyResentNote && (
+                                                    <p className="mt-2 text-xs text-emerald-700 dark:text-emerald-300">
+                                                        {verifyResentNote}
+                                                    </p>
+                                                )}
+                                            </div>
+                                        </div>
                                     </div>
                                 )}
 

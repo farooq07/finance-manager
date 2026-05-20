@@ -28,7 +28,40 @@ export const register = async (req, res) => {
 
         const existingUser = await prisma.user.findUnique({ where: { email } });
         if (existingUser) {
-            return res.status(400).json({ message: 'User with this email already exists' });
+            // If the account already exists but is unverified, treat the new
+            // signup as a "please resend" request — issue a fresh token,
+            // (re)send the verification email, and let the frontend show its
+            // confirm-your-email screen instead of an opaque "already exists".
+            const verifiedRows = await prisma.$queryRaw`
+                SELECT email_verified FROM users WHERE id = ${existingUser.id}::uuid LIMIT 1
+            `;
+            const alreadyVerified = verifiedRows[0]?.email_verified === true;
+
+            if (alreadyVerified) {
+                return res.status(400).json({ message: 'An account with this email already exists. Please sign in instead.' });
+            }
+
+            const verificationToken = generateVerificationToken();
+            const verificationExpires = new Date(Date.now() + VERIFICATION_TTL_MS);
+
+            await prisma.$executeRaw`
+                UPDATE users
+                SET email_verification_token = ${verificationToken},
+                    email_verification_expires = ${verificationExpires}
+                WHERE id = ${existingUser.id}::uuid
+            `;
+
+            try {
+                await sendVerificationEmail(existingUser.email, existingUser.name, verificationToken);
+            } catch (emailError) {
+                console.error('Failed to resend verification email on duplicate signup:', emailError);
+            }
+
+            return res.status(200).json({
+                message: 'This email is already registered but not yet verified. We sent a fresh confirmation link to your inbox.',
+                email: existingUser.email,
+                requiresVerification: true
+            });
         }
 
         const salt = await bcrypt.genSalt(10);

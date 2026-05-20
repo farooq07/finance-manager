@@ -81,14 +81,19 @@ export default function Register() {
     const [submittedEmail, setSubmittedEmail] = useState('');
     const [resending, setResending] = useState(false);
     const [resentNote, setResentNote] = useState('');
+    const [existingNote, setExistingNote] = useState('');
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
+        setExistingNote('');
         setLoading(true);
         try {
-            await register(name, email, password);
+            const data = await register(name, email, password);
             setSubmittedEmail(email);
+            if (data?.requiresVerification && data?.message) {
+                setExistingNote(data.message);
+            }
         } catch (err) {
             const status = err.response?.status;
             const message = err.response?.data?.message;
@@ -205,6 +210,12 @@ export default function Register() {
                             <p className="mt-2 text-gray-400 dark:text-gray-500 text-xs">
                                 Click the link in your inbox to activate your account. The link expires in 24 hours.
                             </p>
+
+                            {existingNote && (
+                                <div className="mt-5 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 px-3 py-2.5 rounded-xl text-xs border border-amber-200 dark:border-amber-800/40">
+                                    {existingNote}
+                                </div>
+                            )}
 
                             {resentNote && (
                                 <div className="mt-5 inline-flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400">
