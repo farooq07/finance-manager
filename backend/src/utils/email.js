@@ -5,10 +5,14 @@ import nodemailer from 'nodemailer';
 // otherwise SMTP AUTH silently hangs for ~2 minutes and then 535 fails.
 const gmailPass = (process.env.GMAIL_APP_PASSWORD || '').replace(/\s+/g, '');
 
+// Use port 587 with STARTTLS rather than 465/SMTPS — Railway and many other
+// cloud hosts block outbound port 465 by default, which manifests as ETIMEDOUT
+// on CONN. 587 is almost universally allowed.
 const transporter = nodemailer.createTransport({
     host: 'smtp.gmail.com',
-    port: 465,
-    secure: true,
+    port: 587,
+    secure: false,
+    requireTLS: true,
     auth: {
         user: process.env.GMAIL_USER,
         pass: gmailPass

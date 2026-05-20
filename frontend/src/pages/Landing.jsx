@@ -210,8 +210,8 @@ function Nav() {
           </Link>
           <Link
             to="/register"
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium text-white transition-all hover:scale-[1.02] active:scale-[0.98]"
-            style={{ background: p.ink }}
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium transition-all hover:scale-[1.02] active:scale-[0.98]"
+            style={{ background: p.ink, color: p.paper }}
           >
             Start free
             <MoveRight className="w-3.5 h-3.5" />
@@ -1043,8 +1043,8 @@ function ClosingCta() {
           <div ref={ctaRef} className="col-span-12 lg:col-span-3 lg:pb-6 mt-10 lg:mt-0">
             <Link
               to="/register"
-              className="inline-flex items-center gap-2 px-7 py-4 rounded-full text-base font-medium text-white transition-all hover:translate-x-1 group"
-              style={{ background: p.ink, opacity: 0 }}
+              className="inline-flex items-center gap-2 px-7 py-4 rounded-full text-base font-medium transition-all hover:translate-x-1 group"
+              style={{ background: p.ink, color: p.paper, opacity: 0 }}
             >
               Begin
               <ArrowUpRight className="w-5 h-5 transition-transform group-hover:rotate-45" />

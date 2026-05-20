@@ -41,6 +41,10 @@ if (process.env.NODE_ENV === 'production') {
 
 const app = express();
 
+// Trust the first proxy hop (Railway sits behind a reverse proxy).
+// Required so express-rate-limit can use X-Forwarded-For for client IPs.
+app.set('trust proxy', 1);
+
 // CORS: Lock to specific origins
 const allowedOrigins = [
     'http://localhost:5173',
