@@ -283,7 +283,10 @@ export const getMe = async (req, res) => {
     try {
         const user = await prisma.user.findUnique({
             where: { id: req.user.id },
-            select: { id: true, name: true, email: true, app_pin_code: true, role: true, must_change_password: true }
+            select: {
+                id: true, name: true, email: true, app_pin_code: true, role: true,
+                must_change_password: true, terms_accepted_at: true, privacy_accepted_at: true,
+            }
         });
 
         if (!user) {
@@ -296,11 +299,27 @@ export const getMe = async (req, res) => {
             email: user.email,
             role: user.role,
             hasPin: !!user.app_pin_code,
-            must_change_password: user.must_change_password
+            must_change_password: user.must_change_password,
+            terms_accepted_at: user.terms_accepted_at,
+            privacy_accepted_at: user.privacy_accepted_at,
         });
     } catch (error) {
         console.error('GetMe Error:', error);
         res.status(500).json({ message: 'Server error fetching user profile' });
+    }
+};
+
+export const acceptLegal = async (req, res) => {
+    try {
+        const now = new Date();
+        await prisma.user.update({
+            where: { id: req.user.id },
+            data: { terms_accepted_at: now, privacy_accepted_at: now },
+        });
+        res.json({ terms_accepted_at: now, privacy_accepted_at: now });
+    } catch (error) {
+        console.error('AcceptLegal Error:', error);
+        res.status(500).json({ message: 'Server error recording acceptance' });
     }
 };
 

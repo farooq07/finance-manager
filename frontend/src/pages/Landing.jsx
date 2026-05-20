@@ -1074,7 +1074,9 @@ function Footer() {
         <p className="text-xs" style={{ color: p.mute, fontFamily: fontMono }}>
           © {new Date().getFullYear()} — Designed and built in Karachi.
         </p>
-        <div className="flex items-center gap-6 text-sm" style={{ color: p.inkSoft }}>
+        <div className="flex items-center gap-5 text-sm flex-wrap" style={{ color: p.inkSoft }}>
+          <Link to="/privacy"  className="hover:opacity-70 transition-opacity">Privacy</Link>
+          <Link to="/terms"    className="hover:opacity-70 transition-opacity">Terms</Link>
           <Link to="/login"    className="hover:opacity-70 transition-opacity">Sign in</Link>
           <Link to="/register" className="hover:opacity-70 transition-opacity">Start free</Link>
         </div>

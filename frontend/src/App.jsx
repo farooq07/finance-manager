@@ -29,6 +29,8 @@ import Beneficiaries from './pages/Beneficiaries';
 import BeneficiaryDetail from './pages/BeneficiaryDetail';
 import ChangeFirstPassword from './pages/ChangeFirstPassword';
 import AiAssistant from './pages/AiAssistant';
+import Privacy from './pages/Privacy';
+import Terms from './pages/Terms';
 
 
 const ProtectedRoute = ({ children }) => {
@@ -65,6 +67,8 @@ function App() {
             <Route path="/verify-otp" element={<PublicRoute><OTPVerification /></PublicRoute>} />
             <Route path="/verify-email" element={<VerifyEmail />} />
             <Route path="/welcome" element={<PublicRoute><Landing /></PublicRoute>} />
+            <Route path="/privacy" element={<Privacy />} />
+            <Route path="/terms" element={<Terms />} />
             <Route path="/change-password" element={<ChangeFirstPassword />} />
 
             <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>

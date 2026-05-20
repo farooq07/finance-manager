@@ -23,6 +23,8 @@ model User {
   email_verified      Boolean             @default(false)
   email_verification_token String?        @db.VarChar(128)
   email_verification_expires DateTime?    @db.Timestamptz(6)
+  terms_accepted_at   DateTime?           @db.Timestamptz(6)
+  privacy_accepted_at DateTime?           @db.Timestamptz(6)
   created_at          DateTime            @default(now()) @db.Timestamptz(6)
   expenses            Expense[]
   mutual_funds        MutualFund[]

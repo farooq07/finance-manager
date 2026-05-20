@@ -1,6 +1,7 @@
 import { Outlet, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Header from './Header';
+import LegalAcceptGate from './LegalAcceptGate';
 
 const pageTitles = {
     '/': 'Dashboard',
@@ -25,6 +26,7 @@ export default function Layout() {
                     <Outlet />
                 </main>
             </div>
+            <LegalAcceptGate />
         </div>
     );
 }
