@@ -233,7 +233,12 @@ export const resendOtp = async (req, res) => {
             data: { otp_code: otpCode, otp_expires_at: otpExpiresAt }
         });
 
-        await sendOtpEmail(user.email, otpCode);
+        try {
+            await sendOtpEmail(user.email, otpCode);
+        } catch (emailError) {
+            console.error('Failed to send OTP email:', emailError);
+        }
+
         res.json({ message: 'OTP resent successfully' });
     } catch (error) {
         console.error('Resend OTP error:', error);

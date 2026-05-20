@@ -1,12 +1,21 @@
 import nodemailer from 'nodemailer';
 
-// Create a transporter using Gmail SMTP
+// Create a transporter using Gmail SMTP.
+// Gmail App Passwords are displayed with spaces in the Google UI — strip them,
+// otherwise SMTP AUTH silently hangs for ~2 minutes and then 535 fails.
+const gmailPass = (process.env.GMAIL_APP_PASSWORD || '').replace(/\s+/g, '');
+
 const transporter = nodemailer.createTransport({
-    service: 'gmail',
+    host: 'smtp.gmail.com',
+    port: 465,
+    secure: true,
     auth: {
         user: process.env.GMAIL_USER,
-        pass: process.env.GMAIL_APP_PASSWORD
-    }
+        pass: gmailPass
+    },
+    connectionTimeout: 10_000,
+    greetingTimeout: 10_000,
+    socketTimeout: 15_000
 });
 
 /**
