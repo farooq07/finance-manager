@@ -135,38 +135,40 @@ function Lens({ period, anchor, onChangePeriod, onShift, onReset }) {
     const [batchOpen, setBatchOpen] = useState(false);
 
     return (
-        <div className="space-y-4">
-            <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
-                <div>
-                    <p className="text-[11px] tracking-[0.16em] uppercase text-gray-400 dark:text-neutral-500 mb-1">Money out</p>
-                    <h1 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-gray-100 tracking-tight">
-                        Spending
-                    </h1>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-2 max-w-xl">
-                        Aggregated analytics across your bank statements, wallet transactions, and manual entries — and a journal for the things you log by hand.
-                    </p>
-                </div>
-
-                <div className="flex items-center gap-2 flex-wrap">
-                    <PeriodSwitcher period={period} onChange={onChangePeriod} />
-                    <button
-                        onClick={() => { setEditing(null); setAddOpen(true); }}
-                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium transition-colors"
-                    >
-                        <Plus className="w-4 h-4" />
-                        Add entry
-                    </button>
-                    <button
-                        onClick={() => setBatchOpen(true)}
-                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:bg-gray-50 dark:hover:bg-neutral-800 text-gray-700 dark:text-gray-300 text-sm font-medium transition-colors"
-                    >
-                        <Receipt className="w-4 h-4" />
-                        Log bills
-                    </button>
-                </div>
+        <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
+            {/* Title block */}
+            <div className="min-w-0">
+                <p className="text-[11px] tracking-[0.16em] uppercase text-gray-400 dark:text-neutral-500 mb-1">Money out</p>
+                <h1 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-gray-100 tracking-tight">
+                    Spending
+                </h1>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-2 max-w-xl">
+                    Aggregated analytics across your bank statements, wallet transactions, and manual entries — and a journal for the things you log by hand.
+                </p>
             </div>
 
-            <AnchorBar period={period} anchor={anchor} onShift={onShift} onReset={onReset} />
+            {/* Unified toolbar: anchor · period · actions */}
+            <div className="flex items-center gap-2 flex-wrap p-1 rounded-xl bg-gray-50 dark:bg-neutral-900/60 border border-gray-200 dark:border-neutral-800">
+                <AnchorControl period={period} anchor={anchor} onShift={onShift} onReset={onReset} />
+                <Separator />
+                <PeriodSwitcher period={period} onChange={onChangePeriod} />
+                <Separator />
+                <button
+                    onClick={() => setBatchOpen(true)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-white dark:hover:bg-neutral-800 text-gray-700 dark:text-gray-300 text-sm font-medium transition-colors"
+                    title="Log monthly bills in a batch"
+                >
+                    <Receipt className="w-4 h-4" />
+                    Log bills
+                </button>
+                <button
+                    onClick={() => { setEditing(null); setAddOpen(true); }}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium transition-colors"
+                >
+                    <Plus className="w-4 h-4" />
+                    Add entry
+                </button>
+            </div>
 
             {addOpen && (
                 <EntryFormModal
@@ -181,14 +183,18 @@ function Lens({ period, anchor, onChangePeriod, onShift, onReset }) {
     );
 }
 
+function Separator() {
+    return <span aria-hidden className="hidden sm:block w-px h-5 bg-gray-200 dark:bg-neutral-800" />;
+}
+
 function PeriodSwitcher({ period, onChange }) {
     return (
-        <div className="flex gap-1 bg-gray-100 dark:bg-neutral-800/60 p-1 rounded-xl">
+        <div className="flex gap-0.5 p-0.5 rounded-lg bg-gray-100 dark:bg-neutral-800/60">
             {['month', 'quarter', 'year'].map((p) => (
                 <button
                     key={p}
                     onClick={() => onChange(p)}
-                    className={`px-4 py-1.5 text-sm rounded-lg transition-colors capitalize ${
+                    className={`px-3 py-1 text-sm rounded-md transition-colors capitalize ${
                         period === p
                             ? 'bg-white dark:bg-neutral-900 text-gray-900 dark:text-gray-100 shadow-sm font-medium'
                             : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'
@@ -201,25 +207,25 @@ function PeriodSwitcher({ period, onChange }) {
     );
 }
 
-function AnchorBar({ period, anchor, onShift, onReset }) {
+function AnchorControl({ period, anchor, onShift, onReset }) {
     const isNow = isCurrentPeriod(period, anchor);
     return (
-        <div className="flex items-center gap-3">
-            <div className="inline-flex items-center gap-0 rounded-xl border border-gray-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 overflow-hidden">
+        <div className="flex items-center gap-1">
+            <div className="inline-flex items-center rounded-lg overflow-hidden">
                 <button
                     onClick={() => onShift('prev')}
-                    className="px-2.5 py-1.5 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
+                    className="px-2 py-1.5 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100 hover:bg-white dark:hover:bg-neutral-800 transition-colors rounded-md"
                     title="Previous"
                 >
                     <ChevronLeft className="w-4 h-4" />
                 </button>
-                <div className="px-4 py-1.5 text-sm font-medium text-gray-900 dark:text-gray-100 min-w-[140px] text-center border-x border-gray-200 dark:border-neutral-800">
+                <div className="px-3 py-1 text-sm font-medium text-gray-900 dark:text-gray-100 min-w-[110px] text-center tabular-nums">
                     {labelForRange(period, anchor)}
                 </div>
                 <button
                     onClick={() => onShift('next')}
                     disabled={isNow}
-                    className="px-2.5 py-1.5 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                    className="px-2 py-1.5 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100 hover:bg-white dark:hover:bg-neutral-800 transition-colors disabled:opacity-30 disabled:cursor-not-allowed rounded-md"
                     title="Next"
                 >
                     <ChevronRight className="w-4 h-4" />
@@ -228,9 +234,10 @@ function AnchorBar({ period, anchor, onShift, onReset }) {
             {!isNow && (
                 <button
                     onClick={onReset}
-                    className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 underline underline-offset-2 transition-colors"
+                    className="px-2 py-1 text-[11px] text-gray-500 dark:text-gray-400 hover:text-emerald-600 dark:hover:text-emerald-400 underline underline-offset-2 transition-colors"
+                    title="Back to current period"
                 >
-                    Back to current
+                    today
                 </button>
             )}
         </div>
@@ -315,7 +322,7 @@ function StatsRow({ data, period }) {
                     <p className="text-4xl md:text-5xl font-bold text-rose-600 dark:text-rose-400 tracking-tight tabular-nums">
                         {fmtPKR(totals.currentSpend)}
                     </p>
-                    <div className="mt-3 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                    <div className="mt-3 flex items-center gap-1.5 text-[10px] uppercase tracking-[0.1em] text-gray-500 dark:text-gray-400">
                         <span>this {PERIOD_NOUN[period]}</span>
                         <DeltaPill delta={spendDelta} inverted />
                         <span>vs last {PERIOD_NOUN[period]}</span>
@@ -359,7 +366,7 @@ function SecondaryStat({ className = '', icon: Icon, label, value, tint, delta, 
                 <p className="text-[11px] uppercase tracking-[0.14em] text-gray-500 dark:text-gray-400 font-semibold">{label}</p>
             </div>
             <p className={`text-2xl font-semibold tabular-nums ${colorMap[tint]}`}>{value}</p>
-            <div className="mt-2 flex items-center gap-1.5 text-[11px] text-gray-500 dark:text-gray-400">
+            <div className="mt-2 flex items-center gap-1.5 text-[10px] uppercase tracking-[0.1em] text-gray-500 dark:text-gray-400">
                 <span>this {PERIOD_NOUN[period]}</span>
                 {delta !== null && delta !== undefined && (
                     <>
@@ -380,7 +387,7 @@ function DeltaPill({ delta, inverted }) {
         ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40'
         : 'text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40';
     return (
-        <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[11px] font-semibold tabular-nums ${tint}`}>
+        <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[10px] font-semibold tabular-nums ${tint}`}>
             {sign}{delta.toFixed(1)}%
         </span>
     );

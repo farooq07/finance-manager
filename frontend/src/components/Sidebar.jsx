@@ -6,7 +6,6 @@ import {
     Contact, MessageSquare, CreditCard, Gem,
 } from 'lucide-react';
 import clsx from 'clsx';
-import logo from '../assets/logo.svg';
 import logosm from '../assets/logosm.svg';
 import { useAuth } from '../context/AuthContext';
 import { useQuery } from '@tanstack/react-query';
@@ -103,14 +102,19 @@ export default function Sidebar() {
         >
             {/* Logo block */}
             <div className={clsx(
-                'h-14 flex items-center border-b border-gray-100 dark:border-neutral-900 shrink-0',
+                'h-14 flex items-center gap-2.5 border-b border-gray-100 dark:border-neutral-900 shrink-0',
                 isExpanded ? 'px-4' : 'px-0 justify-center'
             )}>
                 <img
-                    src={isExpanded ? logo : logosm}
-                    alt="WealthAxis"
-                    className={clsx('object-contain transition-all duration-300', isExpanded ? 'h-7' : 'h-7 w-7')}
+                    src={logosm}
+                    alt="FSWealth Axis"
+                    className="h-7 w-7 object-contain shrink-0"
                 />
+                {isExpanded && (
+                    <h1 className="text-[15px] font-bold tracking-tight text-gray-900 dark:text-gray-100 whitespace-nowrap overflow-hidden">
+                        FSWealth <span className="text-emerald-500 italic font-semibold">Axis</span>
+                    </h1>
+                )}
             </div>
 
             {/* Navigation — scrolls when content overflows the viewport */}

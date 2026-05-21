@@ -1,6 +1,7 @@
+import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
-import { LogOut, Search, Sun, Moon } from 'lucide-react';
+import { LogOut, Sun, Moon, Sparkles } from 'lucide-react';
 
 export default function Header({ pageTitle }) {
     const { user, logout } = useAuth();
@@ -14,9 +15,16 @@ export default function Header({ pageTitle }) {
             </h1>
 
             {/* Right – Actions */}
-            <div className="flex items-center gap-3">
-                {/* Search hint */}
-
+            <div className="flex items-center gap-2">
+                {/* AI Assistant */}
+                <Link
+                    to="/assistant"
+                    className="p-1.5 text-gray-400 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-lg transition-colors"
+                    title="AI Assistant"
+                    aria-label="AI Assistant"
+                >
+                    <Sparkles className="w-4 h-4" />
+                </Link>
 
                 {/* Theme Toggle */}
                 <button
