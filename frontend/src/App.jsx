@@ -33,7 +33,8 @@ import Privacy from './pages/Privacy';
 import Terms from './pages/Terms';
 // Insights and Expenses are now the same merged Spending page.
 import Insights from './pages/Expenses';
-import NetWorth from './pages/NetWorth';
+// Net Worth is now folded into the merged Dashboard page.
+import NetWorth from './pages/Dashboard';
 import Bills from './pages/Bills';
 import Debts from './pages/Debts';
 import DebtDetail from './pages/DebtDetail';

@@ -1,270 +1,523 @@
-import { useState, useEffect } from 'react';
-import api from '../services/api';
+import { useState, useMemo } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import ReactECharts from 'echarts-for-react';
-import { TrendingUp, PieChart as PieIcon, Activity, FileText, ArrowUpCircle, ArrowDownCircle, Wallet, Landmark, Mail, Loader2 } from 'lucide-react';
-import { fmtPKR } from '../utils/currency';
-import { StatSkeleton, ChartSkeleton } from '../components/Skeleton';
-import MaskedBalance from '../components/MaskedBalance';
 import { toast } from 'sonner';
-import { Button } from '../components/ui/button';
-import { Skeleton } from '../components/ui/skeleton';
-import { Card, CardContent } from '../components/ui/card';
+import {
+    Camera, Mail, Loader2, TrendingUp, TrendingDown, Minus, ArrowUpRight, ArrowDownRight,
+    Landmark, Wallet, PieChart as PieIcon, ArrowUpCircle, ArrowDownCircle, FileText, Activity,
+} from 'lucide-react';
+import api from '../services/api';
+import { fmtPKR } from '../utils/currency';
+import MaskedBalance from '../components/MaskedBalance';
+
+const RANGES = [
+    { days: 30,  label: '1M' },
+    { days: 90,  label: '3M' },
+    { days: 180, label: '6M' },
+    { days: 365, label: '1Y' },
+    { days: 730, label: '2Y' },
+];
 
 export default function Dashboard() {
-    const [data, setData] = useState(null);
-    const [loading, setLoading] = useState(true);
-    const [sendingEmail, setSendingEmail] = useState(false);
+    const [days, setDays] = useState(90);
+    const qc = useQueryClient();
 
-    useEffect(() => {
-        const fetchDashboard = async () => {
-            try {
-                const response = await api.get('/dashboard/summary');
-                setData(response.data);
-            } catch (err) {
-                console.error('Failed to load dashboard', err);
-            } finally {
-                setLoading(false);
-            }
-        };
-        fetchDashboard();
-    }, []);
+    const summary = useQuery({
+        queryKey: ['dashboard-summary'],
+        queryFn: () => api.get('/dashboard/summary').then((r) => r.data),
+        staleTime: 30_000,
+    });
 
-    const handleSendEmail = async () => {
-        setSendingEmail(true);
-        try {
-            await api.post('/dashboard/send-summary');
-            toast.success('Summary email sent successfully to farooqibex@gmail.com');
-        } catch (error) {
-            console.error('Failed to send summary email:', error);
-            toast.error('Failed to send email. Check console.');
-        } finally {
-            setSendingEmail(false);
-        }
-    };
+    const history = useQuery({
+        queryKey: ['networth-history', days],
+        queryFn: () => api.get('/networth/history', { params: { days } }).then((r) => r.data),
+        staleTime: 60_000,
+    });
 
-    if (loading) return (
-        <div className="flex flex-col gap-3">
-            <div className="flex justify-between items-center">
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 transition-colors">Dashboard Overview</h1>
-            </div>
-            <Skeleton className="h-48 w-full rounded-2xl shadow-sm" />
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <Skeleton className="h-24 rounded-xl" />
-                <Skeleton className="h-24 rounded-xl" />
-                <Skeleton className="h-24 rounded-xl" />
-                <Skeleton className="h-24 rounded-xl" />
-            </div>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <Skeleton className="h-96 rounded-xl" />
-                <Skeleton className="h-96 rounded-xl" />
-            </div>
-        </div>
-    );
-    if (!data) return <div className="flex h-full items-center justify-center text-red-500">Error loading data.</div>;
+    const snapshot = useMutation({
+        mutationFn: () => api.post('/networth/snapshot'),
+        onSuccess: () => {
+            toast.success('Snapshot captured');
+            qc.invalidateQueries({ queryKey: ['networth-history'] });
+            qc.invalidateQueries({ queryKey: ['dashboard-summary'] });
+        },
+        onError: () => toast.error('Could not capture snapshot right now'),
+    });
 
-    const { metrics, charts } = data;
-
-    // ECharts Configurations
-    const expensesChartOption = {
-        tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
-        grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
-        xAxis: [
-            {
-                type: 'category',
-                data: charts.monthlyExpenses.map(d => d.month),
-                axisTick: { alignWithLabel: true },
-                axisLine: { lineStyle: { color: '#9ca3af' } }
-            }
-        ],
-        yAxis: [
-            {
-                type: 'value',
-                axisLine: { show: false },
-                splitLine: { lineStyle: { type: 'dashed', color: '#e5e7eb' } }
-            }
-        ],
-        series: [
-            {
-                name: 'Expenses',
-                type: 'bar',
-                barWidth: '60%',
-                data: charts.monthlyExpenses.map(d => d.amount),
-                itemStyle: { color: '#10b981', borderRadius: [4, 4, 0, 0] }
-            }
-        ]
-    };
-
-    const assetAllocationOption = {
-        tooltip: { trigger: 'item', formatter: '{b}: Rs {c} ({d}%)' },
-        legend: { bottom: '0%', left: 'center' },
-        series: [
-            {
-                name: 'Asset Allocation',
-                type: 'pie',
-                radius: ['45%', '70%'],
-                avoidLabelOverlap: false,
-                itemStyle: {
-                    borderRadius: 10,
-                    borderColor: '#fff',
-                    borderWidth: 2
-                },
-                label: { show: false, position: 'center' },
-                emphasis: {
-                    label: { show: true, fontSize: 18, fontWeight: 'bold' }
-                },
-                labelLine: { show: false },
-                data: charts.assetAllocation,
-                color: ['#3b82f6', '#8b5cf6', '#10b981'] // Blue (Cash), Purple (Investments), Emerald (Receivables)
-            }
-        ]
-    };
+    const emailSummary = useMutation({
+        mutationFn: () => api.post('/dashboard/send-summary'),
+        onSuccess: () => toast.success('Summary email sent'),
+        onError:   () => toast.error('Could not send the summary email'),
+    });
 
     return (
-        <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 transition-colors">Dashboard Overview</h1>
-                <div className="flex items-center gap-4">
-                    <Button
-                        variant="default"
-                        onClick={handleSendEmail}
-                        disabled={sendingEmail}
-                        className="shadow-sm"
-                        title="Send Weekly Summary Email Now"
+        <div className="space-y-10">
+            <Header
+                lastUpdated={summary.data ? new Date() : null}
+                days={days}
+                onChangeDays={setDays}
+                onSnapshot={() => snapshot.mutate()}
+                snapshotting={snapshot.isPending}
+                onEmail={() => emailSummary.mutate()}
+                emailing={emailSummary.isPending}
+            />
+
+            <Hero
+                summary={summary.data}
+                history={history.data}
+                loading={summary.isLoading}
+            />
+
+            <Composition
+                summary={summary.data}
+                history={history.data}
+                loading={summary.isLoading}
+                historyLoading={history.isLoading}
+                onSnapshot={() => snapshot.mutate()}
+                snapshotting={snapshot.isPending}
+            />
+
+            <SectionDivider label="The numbers" />
+            <Metrics summary={summary.data} loading={summary.isLoading} />
+
+            <SectionDivider label="Spending rhythm" />
+            <MonthlySpend
+                data={summary.data?.charts?.monthlyExpenses}
+                loading={summary.isLoading}
+            />
+        </div>
+    );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Header
+// ─────────────────────────────────────────────────────────────────────────────
+
+function Header({ lastUpdated, days, onChangeDays, onSnapshot, snapshotting, onEmail, emailing }) {
+    return (
+        <div className="space-y-3">
+            <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+                <div>
+                    <p className="text-[11px] tracking-[0.16em] uppercase text-gray-400 dark:text-neutral-500 mb-1">Overview</p>
+                    <h1 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-gray-100 tracking-tight">
+                        Dashboard
+                    </h1>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-2 max-w-xl">
+                        A snapshot of everything you own, minus what you owe — with the trend underneath.
+                    </p>
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                    <RangeSwitcher days={days} onChange={onChangeDays} />
+                    <button
+                        onClick={onSnapshot}
+                        disabled={snapshotting}
+                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:bg-gray-50 dark:hover:bg-neutral-800 text-gray-700 dark:text-gray-300 text-sm font-medium transition-colors disabled:opacity-60"
+                        title="Capture an instant net-worth snapshot"
                     >
-                        {sendingEmail ? (
-                            <Loader2 data-icon="inline-start" className="animate-spin" />
-                        ) : (
-                            <Mail data-icon="inline-start" />
-                        )}
-                        Email Summary
-                    </Button>
-                    <div className="text-sm text-gray-500 dark:text-gray-400 hidden sm:block">
-                        Last Updated: {new Date().toLocaleTimeString()}
-                    </div>
+                        {snapshotting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
+                        Capture
+                    </button>
+                    <button
+                        onClick={onEmail}
+                        disabled={emailing}
+                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:bg-gray-50 dark:hover:bg-neutral-800 text-gray-700 dark:text-gray-300 text-sm font-medium transition-colors disabled:opacity-60"
+                        title="Send the weekly summary email now"
+                    >
+                        {emailing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
+                        Email
+                    </button>
                 </div>
             </div>
+            {lastUpdated && (
+                <p className="text-[11px] text-gray-400 dark:text-neutral-500 tracking-wide">
+                    Last refreshed {lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </p>
+            )}
+        </div>
+    );
+}
 
-            {/* Net Worth Highlight Card */}
-            <div className="bg-gradient-to-r from-blue-900 to-indigo-900 rounded-2xl p-8 text-white shadow-xl relative overflow-hidden">
-                <div className="absolute top-0 right-0 -mt-10 -mr-10 w-40 h-40 bg-white/10 rounded-full blur-3xl"></div>
-                <div className="relative z-10">
-                    <p className="text-blue-200 font-medium mb-1">Total Comprehensive Net Worth</p>
-                    <MaskedBalance
-                        value={metrics.netWorth}
-                        className="text-4xl md:text-5xl font-bold tracking-tight inline-block mr-2"
-                        iconClassName="text-white hover:text-white bg-white/10 hover:bg-white/20 p-2"
-                    />
-                    <div className="flex items-center gap-4 mt-6">
-                        <div>
-                            <p className="text-sm text-blue-300">Liquid Cash</p>
-                            <MaskedBalance value={metrics.totalBankBalance} className="text-lg font-semibold inline-block mr-1" iconClassName="text-white/60 hover:text-white hover:bg-white/10" />
-                        </div>
-                        <div className="h-8 w-px bg-blue-700/50"></div>
-                        <div>
-                            <p className="text-sm text-blue-300">Total Invested Assets</p>
-                            <MaskedBalance value={metrics.totalInvestments} className="text-lg font-semibold inline-block mr-1" iconClassName="text-white/60 hover:text-white hover:bg-white/10" />
-                        </div>
+function RangeSwitcher({ days, onChange }) {
+    return (
+        <div className="flex gap-1 bg-gray-100 dark:bg-neutral-800/60 p-1 rounded-xl">
+            {RANGES.map((r) => (
+                <button
+                    key={r.days}
+                    onClick={() => onChange(r.days)}
+                    className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
+                        days === r.days
+                            ? 'bg-white dark:bg-neutral-900 text-gray-900 dark:text-gray-100 shadow-sm font-medium'
+                            : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'
+                    }`}
+                >
+                    {r.label}
+                </button>
+            ))}
+        </div>
+    );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Hero — current net worth + range delta + composition strip
+// ─────────────────────────────────────────────────────────────────────────────
+
+function Hero({ summary, history, loading }) {
+    if (loading || !summary) {
+        return <div className="h-44 rounded-2xl bg-gray-100 dark:bg-neutral-800/60 animate-pulse" />;
+    }
+
+    const m = summary.metrics;
+    const delta = Number(history?.summary?.delta || 0);
+    const deltaPct = history?.summary?.deltaPct;
+    const positive = delta >= 0;
+    const Trend = delta === 0 ? Minus : positive ? ArrowUpRight : ArrowDownRight;
+
+    return (
+        <div
+            className="relative p-7 rounded-2xl overflow-hidden text-emerald-50 shadow-lg"
+            style={{
+                background: 'linear-gradient(135deg, #0a5c3b 0%, #064c30 60%, #03291a 100%)',
+            }}
+        >
+            <div className="absolute -right-16 -top-16 w-60 h-60 rounded-full bg-emerald-400/10 blur-3xl pointer-events-none" />
+            <div className="absolute -left-8 -bottom-16 w-40 h-40 rounded-full bg-emerald-300/5 blur-3xl pointer-events-none" />
+
+            <div className="relative">
+                <div className="flex items-start justify-between gap-6 flex-wrap">
+                    <div>
+                        <p className="text-[11px] uppercase tracking-[0.18em] text-emerald-200/70 mb-2">Total Net Worth</p>
+                        <MaskedBalance
+                            value={m.netWorth}
+                            className="text-4xl md:text-5xl font-bold tracking-tight inline-block tabular-nums"
+                            iconClassName="text-emerald-100/70 hover:text-emerald-50 hover:bg-white/10 ml-2"
+                        />
                     </div>
-                </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <MetricCard title=" Bank Balance" value={metrics.totalBankBalance} icon={Landmark} color="primary" />
-                <MetricCard title=" Wallet Balance " value={metrics.totalWalletBalance} icon={Wallet} color="cyan" />
-                <MetricCard
-                    title="PSX Balance"
-                    value={metrics.stockValue}
-                    icon={TrendingUp}
-                    color="indigo"
-                    subText={
-                        metrics.stockCost > 0
-                            ? (() => {
-                                const pct = ((metrics.stockValue - metrics.stockCost) / metrics.stockCost) * 100;
-                                return <span className={`font-semibold ${pct >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>{pct >= 0 ? '+' : ''}{pct.toFixed(2)}%</span>;
-                            })()
-                            : null
-                    }
-                />
-                <MetricCard
-                    title="Mutual Fund Total"
-                    value={metrics.mutualFundValue}
-                    icon={PieIcon}
-                    color="purple"
-                    subText={
-                        metrics.mutualFundCost > 0
-                            ? (() => {
-                                const pct = ((metrics.mutualFundValue - metrics.mutualFundCost) / metrics.mutualFundCost) * 100;
-                                return <span className={`font-semibold ${pct >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>{pct >= 0 ? '+' : ''}{pct.toFixed(2)}%</span>;
-                            })()
-                            : null
-                    }
-                />
-                <MetricCard title="Payment to Receive" value={metrics.totalReceivable} icon={ArrowUpCircle} color="emerald" />
-                <MetricCard title="Payment to Send" value={metrics.totalPayable} icon={ArrowDownCircle} color="red" />
-                <MetricCard title="Expenses (This Month)" value={metrics.currentMonthExpenses} icon={FileText} color="amber" />
-                <MetricCard title="Total Expenses" value={metrics.totalExpenses} icon={Activity} color="orange" />
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Monthly Expenses Chart */}
-                <div className="bg-white dark:bg-neutral-900 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-neutral-800 hidden md:block transition-colors">
-                    <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">Monthly Expenses (Current Year)</h2>
-                    <div className="h-80 w-full">
-                        <ReactECharts option={expensesChartOption} style={{ height: '100%', width: '100%' }} />
-                    </div>
-                </div>
-
-                {/* Asset Allocation Chart */}
-                <div className="bg-white dark:bg-neutral-900 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-neutral-800 hidden md:block transition-colors">
-                    <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">Asset Allocation</h2>
-                    {charts.assetAllocation && charts.assetAllocation.length > 0 ? (
-                        <div className="h-80 w-full">
-                            <ReactECharts option={assetAllocationOption} style={{ height: '100%', width: '100%' }} />
-                        </div>
-                    ) : (
-                        <div className="h-80 w-full flex items-center justify-center text-gray-400 dark:text-gray-500">
-                            No asset data to display.
+                    {(delta !== 0 || deltaPct !== null) && (
+                        <div className="text-right">
+                            <p className="text-[11px] uppercase tracking-[0.18em] text-emerald-200/70 mb-1">Change in {history?.days ?? '90'}d</p>
+                            <div className={`inline-flex items-center gap-1.5 text-xl font-semibold tabular-nums ${positive ? 'text-emerald-50' : 'text-rose-200'}`}>
+                                <Trend className="w-5 h-5" />
+                                {positive && delta !== 0 ? '+' : ''}{fmtPKR(delta)}
+                            </div>
+                            {deltaPct !== null && deltaPct !== undefined && (
+                                <p className="text-xs text-emerald-200/70 mt-0.5">
+                                    {positive ? '+' : ''}{Number(deltaPct).toFixed(2)}%
+                                </p>
+                            )}
                         </div>
                     )}
                 </div>
+
+                {/* Composition strip — only top contributors */}
+                <div className="mt-7 pt-5 border-t border-emerald-300/15 grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-3 text-sm">
+                    <CompositionPiece label="Bank"        value={m.totalBankBalance} />
+                    <CompositionPiece label="Wallet"      value={m.totalWalletBalance} />
+                    <CompositionPiece label="Invested"    value={m.totalInvestments} />
+                    <CompositionPiece label="Receivables" value={m.totalReceivable} />
+                </div>
             </div>
         </div>
     );
+}
 
-    function MetricCard({ title, value, icon: Icon, color, subText }) {
-        const colorClasses = {
-            emerald: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400',
-            blue: 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400',
-            red: 'bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400',
-            amber: 'bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-400',
-            purple: 'bg-purple-50 text-purple-600 dark:bg-purple-900/20 dark:text-purple-400',
-            cyan: 'bg-cyan-50 text-cyan-600 dark:bg-cyan-900/20 dark:text-cyan-400',
-            indigo: 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/20 dark:text-indigo-400',
-            orange: 'bg-orange-50 text-orange-600 dark:bg-orange-900/20 dark:text-orange-400',
-        };
+function CompositionPiece({ label, value }) {
+    return (
+        <div>
+            <p className="text-[10px] uppercase tracking-[0.14em] text-emerald-200/60 mb-0.5">{label}</p>
+            <MaskedBalance
+                value={value}
+                className="text-base font-semibold tabular-nums inline-block"
+                iconClassName="text-emerald-100/50 hover:text-emerald-50 ml-1"
+            />
+        </div>
+    );
+}
 
-        const themeClasses = colorClasses[color] || colorClasses.blue;
+// ─────────────────────────────────────────────────────────────────────────────
+//  Composition — history chart + asset allocation donut (7/5 asymmetric)
+// ─────────────────────────────────────────────────────────────────────────────
 
+function Composition({ summary, history, loading, historyLoading, onSnapshot, snapshotting }) {
+    return (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <HistoryChart
+                className="lg:col-span-7"
+                history={history}
+                loading={historyLoading}
+                onSnapshot={onSnapshot}
+                snapshotting={snapshotting}
+            />
+            <AllocationDonut
+                className="lg:col-span-5"
+                data={summary?.charts?.assetAllocation}
+                loading={loading}
+            />
+        </div>
+    );
+}
+
+function ChartCard({ title, subtitle, children, className = '', height = 280, action = null }) {
+    return (
+        <div className={`p-5 rounded-2xl border border-gray-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/40 ${className}`}>
+            <div className="flex items-start justify-between mb-3 gap-3">
+                <div>
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{title}</h3>
+                    {subtitle && <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{subtitle}</p>}
+                </div>
+                {action}
+            </div>
+            <div style={{ height: typeof height === 'number' ? `${height}px` : height }}>{children}</div>
+        </div>
+    );
+}
+
+function HistoryChart({ history, loading, className, onSnapshot, snapshotting }) {
+    if (loading) {
+        return <div className={`h-72 rounded-2xl bg-gray-100 dark:bg-neutral-800/60 animate-pulse ${className}`} />;
+    }
+
+    const snapshots = history?.snapshots || [];
+
+    if (snapshots.length === 0) {
         return (
-            <Card className="bg-white dark:bg-neutral-900 p-2 border-gray-100 dark:border-neutral-800 group relative overflow-hidden">
-                <CardContent className="p-0 flex items-start gap-4 transition-colors">
-                    <div className={`p-2 rounded-md ${themeClasses} transition-colors group-hover:scale-110 duration-300`}>
-                        <Icon data-icon="inline-start" />
-                    </div>
-                    <div className="flex-1">
-                        <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400 transition-colors uppercase tracking-wider">{title}</h4>
-                        <div className="flex items-baseline gap-2 mt-1">
-                            <MaskedBalance value={value} className="text-md font-bold text-gray-900 dark:text-gray-100 transition-colors tracking-tight" />
-                            {subText && (
-                                <span className="text-xs bg-gray-50 dark:bg-neutral-800/80 px-2 py-0.5 rounded-full border border-gray-200 dark:border-neutral-700">
-                                    {subText}
-                                </span>
-                            )}
-                        </div>
-                    </div>
-                    <div className={`absolute -right-6 -top-6 size-24 rounded-full opacity-[0.03] pointer-events-none transition-transform group-hover:scale-150 duration-500 ${themeClasses.split(' ')[0]}`}></div>
-                </CardContent>
-            </Card>
+            <ChartCard title="Net worth over time" subtitle="No snapshots yet" className={className} height={280}>
+                <div className="h-full flex flex-col items-center justify-center text-center">
+                    <Camera className="w-7 h-7 text-gray-400 dark:text-neutral-500" />
+                    <p className="mt-3 text-sm text-gray-600 dark:text-gray-300 max-w-xs">
+                        Snapshots are captured automatically every night at 23:55 PKT. Capture one now to seed your first data point.
+                    </p>
+                    <button
+                        onClick={onSnapshot}
+                        disabled={snapshotting}
+                        className="mt-4 px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium transition-colors disabled:opacity-60"
+                    >
+                        {snapshotting ? 'Capturing…' : 'Capture first snapshot'}
+                    </button>
+                </div>
+            </ChartCard>
         );
     }
+
+    const option = {
+        backgroundColor: 'transparent',
+        tooltip: {
+            trigger: 'axis',
+            backgroundColor: '#1f2937', borderColor: '#374151',
+            textStyle: { color: '#f9fafb', fontSize: 12 },
+            valueFormatter: (v) => fmtPKR(v),
+        },
+        grid: { left: '3%', right: '3%', bottom: '10%', top: '8%', containLabel: true },
+        xAxis: {
+            type: 'category',
+            data: snapshots.map((s) => new Date(s.captured_at).toISOString().slice(5, 10)),
+            axisLabel: { color: '#9ca3af', fontSize: 10, interval: Math.max(0, Math.floor(snapshots.length / 8) - 1) },
+            axisLine: { lineStyle: { color: '#374151' } },
+        },
+        yAxis: {
+            type: 'value', scale: true,
+            axisLabel: {
+                color: '#9ca3af', fontSize: 10,
+                formatter: (v) => v >= 1_000_000 ? `${(v / 1_000_000).toFixed(1)}M` : v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v,
+            },
+            splitLine: { lineStyle: { color: '#374151', type: 'dashed' } },
+        },
+        series: [{
+            type: 'line',
+            data: snapshots.map((s) => Number(s.net_worth)),
+            smooth: true, symbol: 'circle', symbolSize: 4,
+            itemStyle: { color: '#0a5c3b' },
+            lineStyle: { width: 2.5 },
+            areaStyle: {
+                color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [
+                    { offset: 0, color: 'rgba(10,92,59,0.35)' },
+                    { offset: 1, color: 'transparent' },
+                ] },
+            },
+        }],
+    };
+
+    return (
+        <ChartCard
+            title="Net worth over time"
+            subtitle={`${snapshots.length} snapshot${snapshots.length === 1 ? '' : 's'} in this range`}
+            className={className}
+            height={280}
+        >
+            <ReactECharts option={option} style={{ height: '100%' }} opts={{ renderer: 'canvas' }} />
+        </ChartCard>
+    );
+}
+
+const ALLOCATION_COLORS = ['#0a5c3b', '#52A397', '#71B7AC', '#c75a2f', '#fbbf24', '#a78bfa', '#60a5fa'];
+
+function AllocationDonut({ data, loading, className }) {
+    if (loading) {
+        return <div className={`h-72 rounded-2xl bg-gray-100 dark:bg-neutral-800/60 animate-pulse ${className}`} />;
+    }
+    if (!data || data.length === 0) {
+        return (
+            <ChartCard title="Asset allocation" subtitle="No assets yet" className={className} height={280}>
+                <div className="h-full flex items-center justify-center text-xs text-gray-400 dark:text-neutral-500">No data</div>
+            </ChartCard>
+        );
+    }
+
+    const option = {
+        backgroundColor: 'transparent',
+        tooltip: {
+            trigger: 'item',
+            formatter: (p) => `${p.name}<br/>${fmtPKR(p.value)} (${p.percent}%)`,
+            backgroundColor: '#1f2937', borderColor: '#374151',
+            textStyle: { color: '#f9fafb', fontSize: 12 },
+        },
+        legend: { type: 'scroll', bottom: 0, textStyle: { color: '#9ca3af', fontSize: 11 }, icon: 'circle', itemWidth: 8, itemHeight: 8 },
+        color: ALLOCATION_COLORS,
+        series: [{
+            type: 'pie',
+            radius: ['45%', '70%'],
+            center: ['50%', '42%'],
+            avoidLabelOverlap: true,
+            data: data.map((d) => ({ name: d.name, value: d.value })),
+            label: { show: false },
+            emphasis: { label: { show: true, fontSize: 12, fontWeight: 'bold' }, itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0,0,0,0.3)' } },
+        }],
+    };
+
+    return (
+        <ChartCard title="Asset allocation" subtitle="Where your wealth sits today" className={className} height={280}>
+            <ReactECharts option={option} style={{ height: '100%' }} opts={{ renderer: 'canvas' }} />
+        </ChartCard>
+    );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Metrics — eight editorial cards
+// ─────────────────────────────────────────────────────────────────────────────
+
+function SectionDivider({ label }) {
+    return (
+        <div className="flex items-center gap-4">
+            <span className="text-[10px] tracking-[0.18em] uppercase text-gray-400 dark:text-neutral-500 font-semibold">
+                {label}
+            </span>
+            <div className="flex-1 h-px bg-gray-200 dark:bg-neutral-800" />
+        </div>
+    );
+}
+
+function Metrics({ summary, loading }) {
+    if (loading || !summary) {
+        return (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+                    <div key={i} className="h-24 rounded-2xl bg-gray-100 dark:bg-neutral-800/60 animate-pulse" />
+                ))}
+            </div>
+        );
+    }
+    const m = summary.metrics;
+    const pl = (value, cost) => cost > 0 ? ((Number(value) - Number(cost)) / Number(cost)) * 100 : null;
+
+    const cards = [
+        { label: 'Bank',              value: m.totalBankBalance,   icon: Landmark,         tint: 'emerald' },
+        { label: 'Wallet',            value: m.totalWalletBalance, icon: Wallet,           tint: 'teal' },
+        { label: 'PSX',               value: m.stockValue,         icon: TrendingUp,       tint: 'emerald', pl: pl(m.stockValue, m.stockCost) },
+        { label: 'Mutual Funds',      value: m.mutualFundValue,    icon: PieIcon,          tint: 'teal',    pl: pl(m.mutualFundValue, m.mutualFundCost) },
+        { label: 'Owed to you',       value: m.totalReceivable,    icon: ArrowUpCircle,    tint: 'emerald' },
+        { label: 'You owe',           value: m.totalPayable,       icon: ArrowDownCircle,  tint: 'rose' },
+        { label: 'Spent this month',  value: m.currentMonthExpenses, icon: FileText,       tint: 'amber' },
+        { label: 'Total expenses',    value: m.totalExpenses,      icon: Activity,         tint: 'amber' },
+    ];
+
+    return (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {cards.map((c) => <MetricCard key={c.label} {...c} />)}
+        </div>
+    );
+}
+
+const TINT_CLASSES = {
+    emerald: { icon: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-950/30' },
+    teal:    { icon: 'text-teal-600 dark:text-teal-400',       bg: 'bg-teal-50 dark:bg-teal-950/30' },
+    rose:    { icon: 'text-rose-600 dark:text-rose-400',       bg: 'bg-rose-50 dark:bg-rose-950/30' },
+    amber:   { icon: 'text-amber-700 dark:text-amber-400',     bg: 'bg-amber-50 dark:bg-amber-950/30' },
+};
+
+function MetricCard({ label, value, icon: Icon, tint, pl }) {
+    const t = TINT_CLASSES[tint] || TINT_CLASSES.emerald;
+    return (
+        <div className="p-4 rounded-2xl border border-gray-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/40 transition-colors hover:border-gray-300 dark:hover:border-neutral-700">
+            <div className="flex items-center justify-between mb-3">
+                <p className="text-[10px] uppercase tracking-[0.14em] text-gray-500 dark:text-gray-400 font-semibold">{label}</p>
+                <div className={`w-7 h-7 rounded-lg ${t.bg} flex items-center justify-center`}>
+                    <Icon className={`w-3.5 h-3.5 ${t.icon}`} />
+                </div>
+            </div>
+            <div className="flex items-baseline gap-2 flex-wrap">
+                <MaskedBalance
+                    value={value}
+                    className="text-lg font-semibold text-gray-900 dark:text-gray-100 tabular-nums inline-block"
+                    iconClassName="ml-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                />
+                {pl !== null && pl !== undefined && (
+                    <span className={`text-[11px] font-semibold tabular-nums ${pl >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                        {pl >= 0 ? '+' : ''}{pl.toFixed(2)}%
+                    </span>
+                )}
+            </div>
+        </div>
+    );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  MonthlySpend — full-width bar chart for current-year expenses
+// ─────────────────────────────────────────────────────────────────────────────
+
+function MonthlySpend({ data, loading }) {
+    if (loading || !data) {
+        return <div className="h-64 rounded-2xl bg-gray-100 dark:bg-neutral-800/60 animate-pulse" />;
+    }
+
+    const option = {
+        backgroundColor: 'transparent',
+        tooltip: {
+            trigger: 'axis', axisPointer: { type: 'shadow' },
+            backgroundColor: '#1f2937', borderColor: '#374151',
+            textStyle: { color: '#f9fafb', fontSize: 12 },
+            valueFormatter: (v) => fmtPKR(v),
+        },
+        grid: { left: '3%', right: '3%', bottom: '8%', top: '8%', containLabel: true },
+        xAxis: {
+            type: 'category',
+            data: data.map((d) => d.month),
+            axisTick: { alignWithLabel: true },
+            axisLabel: { color: '#9ca3af', fontSize: 11 },
+            axisLine: { lineStyle: { color: '#374151' } },
+        },
+        yAxis: {
+            type: 'value',
+            axisLine: { show: false },
+            axisLabel: { color: '#9ca3af', fontSize: 10, formatter: (v) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v },
+            splitLine: { lineStyle: { color: '#374151', type: 'dashed' } },
+        },
+        series: [{
+            name: 'Expenses',
+            type: 'bar',
+            barWidth: '50%',
+            data: data.map((d) => d.amount),
+            itemStyle: { color: '#52A397', borderRadius: [4, 4, 0, 0] },
+        }],
+    };
+
+    const total = data.reduce((s, d) => s + Number(d.amount || 0), 0);
+
+    return (
+        <ChartCard
+            title="Monthly expenses · current year"
+            subtitle={total > 0 ? `${fmtPKR(total)} spent year-to-date` : 'No expenses logged this year yet'}
+            height={260}
+        >
+            <ReactECharts option={option} style={{ height: '100%' }} opts={{ renderer: 'canvas' }} />
+        </ChartCard>
+    );
 }
