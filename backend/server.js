@@ -26,6 +26,7 @@ import exportRoutes from './src/routes/export.routes.js';
 import networthRoutes from './src/routes/networth.routes.js';
 import recurringRoutes from './src/routes/recurring.routes.js';
 import debtRoutes from './src/routes/debt.routes.js';
+import fxRateRoutes from './src/routes/fxRate.routes.js';
 import { initCronJobs } from './src/services/cron.service.js';
 
 dotenv.config();
@@ -99,6 +100,7 @@ app.use('/api/export', exportRoutes);
 app.use('/api/networth', networthRoutes);
 app.use('/api/recurring', recurringRoutes);
 app.use('/api/debts', debtRoutes);
+app.use('/api/fx', fxRateRoutes);
 
 // Root route / Health check
 app.get('/', (req, res) => {

@@ -155,6 +155,21 @@ model DebtPayment {
   @@map("debt_payments")
 }
 
+// FX rates fetched daily by services/fxRate.service.js. Multiple rows
+// per pair build up history. The latest row per (base, quote) is what
+// most consumers use; the time series is there for charts and audit.
+model FxRate {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  base        String   @db.VarChar(8)
+  quote       String   @db.VarChar(8)
+  rate        Decimal  @db.Decimal(15, 6)
+  fetched_at  DateTime @default(now()) @db.Timestamptz(6)
+  source      String   @db.VarChar(32) // "open.er-api" | "manual"
+
+  @@index([base, quote, fetched_at])
+  @@map("fx_rates")
+}
+
 // Controls which sidebar menu items are visible to each role.
 // Each row lists the role names allowed to see that menu item.
 // Admins/super.admins must still be in this list to see admin-only items.

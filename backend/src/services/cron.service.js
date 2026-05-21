@@ -5,6 +5,7 @@ import { sendSummaryEmail } from '../utils/email.js';
 import { fetchDashboardData } from '../controllers/dashboard.controller.js';
 import { snapshotAllUsersNetWorth } from './networthSnapshot.service.js';
 import { dispatchBillReminders } from './billReminder.service.js';
+import { fetchAndStoreFxRates } from './fxRate.service.js';
 
 // Weekly summary email: every Sunday at 9:00 AM
 const WEEKLY_SUMMARY_SCHEDULE = '0 9 * * 0';
@@ -14,6 +15,9 @@ const NETWORTH_SNAPSHOT_SCHEDULE = '55 23 * * *';
 
 // Daily bill reminders: every day at 8:00 AM
 const BILL_REMINDER_SCHEDULE = '0 8 * * *';
+
+// Daily FX rate fetch: every day at 6:00 AM
+const FX_RATE_SCHEDULE = '0 6 * * *';
 
 export const initCronJobs = () => {
     logger.log(`[Cron] Initializing weekly email summary (${WEEKLY_SUMMARY_SCHEDULE})...`);
@@ -58,6 +62,16 @@ export const initCronJobs = () => {
             await dispatchBillReminders();
         } catch (error) {
             logger.error('[Cron] Error dispatching bill reminders:', error);
+        }
+    });
+
+    logger.log(`[Cron] Initializing daily FX rate fetch (${FX_RATE_SCHEDULE})...`);
+    cron.schedule(FX_RATE_SCHEDULE, async () => {
+        logger.log('[Cron] Fetching FX rates...');
+        try {
+            await fetchAndStoreFxRates();
+        } catch (error) {
+            logger.error('[Cron] Error fetching FX rates:', error);
         }
     });
 };
