@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Home, Receipt, TrendingUp, BarChart2, Users, FileText, Building, Wallet, Settings, ChevronLeft, ChevronRight, Layers, HeartHandshake, Box, Shield, Contact, MessageSquare } from 'lucide-react';
+import { Home, Receipt, TrendingUp, BarChart2, Users, FileText, Building, Wallet, Settings, ChevronLeft, ChevronRight, Layers, HeartHandshake, Box, Shield, Contact, MessageSquare, CreditCard, Gem } from 'lucide-react';
 import clsx from 'clsx';
 import logo from '../assets/logo.svg';
 import logosm from '../assets/logosm.svg';
@@ -12,7 +12,8 @@ import api from '../services/api';
 // Map of icon names (from DB) → lucide components
 const ICONS = {
     Home, Receipt, TrendingUp, BarChart2, Users, FileText, Building, Wallet,
-    Settings, Layers, HeartHandshake, Box, Shield, Contact, MessageSquare
+    Settings, Layers, HeartHandshake, Box, Shield, Contact, MessageSquare,
+    CreditCard, Gem,
 };
 
 export default function Sidebar() {

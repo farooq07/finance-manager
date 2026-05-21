@@ -36,6 +36,7 @@ import NetWorth from './pages/NetWorth';
 import Bills from './pages/Bills';
 import Debts from './pages/Debts';
 import DebtDetail from './pages/DebtDetail';
+import Gold from './pages/Gold';
 
 
 const ProtectedRoute = ({ children }) => {
@@ -102,6 +103,7 @@ function App() {
               <Route path="bills" element={<Bills />} />
               <Route path="debts" element={<Debts />} />
               <Route path="debts/:id" element={<DebtDetail />} />
+              <Route path="gold" element={<Gold />} />
               <Route path="design-system" element={<DesignSystem />} />
               <Route path="beneficiaries" element={<Beneficiaries />} />
               <Route path="beneficiaries/:id" element={<BeneficiaryDetail />} />
