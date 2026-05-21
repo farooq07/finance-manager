@@ -49,6 +49,9 @@ model User {
   chat_sessions       ChatSession[]
   chat_documents      ChatDocument[]
   networth_snapshots  NetWorthSnapshot[]
+  recurring_payments  RecurringPayment[]
+  debts               Debt[]
+  debt_payments       DebtPayment[]
 
   @@map("users")
 }
@@ -74,6 +77,82 @@ model NetWorthSnapshot {
 
   @@index([user_id, captured_at])
   @@map("networth_snapshots")
+}
+
+// Recurring payments / subscriptions / bills. The cron job in
+// services/cron.service.js queries rows where next_due_date - now is
+// within reminder_days and sends an email reminder.
+model RecurringPayment {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id        String    @db.Uuid
+  name           String              // "Netflix", "K-Electric"
+  amount         Decimal   @db.Decimal(15, 2)
+  currency       String    @default("PKR") @db.VarChar(8)
+  category       String?
+  frequency      String    @db.VarChar(16)   // "weekly" | "monthly" | "yearly"
+  next_due_date  DateTime  @db.Date
+  auto_debit     Boolean   @default(false)
+  bank_id        String?   @db.Uuid          // optional debit-from account (not FK)
+  reminder_days  Int       @default(3)
+  is_active      Boolean   @default(true)
+  last_paid_at   DateTime? @db.Timestamptz(6)
+  last_reminder_at DateTime? @db.Timestamptz(6)
+  notes          String?
+  created_at     DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime  @updatedAt @db.Timestamptz(6)
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id, next_due_date])
+  @@index([user_id, is_active])
+  @@map("recurring_payments")
+}
+
+// Institutional debt (credit cards, loans, mortgages) — distinct from
+// the interpersonal Dues ledger. Outstanding balance flows into the
+// dashboard net-worth calculation as a liability.
+model Debt {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id         String    @db.Uuid
+  name            String              // "HBL Credit Card", "Car Loan"
+  debt_type       String    @db.VarChar(32) // credit_card | personal_loan | mortgage | car_loan | other
+  principal       Decimal   @db.Decimal(15, 2)
+  outstanding     Decimal   @db.Decimal(15, 2)
+  interest_rate   Decimal?  @db.Decimal(5, 2) // annual %
+  minimum_payment Decimal?  @db.Decimal(15, 2)
+  due_day         Int?                // day of month (1..28)
+  start_date      DateTime? @db.Date
+  target_payoff   DateTime? @db.Date
+  institution_id  String?   @db.Uuid
+  notes           String?
+  is_active       Boolean   @default(true)
+  created_at      DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime  @updatedAt @db.Timestamptz(6)
+
+  user     User          @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  payments DebtPayment[]
+
+  @@index([user_id, is_active])
+  @@map("debts")
+}
+
+model DebtPayment {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  debt_id           String   @db.Uuid
+  user_id           String   @db.Uuid
+  amount            Decimal  @db.Decimal(15, 2)
+  paid_at           DateTime @default(now()) @db.Timestamptz(6)
+  principal_portion Decimal? @db.Decimal(15, 2)
+  interest_portion  Decimal? @db.Decimal(15, 2)
+  notes             String?
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+
+  debt Debt @relation(fields: [debt_id], references: [id], onDelete: Cascade)
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([debt_id, paid_at])
+  @@index([user_id, paid_at])
+  @@map("debt_payments")
 }
 
 // Controls which sidebar menu items are visible to each role.

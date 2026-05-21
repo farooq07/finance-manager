@@ -4,12 +4,16 @@ import logger from '../utils/logger.js';
 import { sendSummaryEmail } from '../utils/email.js';
 import { fetchDashboardData } from '../controllers/dashboard.controller.js';
 import { snapshotAllUsersNetWorth } from './networthSnapshot.service.js';
+import { dispatchBillReminders } from './billReminder.service.js';
 
 // Weekly summary email: every Sunday at 9:00 AM
 const WEEKLY_SUMMARY_SCHEDULE = '0 9 * * 0';
 
 // Nightly net-worth snapshot: every day at 23:55 local server time
 const NETWORTH_SNAPSHOT_SCHEDULE = '55 23 * * *';
+
+// Daily bill reminders: every day at 8:00 AM
+const BILL_REMINDER_SCHEDULE = '0 8 * * *';
 
 export const initCronJobs = () => {
     logger.log(`[Cron] Initializing weekly email summary (${WEEKLY_SUMMARY_SCHEDULE})...`);
@@ -44,6 +48,16 @@ export const initCronJobs = () => {
             await snapshotAllUsersNetWorth();
         } catch (error) {
             logger.error('[Cron] Error running net-worth snapshot:', error);
+        }
+    });
+
+    logger.log(`[Cron] Initializing daily bill reminders (${BILL_REMINDER_SCHEDULE})...`);
+    cron.schedule(BILL_REMINDER_SCHEDULE, async () => {
+        logger.log('[Cron] Dispatching bill reminders...');
+        try {
+            await dispatchBillReminders();
+        } catch (error) {
+            logger.error('[Cron] Error dispatching bill reminders:', error);
         }
     });
 };

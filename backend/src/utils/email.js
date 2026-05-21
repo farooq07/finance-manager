@@ -239,3 +239,58 @@ export const sendSummaryEmail = async (to, userName, metrics) => {
     }
 };
 
+/**
+ * Sends a bill reminder for an upcoming recurring payment.
+ * @param {string} to recipient email
+ * @param {string} name recipient name
+ * @param {object} bill { name, amount, currency, dueDate, daysUntilDue }
+ */
+export const sendBillReminderEmail = async (to, name, bill) => {
+    if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
+        console.warn(`[DEV MODE] Bill reminder would have been sent to ${to} for ${bill.name}`);
+        return;
+    }
+
+    const amount = Number(bill.amount).toLocaleString('en-PK', { maximumFractionDigits: 0 });
+    const due = new Date(bill.dueDate).toLocaleDateString('en-PK', { day: 'numeric', month: 'long', year: 'numeric' });
+    const whenLabel = bill.daysUntilDue <= 0
+        ? 'is due today'
+        : bill.daysUntilDue === 1
+            ? 'is due tomorrow'
+            : `is due in ${bill.daysUntilDue} days`;
+
+    const mailOptions = {
+        from: `"FSWealth Axis" <${process.env.GMAIL_USER}>`,
+        to,
+        subject: `Reminder: ${bill.name} ${whenLabel}`,
+        html: `
+            <div style="font-family: 'Segoe UI', Roboto, Arial, sans-serif; max-width: 560px; margin: 0 auto; padding: 28px; color: #1f2937;">
+                <h2 style="margin: 0 0 14px; font-size: 18px;">Heads up, ${name}</h2>
+                <p style="font-size: 14px; line-height: 1.6; color: #374151; margin: 0 0 18px;">
+                    Your recurring payment <strong>${bill.name}</strong> ${whenLabel}.
+                </p>
+                <div style="border: 1px solid #e5e7eb; border-radius: 12px; padding: 18px 20px; background: #f9fafb;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                        <span style="color: #6b7280; font-size: 13px;">Amount</span>
+                        <span style="font-weight: 600;">${bill.currency} ${amount}</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between;">
+                        <span style="color: #6b7280; font-size: 13px;">Due</span>
+                        <span style="font-weight: 600;">${due}</span>
+                    </div>
+                </div>
+                <p style="font-size: 13px; color: #6b7280; margin-top: 22px;">
+                    Open FSWealth Axis to mark it paid once you've taken care of it.
+                </p>
+            </div>
+        `,
+    };
+
+    try {
+        await transporter.sendMail(mailOptions);
+        logger.log(`Bill reminder sent to ${to} for ${bill.name}`);
+    } catch (error) {
+        console.error('Error sending bill reminder email:', error);
+        throw new Error('Failed to send bill reminder email');
+    }
+};

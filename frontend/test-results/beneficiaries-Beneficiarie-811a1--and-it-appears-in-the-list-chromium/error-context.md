@@ -46,7 +46,7 @@ TimeoutError: page.waitForResponse: Timeout 10000ms exceeded while waiting for e
           - generic [ref=e21]: Volume I
           - generic [ref=e22]: ·
           - generic [ref=e23]: Personal finance, made for Pakistan
-          - generic [ref=e24]: KHI · 10:28 am
+          - generic [ref=e24]: LHR · 10:28 am
         - generic [ref=e26]:
           - generic [ref=e27]:
             - heading "Your money, finally in one quiet place." [level=1] [ref=e28]:

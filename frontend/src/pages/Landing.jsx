@@ -267,7 +267,7 @@ function Hero() {
           <span>Personal finance, made for Pakistan</span>
           <span className="hidden md:inline ml-auto font-mono text-[10px]" style={{ fontFamily: fontMono }}>
             <span className="inline-block w-1.5 h-1.5 rounded-full mr-1.5 align-middle" style={{ background: p.accent, animation: 'pulseDot 2s ease-in-out infinite' }} />
-            KHI · {time}
+            LHR · {time}
           </span>
         </div>
 

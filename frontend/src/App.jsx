@@ -33,6 +33,7 @@ import Privacy from './pages/Privacy';
 import Terms from './pages/Terms';
 import Insights from './pages/Insights';
 import NetWorth from './pages/NetWorth';
+import Bills from './pages/Bills';
 
 
 const ProtectedRoute = ({ children }) => {
@@ -96,6 +97,7 @@ function App() {
               <Route path="reports" element={<Reports />} />
               <Route path="insights" element={<Insights />} />
               <Route path="net-worth" element={<NetWorth />} />
+              <Route path="bills" element={<Bills />} />
               <Route path="design-system" element={<DesignSystem />} />
               <Route path="beneficiaries" element={<Beneficiaries />} />
               <Route path="beneficiaries/:id" element={<BeneficiaryDetail />} />

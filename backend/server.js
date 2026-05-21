@@ -24,6 +24,7 @@ import chatRoutes from './src/routes/chat.routes.js';
 import menuVisibilityRoutes from './src/routes/menuVisibility.routes.js';
 import exportRoutes from './src/routes/export.routes.js';
 import networthRoutes from './src/routes/networth.routes.js';
+import recurringRoutes from './src/routes/recurring.routes.js';
 import { initCronJobs } from './src/services/cron.service.js';
 
 dotenv.config();
@@ -95,6 +96,7 @@ app.use('/api/chat', chatRoutes);
 app.use('/api/menu-visibility', menuVisibilityRoutes);
 app.use('/api/export', exportRoutes);
 app.use('/api/networth', networthRoutes);
+app.use('/api/recurring', recurringRoutes);
 
 // Root route / Health check
 app.get('/', (req, res) => {
