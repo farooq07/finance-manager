@@ -1,112 +1,210 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Home, Receipt, TrendingUp, BarChart2, Users, FileText, Building, Wallet, Settings, ChevronLeft, ChevronRight, Layers, HeartHandshake, Box, Shield, Contact, MessageSquare, CreditCard, Gem } from 'lucide-react';
+import {
+    Home, Receipt, TrendingUp, BarChart2, Users, FileText, Building, Wallet,
+    Settings, ChevronLeft, ChevronRight, Layers, HeartHandshake, Box, Shield,
+    Contact, MessageSquare, CreditCard, Gem,
+} from 'lucide-react';
 import clsx from 'clsx';
 import logo from '../assets/logo.svg';
 import logosm from '../assets/logosm.svg';
 import { useAuth } from '../context/AuthContext';
-import { Button } from '@/components/ui/button';
 import { useQuery } from '@tanstack/react-query';
 import api from '../services/api';
 
-// Map of icon names (from DB) → lucide components
+// Lucide icons referenced by name from the menu_visibility table.
 const ICONS = {
     Home, Receipt, TrendingUp, BarChart2, Users, FileText, Building, Wallet,
     Settings, Layers, HeartHandshake, Box, Shield, Contact, MessageSquare,
     CreditCard, Gem,
 };
 
+// Logical groupings for the sidebar. Sections are rendered in this order;
+// any item whose path is not listed below falls into the "More" bucket.
+// Order within a section is preserved from menu_visibility.sort_order.
+const SECTIONS = [
+    {
+        id: 'overview',
+        label: 'Overview',
+        paths: ['/', '/insights', '/net-worth', '/reports'],
+    },
+    {
+        id: 'money',
+        label: 'Money',
+        paths: ['/accounts', '/banks', '/wallets', '/expenses', '/bills', '/debts'],
+    },
+    {
+        id: 'investments',
+        label: 'Investments',
+        paths: ['/mutual-funds', '/stocks', '/psx-engine'],
+    },
+    {
+        id: 'personal',
+        label: 'Personal',
+        paths: ['/personal', '/dues', '/zakat', '/rents', '/assets', '/gold', '/beneficiaries'],
+    },
+    {
+        id: 'tools',
+        label: 'Tools',
+        paths: ['/assistant', '/design-system', '/settings'],
+    },
+];
+
+function sectionFor(path) {
+    for (const s of SECTIONS) {
+        if (s.paths.includes(path)) return s.id;
+    }
+    return 'more';
+}
+
 export default function Sidebar() {
     const location = useLocation();
     const { user } = useAuth();
     const [isExpanded, setIsExpanded] = useState(true);
-
     const [mounted, setMounted] = useState(false);
     useEffect(() => { setMounted(true); }, []);
 
-    // Fetch menu visibility config from the backend
     const { data: menuItems = [] } = useQuery({
         queryKey: ['menu-visibility'],
-        queryFn: () => api.get('/menu-visibility').then(r => r.data),
+        queryFn: () => api.get('/menu-visibility').then((r) => r.data),
         staleTime: 60_000,
         enabled: !!user,
     });
 
-    // Filter items: each item lists which roles can see it.
-    // Users and Roles are NOT in the sidebar — they live inside Settings.
-    const navItems = menuItems
-        .filter(item => Array.isArray(item.visible_to_roles) && item.visible_to_roles.includes(user?.role))
-        .map(item => ({
+    // Filter by role, attach icon component.
+    const navItems = useMemo(() => menuItems
+        .filter((item) => Array.isArray(item.visible_to_roles) && item.visible_to_roles.includes(user?.role))
+        .map((item) => ({
             name: item.name,
             path: item.path,
             icon: ICONS[item.icon] || Home,
-        }));
+            sectionId: sectionFor(item.path),
+        })),
+    [menuItems, user?.role]);
+
+    // Group items by section, preserving original order within each.
+    const grouped = useMemo(() => {
+        const sections = SECTIONS.map((s) => ({ ...s, items: [] }));
+        const more = { id: 'more', label: 'More', items: [] };
+        for (const item of navItems) {
+            const target = sections.find((s) => s.id === item.sectionId) || more;
+            target.items.push(item);
+        }
+        return [...sections, more].filter((s) => s.items.length > 0);
+    }, [navItems]);
 
     return (
-        <aside className={clsx(
-            "bg-white dark:bg-neutral-900 border-r border-gray-200 dark:border-neutral-800 flex flex-col items-center py-4 hidden md:flex shrink-0 relative",
-            mounted ? "transition-all duration-300 ease-in-out" : "",
-            isExpanded ? "w-[220px] items-start px-2" : "w-[64px] items-center"
-        )}>
-            {/* Expand Toggle */}
-
-
-            {/* Logo mark */}
-            <div className={clsx("flex items-center mb-2 h-9 ", isExpanded ? "w-full justify-start px-2" : "justify-center")}>
+        <aside
+            className={clsx(
+                'bg-white dark:bg-neutral-950 border-r border-gray-200 dark:border-neutral-800 flex flex-col hidden md:flex shrink-0 relative',
+                mounted ? 'transition-[width] duration-300 ease-in-out' : '',
+                isExpanded ? 'w-[232px]' : 'w-[68px]'
+            )}
+        >
+            {/* Logo block */}
+            <div className={clsx(
+                'h-14 flex items-center border-b border-gray-100 dark:border-neutral-900 shrink-0',
+                isExpanded ? 'px-4' : 'px-0 justify-center'
+            )}>
                 <img
                     src={isExpanded ? logo : logosm}
                     alt="WealthAxis"
-                    className={clsx("object-contain transition-all duration-300", isExpanded ? "h-8" : "h-7 w-7")}
+                    className={clsx('object-contain transition-all duration-300', isExpanded ? 'h-7' : 'h-7 w-7')}
                 />
-                {isExpanded && (
-                    <h1 className="text-lg font-bold ml-2 text-gray-900 dark:text-white transition-opacity duration-300">
-                        FSWealth <span className="text-emerald-500">Axis</span>
-                    </h1>
-                )}
             </div>
 
-            {/* Navigation */}
-            <nav className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-1 w-full px-2 mt-2">
-                {(() => {
-                    return navItems.map((item) => {
-                        const isActive = location.pathname === item.path ||
-                            (item.path !== '/' && location.pathname.startsWith(item.path));
-                        return (
-                            <Link
-                                key={item.name}
-                                to={item.path}
-                                className={clsx(
-                                    "sidebar-item flex items-center rounded-lg transition-all duration-150 relative group outline-none focus-visible:ring-2 focus-visible:ring-emerald-500",
-                                    isExpanded ? "w-full px-3 py-2.5" : "w-10 h-10 justify-center",
-                                    isActive
-                                        ? "bg-emerald-50 text-emerald-600 shadow-sm dark:bg-emerald-900/20 dark:text-emerald-400"
-                                        : "text-gray-800 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-neutral-800 dark:hover:text-gray-100"
-                                )}
-                            >
-                                <item.icon className={clsx("w-[20px] h-[20px] shrink-0", isExpanded && "mr-3")} strokeWidth={isActive ? 2.2 : 1.8} />
-
-                                {isExpanded && (
-                                    <span className={clsx("font-medium text-sm whitespace-nowrap overflow-hidden transition-all duration-300", mounted ? "opacity-100" : "opacity-0")}>
-                                        {item.name}
-                                    </span>
-                                )}
-
-                                {!isExpanded && <span className="sidebar-tooltip text-xs">{item.name}</span>}
-                            </Link>
-                        );
-                    });
-                })()}
+            {/* Navigation — scrolls when content overflows the viewport */}
+            <nav className="flex-1 min-h-0 overflow-y-auto py-3">
+                {grouped.map((section, idx) => (
+                    <div key={section.id} className={idx > 0 ? 'mt-4' : ''}>
+                        {isExpanded && (
+                            <p className="px-4 mb-1.5 text-[10px] font-semibold tracking-[0.14em] uppercase text-gray-400 dark:text-neutral-500">
+                                {section.label}
+                            </p>
+                        )}
+                        {!isExpanded && idx > 0 && (
+                            <div className="mx-3 my-2 border-t border-gray-100 dark:border-neutral-900" />
+                        )}
+                        <div className={clsx('flex flex-col', isExpanded ? 'gap-0.5 px-2' : 'gap-1 px-2 items-center')}>
+                            {section.items.map((item) => (
+                                <NavRow
+                                    key={item.path}
+                                    item={item}
+                                    isExpanded={isExpanded}
+                                    location={location}
+                                />
+                            ))}
+                        </div>
+                    </div>
+                ))}
             </nav>
-            <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setIsExpanded(!isExpanded)}
-                className="bg-white dark:bg-neutral-800 border rounded-sm border-gray-200 dark:border-neutral-700 text-gray-400 dark:text-gray-500 size-8 hover:text-emerald-500 transition-colors z-10"
-            >
-                {isExpanded ? <ChevronLeft /> : <ChevronRight />}
-            </Button>
 
-
+            {/* Footer — collapse toggle */}
+            <div className={clsx(
+                'border-t border-gray-100 dark:border-neutral-900 shrink-0 flex items-center',
+                isExpanded ? 'px-3 py-3 justify-between' : 'px-2 py-3 justify-center'
+            )}>
+                {isExpanded && (
+                    <span className="text-[11px] text-gray-400 dark:text-neutral-500 font-medium tracking-wide">
+                        v1
+                    </span>
+                )}
+                <button
+                    onClick={() => setIsExpanded(!isExpanded)}
+                    aria-label={isExpanded ? 'Collapse sidebar' : 'Expand sidebar'}
+                    className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400 dark:text-neutral-500 hover:text-emerald-500 hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors"
+                >
+                    {isExpanded ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                </button>
+            </div>
         </aside>
+    );
+}
+
+function NavRow({ item, isExpanded, location }) {
+    const Icon = item.icon;
+    const isActive = location.pathname === item.path
+        || (item.path !== '/' && location.pathname.startsWith(item.path));
+
+    if (!isExpanded) {
+        return (
+            <Link
+                to={item.path}
+                className={clsx(
+                    'sidebar-item w-10 h-10 flex items-center justify-center rounded-lg transition-colors relative outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40',
+                    isActive
+                        ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                        : 'text-gray-500 dark:text-neutral-400 hover:bg-gray-100 dark:hover:bg-neutral-800/70 hover:text-gray-900 dark:hover:text-gray-100'
+                )}
+            >
+                <Icon className="w-[18px] h-[18px]" strokeWidth={isActive ? 2.2 : 1.8} />
+                <span className="sidebar-tooltip text-xs">{item.name}</span>
+            </Link>
+        );
+    }
+
+    return (
+        <Link
+            to={item.path}
+            className={clsx(
+                'group relative flex items-center gap-3 h-9 pl-3 pr-3 rounded-lg text-[13px] transition-colors outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40',
+                isActive
+                    ? 'bg-emerald-500/8 text-emerald-700 dark:text-emerald-300 font-medium'
+                    : 'text-gray-600 dark:text-neutral-400 hover:bg-gray-100/70 dark:hover:bg-neutral-800/60 hover:text-gray-900 dark:hover:text-gray-100'
+            )}
+        >
+            {/* Left accent bar for active state */}
+            <span
+                className={clsx(
+                    'absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-r-full transition-opacity',
+                    isActive ? 'bg-emerald-500 opacity-100' : 'opacity-0'
+                )}
+            />
+            <Icon
+                className={clsx('w-[18px] h-[18px] shrink-0', isActive ? 'text-emerald-600 dark:text-emerald-400' : '')}
+                strokeWidth={isActive ? 2.2 : 1.8}
+            />
+            <span className="whitespace-nowrap overflow-hidden text-ellipsis">{item.name}</span>
+        </Link>
     );
 }
