@@ -39,23 +39,62 @@ function getRanges(period) {
 }
 
 // Returns spend (debits) and income (credits) keyed by category for a period.
+// Note: bank/wallet transaction logs have no user_id — ownership is via
+// statement → bank/wallet. Categories live on approved_/suggested_category;
+// amounts on debit_amount/credit_amount. We normalise to debit/credit/category.
 async function loadCategorizedFlows(userId, start, end) {
-    const [bankRows, walletRows, expenseRows] = await Promise.all([
+    const [bankRaw, walletRaw, expenseRows] = await Promise.all([
         prisma.bankTransactionLog.findMany({
-            where: { user_id: userId, transaction_date: { gte: start, lt: end } },
-            select: { category: true, debit: true, credit: true, description: true, transaction_date: true },
+            where: {
+                transaction_date: { gte: start, lt: end },
+                bank_statement: { bank: { user_id: userId } },
+            },
+            select: {
+                approved_category: true,
+                suggested_category: true,
+                debit_amount: true,
+                credit_amount: true,
+                description: true,
+                transaction_date: true,
+            },
         }),
         prisma.walletTransactionLog.findMany({
-            where: { user_id: userId, transaction_date: { gte: start, lt: end } },
-            select: { category: true, debit: true, credit: true, description: true, transaction_date: true },
+            where: {
+                transaction_date: { gte: start, lt: end },
+                wallet_statement: { wallet: { user_id: userId } },
+            },
+            select: {
+                approved_category: true,
+                suggested_category: true,
+                debit_amount: true,
+                credit_amount: true,
+                description: true,
+                transaction_date: true,
+            },
         }),
         prisma.expense.findMany({
             where: { user_id: userId, expense_date: { gte: start, lt: end } },
-            select: { category: true, amount: true, description: true, expense_date: true },
+            select: { category: true, amount: true, notes: true, expense_date: true },
         }),
     ]);
 
-    return { bankRows, walletRows, expenseRows };
+    const normalise = (r) => ({
+        category: r.approved_category || r.suggested_category || 'Uncategorised',
+        debit: r.debit_amount,
+        credit: r.credit_amount,
+        description: r.description,
+        transaction_date: r.transaction_date,
+    });
+    const bankRows = bankRaw.map(normalise);
+    const walletRows = walletRaw.map(normalise);
+    const normalisedExpenses = expenseRows.map((r) => ({
+        category: r.category,
+        amount: r.amount,
+        description: r.notes,
+        expense_date: r.expense_date,
+    }));
+
+    return { bankRows, walletRows, expenseRows: normalisedExpenses };
 }
 
 function sumDebits(rows) {
