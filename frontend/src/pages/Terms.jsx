@@ -103,7 +103,7 @@ export default function Terms() {
       <h2>12. Governing Law</h2>
       <p>
         These Terms are governed by the laws of the Islamic Republic of Pakistan. Any dispute arising from
-        these Terms or the Service shall be subject to the exclusive jurisdiction of the courts of Karachi,
+        these Terms or the Service shall be subject to the exclusive jurisdiction of the courts of Lahore,
         Sindh.
       </p>
 

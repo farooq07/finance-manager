@@ -103,7 +103,7 @@ TimeoutError: page.waitForResponse: Timeout 10000ms exceeded while waiting for e
                   - img
                 - generic: Auto-categorised
                 - generic: 847 rows
-      - generic [ref=e87]: — Issue 01 / Built in Karachi
+      - generic [ref=e87]: — Issue 01 / Built in Lahore
     - generic [ref=e89]:
       - generic [ref=e90]: Bank statements ·
       - generic [ref=e91]: Wallets ·
@@ -381,7 +381,7 @@ TimeoutError: page.waitForResponse: Timeout 10000ms exceeded while waiting for e
     - contentinfo [ref=e378]:
       - generic [ref=e379]:
         - generic [ref=e381]: FSWealth Axis
-        - paragraph [ref=e382]: © 2026 — Designed and built in Karachi.
+        - paragraph [ref=e382]: © 2026 — Designed and built in Lahore.
         - generic [ref=e383]:
           - link "Sign in" [ref=e384] [cursor=pointer]:
             - /url: /login

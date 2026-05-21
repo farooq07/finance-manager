@@ -48,8 +48,32 @@ model User {
   beneficiaries       Beneficiary[]
   chat_sessions       ChatSession[]
   chat_documents      ChatDocument[]
+  networth_snapshots  NetWorthSnapshot[]
 
   @@map("users")
+}
+
+// Daily snapshot of each user's aggregated net worth. Written by the
+// nightly cron job (services/cron.service.js → snapshotAllUsersNetWorth).
+// Used by the /net-worth page to render history.
+model NetWorthSnapshot {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id            String   @db.Uuid
+  captured_at        DateTime @default(now()) @db.Timestamptz(6)
+  bank_total         Decimal  @db.Decimal(15, 2)
+  wallet_total       Decimal  @db.Decimal(15, 2)
+  investment_total   Decimal  @db.Decimal(15, 2)
+  asset_total        Decimal  @db.Decimal(15, 2)
+  receivable_total   Decimal  @db.Decimal(15, 2)
+  payable_total      Decimal  @db.Decimal(15, 2)
+  rent_balance_total Decimal  @db.Decimal(15, 2)
+  expense_total      Decimal  @db.Decimal(15, 2)
+  net_worth          Decimal  @db.Decimal(15, 2)
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id, captured_at])
+  @@map("networth_snapshots")
 }
 
 // Controls which sidebar menu items are visible to each role.

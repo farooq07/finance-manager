@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git checkout *)",
+      "Bash(mkdir -p backend/prisma/migrations/20260520120000_add_legal_acceptance)"
+    ],
+    "additionalDirectories": [
+      "D:\\Vibe-coding\\Finance-manager\\backend\\prisma\\migrations"
+    ]
+  }
+}

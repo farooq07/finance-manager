@@ -6,7 +6,7 @@ export default function Privacy() {
       <p>
         This Privacy Policy explains how <strong>FSWealth Axis</strong> ("we", "us", or "the Service") collects,
         uses, stores, and protects your information when you use our personal finance management application.
-        We are based in Karachi, Pakistan, and operate under the laws of the Islamic Republic of Pakistan,
+        We are based in Lahore, Pakistan, and operate under the laws of the Islamic Republic of Pakistan,
         including the Prevention of Electronic Crimes Act 2016 (PECA) and the draft Personal Data Protection Bill.
       </p>
 

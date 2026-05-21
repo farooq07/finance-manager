@@ -17,65 +17,65 @@ import { useTheme } from '../context/ThemeContext';
    ───────────────────────────────────────────────────────────────── */
 
 const fontDisplay = `'Fraunces', 'Cormorant Garamond', 'EB Garamond', Georgia, serif`;
-const fontBody    = `'DM Sans', 'Inter', system-ui, -apple-system, sans-serif`;
-const fontMono    = `'JetBrains Mono', ui-monospace, monospace`;
+const fontBody = `'DM Sans', 'Inter', system-ui, -apple-system, sans-serif`;
+const fontMono = `'JetBrains Mono', ui-monospace, monospace`;
 
 const lightPalette = {
-  paper:            '#f5f0e6',
-  paperDeep:        '#ede6d6',
-  ink:              '#0e0f12',
-  inkSoft:          '#3a3a3f',
-  brand:            '#0a5c3b',
-  brandSoft:        '#13744c',
-  accent:           '#c75a2f',
-  mute:             '#94908a',
-  cardBg:           '#fbf8f1',
-  cardBorder:       'rgba(14,15,18,0.1)',
-  cardShadow:       '0 30px 80px -40px rgba(14,15,18,0.18)',
-  marqueeBg:        '#ede6d6',
-  marqueeBorder:    'rgba(14,15,18,0.1)',
-  numbersBg:        '#ede6d6',
-  trustCardBg:      '#f5f0e6',
-  trustGrid:        'rgba(14,15,18,0.1)',
-  divider:          'rgba(14,15,18,0.1)',
+  paper: '#f5f0e6',
+  paperDeep: '#ede6d6',
+  ink: '#0e0f12',
+  inkSoft: '#3a3a3f',
+  brand: '#0a5c3b',
+  brandSoft: '#13744c',
+  accent: '#c75a2f',
+  mute: '#94908a',
+  cardBg: '#fbf8f1',
+  cardBorder: 'rgba(14,15,18,0.1)',
+  cardShadow: '0 30px 80px -40px rgba(14,15,18,0.18)',
+  marqueeBg: '#ede6d6',
+  marqueeBorder: 'rgba(14,15,18,0.1)',
+  numbersBg: '#ede6d6',
+  trustCardBg: '#f5f0e6',
+  trustGrid: 'rgba(14,15,18,0.1)',
+  divider: 'rgba(14,15,18,0.1)',
   // ThreePillars is always dark regardless of mode
-  pillarsBg:        '#0e0f12',
-  pillarsAlt:       '#141618',
-  pillarsText:      '#f5f0e6',
-  pillarsTextSoft:  'rgba(245,240,230,0.7)',
-  pillarsTextMute:  'rgba(245,240,230,0.5)',
-  pillarsAccent:    '#7fd1a4',
-  pillarsBorder:    'rgba(255,255,255,0.08)',
-  pillarsBorderFaint:'rgba(255,255,255,0.06)',
+  pillarsBg: '#0e0f12',
+  pillarsAlt: '#141618',
+  pillarsText: '#f5f0e6',
+  pillarsTextSoft: 'rgba(245,240,230,0.7)',
+  pillarsTextMute: 'rgba(245,240,230,0.5)',
+  pillarsAccent: '#7fd1a4',
+  pillarsBorder: 'rgba(255,255,255,0.08)',
+  pillarsBorderFaint: 'rgba(255,255,255,0.06)',
 };
 
 const darkPalette = {
-  paper:            '#0f1115',
-  paperDeep:        '#13161d',
-  ink:              '#eae4d8',
-  inkSoft:          '#b3aca3',
-  brand:            '#2db87a',
-  brandSoft:        '#38d490',
-  accent:           '#e07048',
-  mute:             '#777068',
-  cardBg:           '#1c1f28',
-  cardBorder:       'rgba(234,228,216,0.1)',
-  cardShadow:       '0 30px 80px -40px rgba(0,0,0,0.55)',
-  marqueeBg:        '#13161d',
-  marqueeBorder:    'rgba(234,228,216,0.08)',
-  numbersBg:        '#13161d',
-  trustCardBg:      '#0f1115',
-  trustGrid:        'rgba(234,228,216,0.1)',
-  divider:          'rgba(234,228,216,0.08)',
+  paper: '#0f1115',
+  paperDeep: '#13161d',
+  ink: '#eae4d8',
+  inkSoft: '#b3aca3',
+  brand: '#2db87a',
+  brandSoft: '#38d490',
+  accent: '#e07048',
+  mute: '#777068',
+  cardBg: '#1c1f28',
+  cardBorder: 'rgba(234,228,216,0.1)',
+  cardShadow: '0 30px 80px -40px rgba(0,0,0,0.55)',
+  marqueeBg: '#13161d',
+  marqueeBorder: 'rgba(234,228,216,0.08)',
+  numbersBg: '#13161d',
+  trustCardBg: '#0f1115',
+  trustGrid: 'rgba(234,228,216,0.1)',
+  divider: 'rgba(234,228,216,0.08)',
   // ThreePillars stays dark but slightly differentiated
-  pillarsBg:        '#1c1f28',
-  pillarsAlt:       '#0f1115',
-  pillarsText:      '#f5f0e6',
-  pillarsTextSoft:  'rgba(245,240,230,0.7)',
-  pillarsTextMute:  'rgba(245,240,230,0.5)',
-  pillarsAccent:    '#7fd1a4',
-  pillarsBorder:    'rgba(255,255,255,0.1)',
-  pillarsBorderFaint:'rgba(255,255,255,0.07)',
+  pillarsBg: '#1c1f28',
+  pillarsAlt: '#0f1115',
+  pillarsText: '#f5f0e6',
+  pillarsTextSoft: 'rgba(245,240,230,0.7)',
+  pillarsTextMute: 'rgba(245,240,230,0.5)',
+  pillarsAccent: '#7fd1a4',
+  pillarsBorder: 'rgba(255,255,255,0.1)',
+  pillarsBorderFaint: 'rgba(255,255,255,0.07)',
 };
 
 const PaletteCtx = createContext(lightPalette);
@@ -92,7 +92,7 @@ function useClock() {
 
 /* ── IntersectionObserver-based scroll reveal trigger ── */
 function useScrollReveal(threshold = 0.18) {
-  const ref     = useRef(null);
+  const ref = useRef(null);
   const [visible, setVisible] = useState(false);
   useEffect(() => {
     const el = ref.current;
@@ -109,7 +109,7 @@ function useScrollReveal(threshold = 0.18) {
 
 /* ── RotatingWord — cycles through synonyms with fade+rise ── */
 function RotatingWord({ words, interval = 2800 }) {
-  const ref     = useRef(null);
+  const ref = useRef(null);
   const [index, setIndex] = useState(0);
   const longest = words.reduce((a, b) => (b.length > a.length ? b : a), '');
 
@@ -188,7 +188,7 @@ function Nav() {
         <nav className="hidden md:flex items-center gap-9 text-sm" style={{ color: p.inkSoft }}>
           <a href="#tracked" className="hover:opacity-70 transition-opacity">What's tracked</a>
           <a href="#pillars" className="hover:opacity-70 transition-opacity">How it works</a>
-          <a href="#trust"   className="hover:opacity-70 transition-opacity">Trust</a>
+          <a href="#trust" className="hover:opacity-70 transition-opacity">Trust</a>
         </nav>
 
         <div className="flex items-center gap-3">
@@ -200,7 +200,7 @@ function Nav() {
             style={{ color: p.mute, background: 'transparent', border: `1px solid ${p.divider}` }}
           >
             {theme === 'dark'
-              ? <Sun  className="w-3.5 h-3.5" />
+              ? <Sun className="w-3.5 h-3.5" />
               : <Moon className="w-3.5 h-3.5" />
             }
           </button>
@@ -226,12 +226,12 @@ function Nav() {
 function Hero() {
   const p = useContext(PaletteCtx);
   const clock = useClock();
-  const time  = clock.toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit' });
+  const time = clock.toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit' });
 
-  const eyebrowRef  = useRef(null);
+  const eyebrowRef = useRef(null);
   const headlineRef = useRef(null);
-  const subRef      = useRef(null);
-  const ctasRef     = useRef(null);
+  const subRef = useRef(null);
+  const ctasRef = useRef(null);
 
   useEffect(() => {
     const tl = createTimeline({ defaults: { ease: 'outExpo' } });
@@ -324,7 +324,7 @@ function Hero() {
         className="hidden lg:block absolute right-0 top-1/2 -translate-y-1/2 rotate-90 origin-right text-[10px] tracking-[0.4em] uppercase pr-4"
         style={{ color: p.mute, fontFamily: fontMono }}
       >
-        — Issue 01 / Built in Karachi
+        — Issue 01 / Built in Lahore
       </div>
 
       <style>{`
@@ -340,13 +340,13 @@ function Hero() {
 /* ─── HeroVisual ─── */
 function HeroVisual() {
   const p = useContext(PaletteCtx);
-  const wrapRef   = useRef(null);
-  const lineRef   = useRef(null);
-  const areaRef   = useRef(null);
-  const dotsRef   = useRef(null);
+  const wrapRef = useRef(null);
+  const lineRef = useRef(null);
+  const areaRef = useRef(null);
+  const dotsRef = useRef(null);
   const labelsRef = useRef(null);
-  const cardRef   = useRef(null);
-  const tagsRef   = useRef(null);
+  const cardRef = useRef(null);
+  const tagsRef = useRef(null);
   const [balance, setBalance] = useState(0);
   const target = 1284520;
 
@@ -356,9 +356,9 @@ function HeroVisual() {
     if (!wrap || !card) return;
     let frame;
     const onMove = (e) => {
-      const r  = wrap.getBoundingClientRect();
-      const cx = (e.clientX - r.left) / r.width  - 0.5;
-      const cy = (e.clientY - r.top)  / r.height - 0.5;
+      const r = wrap.getBoundingClientRect();
+      const cx = (e.clientX - r.left) / r.width - 0.5;
+      const cy = (e.clientY - r.top) / r.height - 0.5;
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
         card.style.transform = `perspective(1200px) rotateX(${-cy * 4}deg) rotateY(${cx * 6}deg) translateZ(0)`;
@@ -381,13 +381,13 @@ function HeroVisual() {
       const pathEl = lineRef.current.querySelector('.draw-line');
       if (pathEl) {
         const len = pathEl.getTotalLength();
-        pathEl.style.strokeDasharray  = len;
+        pathEl.style.strokeDasharray = len;
         pathEl.style.strokeDashoffset = len;
         tl.add(pathEl, { strokeDashoffset: [len, 0], duration: 1800, ease: 'inOutQuad' }, 800);
       }
     }
-    if (areaRef.current)  tl.add(areaRef.current, { opacity: [0, 1], duration: 800 }, 1600);
-    if (dotsRef.current)  tl.add(dotsRef.current.children, { opacity: [0, 1], scale: [0, 1], duration: 500, delay: stagger(80), ease: 'outBack' }, 1800);
+    if (areaRef.current) tl.add(areaRef.current, { opacity: [0, 1], duration: 800 }, 1600);
+    if (dotsRef.current) tl.add(dotsRef.current.children, { opacity: [0, 1], scale: [0, 1], duration: 500, delay: stagger(80), ease: 'outBack' }, 1800);
     if (labelsRef.current) tl.add(labelsRef.current.children, { opacity: [0, 1], translateY: [6, 0], duration: 500, delay: stagger(50) }, 2000);
     if (tagsRef.current) {
       tl.add(tagsRef.current.children, { opacity: [0, 1], translateY: [20, 0], duration: 700, delay: stagger(150) }, 1400);
@@ -396,7 +396,7 @@ function HeroVisual() {
       });
     }
     const start = performance.now();
-    const dur   = 1800;
+    const dur = 1800;
     let raf;
     const tick = (now) => {
       const elapsed = Math.min((now - start - 400) / dur, 1);
@@ -408,9 +408,9 @@ function HeroVisual() {
   }, []);
 
   const points = [
-    { x: 20,  y: 130, m: 'Dec' }, { x: 95,  y: 105, m: 'Jan' },
-    { x: 170, y: 115, m: 'Feb' }, { x: 245, y: 75,  m: 'Mar' },
-    { x: 320, y: 85,  m: 'Apr' }, { x: 395, y: 35,  m: 'May' },
+    { x: 20, y: 130, m: 'Dec' }, { x: 95, y: 105, m: 'Jan' },
+    { x: 170, y: 115, m: 'Feb' }, { x: 245, y: 75, m: 'Mar' },
+    { x: 320, y: 85, m: 'Apr' }, { x: 395, y: 35, m: 'May' },
   ];
   const pathD = `M${points.map(pt => `${pt.x},${pt.y}`).join(' L')}`;
   const areaD = `${pathD} L${points[points.length - 1].x},180 L${points[0].x},180 Z`;
@@ -453,8 +453,8 @@ function HeroVisual() {
           <svg ref={lineRef} viewBox="0 0 420 200" className="w-full h-[140px]" preserveAspectRatio="none">
             <defs>
               <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%"   stopColor={p.brand} stopOpacity="0.18" />
-                <stop offset="100%" stopColor={p.brand} stopOpacity="0"    />
+                <stop offset="0%" stopColor={p.brand} stopOpacity="0.18" />
+                <stop offset="100%" stopColor={p.brand} stopOpacity="0" />
               </linearGradient>
             </defs>
             <path ref={areaRef} d={areaD} fill="url(#areaGrad)" className="opacity-0" />
@@ -480,9 +480,9 @@ function HeroVisual() {
       </div>
 
       <div ref={tagsRef} className="absolute inset-0 pointer-events-none z-20">
-        <FloatTag style={{ top: '-3%', left: '-8%'  }} icon={<ArrowDownRight className="w-3 h-3" />} label="Salary"          amount="+450,000" tone="credit" />
-        <FloatTag style={{ top: '38%', right: '-12%' }} icon={<ArrowUpRight   className="w-3 h-3" />} label="K-Electric"      amount="−12,450"  tone="debit"  />
-        <FloatTag style={{ bottom: '-5%', left: '12%' }} icon={<Sparkles      className="w-3 h-3" />} label="Auto-categorised" amount="847 rows" tone="ai"     />
+        <FloatTag style={{ top: '-3%', left: '-8%' }} icon={<ArrowDownRight className="w-3 h-3" />} label="Salary" amount="+450,000" tone="credit" />
+        <FloatTag style={{ top: '38%', right: '-12%' }} icon={<ArrowUpRight className="w-3 h-3" />} label="K-Electric" amount="−12,450" tone="debit" />
+        <FloatTag style={{ bottom: '-5%', left: '12%' }} icon={<Sparkles className="w-3 h-3" />} label="Auto-categorised" amount="847 rows" tone="ai" />
       </div>
     </div>
   );
@@ -492,8 +492,8 @@ function FloatTag({ style, icon, label, amount, tone }) {
   const p = useContext(PaletteCtx);
   const toneStyle = {
     credit: { bg: `${p.brand}14`, fg: p.brand },
-    debit:  { bg: `${p.accent}1a`, fg: p.accent },
-    ai:     { bg: p.cardBg, fg: p.ink },
+    debit: { bg: `${p.accent}1a`, fg: p.accent },
+    ai: { bg: p.cardBg, fg: p.ink },
   }[tone];
 
   return (
@@ -512,9 +512,9 @@ function FloatTag({ style, icon, label, amount, tone }) {
 function Marquee() {
   const p = useContext(PaletteCtx);
   const words = [
-    'Bank statements','Wallets','Beneficiaries','Dues ledger',
-    'Mutual funds','PSX stocks','Rent tracker','Zakat',
-    'Physical assets','Cash flow','AI assistant','Auto-categorise',
+    'Bank statements', 'Wallets', 'Beneficiaries', 'Dues ledger',
+    'Mutual funds', 'PSX stocks', 'Rent tracker', 'Zakat',
+    'Physical assets', 'Cash flow', 'AI assistant', 'Auto-categorise',
   ];
   return (
     <section
@@ -558,18 +558,18 @@ function CategoryIndex() {
   }, [gridVisible]);
 
   const items = [
-    { n: '01', title: 'Bank accounts',   body: 'Multiple banks, multi-currency, balance auto-synced from your uploaded statement.' },
-    { n: '02', title: 'Wallets & cash',  body: 'NayaPay, Easypaisa, JazzCash, your wallet, your drawer. All on one ledger.' },
-    { n: '03', title: 'Beneficiaries',   body: 'Name a contact once. Every transfer to them is auto-linked across statements.' },
-    { n: '04', title: 'Dues ledger',     body: 'Who owes you, who you owe. Send reminders by email when it gets uncomfortable.' },
-    { n: '05', title: 'Mutual funds',    body: 'NAV-tracked daily. See realised gains, holding period, and tax position at a glance.' },
-    { n: '06', title: 'PSX stocks',      body: 'Symbol-level P&L with the live PSX feed. Dividends auto-credited to the right book.' },
-    { n: '07', title: 'Rent tracker',    body: 'Tenants, due dates, late fees, deposits. Quietly nudges you when the month begins.' },
-    { n: '08', title: 'Zakat',           body: 'A real Hijri calendar. Nisab threshold check. One number when the day comes.' },
+    { n: '01', title: 'Bank accounts', body: 'Multiple banks, multi-currency, balance auto-synced from your uploaded statement.' },
+    { n: '02', title: 'Wallets & cash', body: 'NayaPay, Easypaisa, JazzCash, your wallet, your drawer. All on one ledger.' },
+    { n: '03', title: 'Beneficiaries', body: 'Name a contact once. Every transfer to them is auto-linked across statements.' },
+    { n: '04', title: 'Dues ledger', body: 'Who owes you, who you owe. Send reminders by email when it gets uncomfortable.' },
+    { n: '05', title: 'Mutual funds', body: 'NAV-tracked daily. See realised gains, holding period, and tax position at a glance.' },
+    { n: '06', title: 'PSX stocks', body: 'Symbol-level P&L with the live PSX feed. Dividends auto-credited to the right book.' },
+    { n: '07', title: 'Rent tracker', body: 'Tenants, due dates, late fees, deposits. Quietly nudges you when the month begins.' },
+    { n: '08', title: 'Zakat', body: 'A real Hijri calendar. Nisab threshold check. One number when the day comes.' },
     { n: '09', title: 'Physical assets', body: "Gold, property, vehicles, anything that isn't liquid. Valued, dated, and on the books." },
-    { n: '10', title: 'Expenses',        body: 'AI categorisation that learns your style. Override once, it remembers forever.' },
-    { n: '11', title: 'AI assistant',    body: 'Ask it anything. It runs a real query on your real data — never makes numbers up.' },
-    { n: '12', title: 'Reports',         body: 'Monthly summaries delivered to your inbox. Category breakdowns when you want them.' },
+    { n: '10', title: 'Expenses', body: 'AI categorisation that learns your style. Override once, it remembers forever.' },
+    { n: '11', title: 'AI assistant', body: 'Ask it anything. It runs a real query on your real data — never makes numbers up.' },
+    { n: '12', title: 'Reports', body: 'Monthly summaries delivered to your inbox. Category breakdowns when you want them.' },
   ];
 
   return (
@@ -679,11 +679,11 @@ function PillarUpload() {
 function StatementMock() {
   const p = useContext(PaletteCtx);
   const rows = [
-    { d: '07/05', label: 'RAAST P2P · Hamza',    cat: 'Transfer',  amt: '-200,000', kind: 'debit'  },
-    { d: '06/05', label: 'SALARY · ACME Pvt Ltd', cat: 'Salary',    amt: '+450,000', kind: 'credit' },
-    { d: '05/05', label: 'FOODPANDA',             cat: 'Food',      amt: '-1,840',   kind: 'debit'  },
-    { d: '04/05', label: 'K-ELECTRIC BILL',       cat: 'Utilities', amt: '-12,450',  kind: 'debit'  },
-    { d: '02/05', label: 'METRO CASH&CARRY',      cat: 'Groceries', amt: '-6,720',   kind: 'debit'  },
+    { d: '07/05', label: 'RAAST P2P · Hamza', cat: 'Transfer', amt: '-200,000', kind: 'debit' },
+    { d: '06/05', label: 'SALARY · ACME Pvt Ltd', cat: 'Salary', amt: '+450,000', kind: 'credit' },
+    { d: '05/05', label: 'FOODPANDA', cat: 'Food', amt: '-1,840', kind: 'debit' },
+    { d: '04/05', label: 'K-ELECTRIC BILL', cat: 'Utilities', amt: '-12,450', kind: 'debit' },
+    { d: '02/05', label: 'METRO CASH&CARRY', cat: 'Groceries', amt: '-6,720', kind: 'debit' },
   ];
   return (
     <div className="rounded-2xl border overflow-hidden" style={{ borderColor: p.pillarsBorder, background: 'rgba(255,255,255,0.03)' }}>
@@ -784,7 +784,7 @@ function ChatMock() {
           in April 2026 across <span style={{ fontFamily: fontMono }}>23</span> transactions. Foodpanda accounted for 41% of that.
         </p>
         <div className="rounded-xl border overflow-hidden mt-3" style={{ borderColor: p.pillarsBorderFaint, background: 'rgba(255,255,255,0.02)' }}>
-          {[['Foodpanda','15,820','41%'],['Cheetay','9,240','24%'],['Local restaurants','8,360','22%'],['Groceries','5,000','13%']].map(([k,v,pct],i) => (
+          {[['Foodpanda', '15,820', '41%'], ['Cheetay', '9,240', '24%'], ['Local restaurants', '8,360', '22%'], ['Groceries', '5,000', '13%']].map(([k, v, pct], i) => (
             <div key={k} className="px-4 py-2.5 flex items-center justify-between text-xs" style={{ borderTop: i === 0 ? 'none' : `1px solid ${p.pillarsBorderFaint}` }}>
               <span style={{ color: 'rgba(245,240,230,0.8)' }}>{k}</span>
               <div className="flex items-center gap-3">
@@ -827,14 +827,14 @@ function PillarLocal() {
   }, [tilesVisible]);
 
   const banks = [
-    { k: 'HBL',      sub: 'Habib Bank'         },
-    { k: 'MCB',      sub: 'MCB Bank'            },
-    { k: 'Meezan',   sub: 'Islamic Banking'     },
-    { k: 'SCB',      sub: 'Standard Chartered'  },
-    { k: 'BAFL',     sub: 'Bank Alfalah'        },
-    { k: 'UBL',      sub: 'United Bank'         },
-    { k: 'NayaPay',  sub: 'Wallet'              },
-    { k: 'Easypaisa',sub: 'Wallet'              },
+    { k: 'HBL', sub: 'Habib Bank' },
+    { k: 'MCB', sub: 'MCB Bank' },
+    { k: 'Meezan', sub: 'Islamic Banking' },
+    { k: 'SCB', sub: 'Standard Chartered' },
+    { k: 'BAFL', sub: 'Bank Alfalah' },
+    { k: 'UBL', sub: 'United Bank' },
+    { k: 'NayaPay', sub: 'Wallet' },
+    { k: 'Easypaisa', sub: 'Wallet' },
   ];
 
   return (
@@ -880,15 +880,15 @@ function NumbersBand() {
   const [ref, visible] = useScrollReveal(0.25);
 
   const stats = [
-    { v: '12L+', l: 'PKR tracked across early users'  },
-    { v: '8',    l: 'Pakistani banks parsed natively'  },
-    { v: '12',   l: 'Tools the AI can run on your data'},
-    { v: '0',    l: 'Numbers ever made up'             },
+    { v: '12L+', l: 'PKR tracked across early users' },
+    { v: '8', l: 'Pakistani banks parsed natively' },
+    { v: '12', l: 'Tools the AI can run on your data' },
+    { v: '0', l: 'Numbers ever made up' },
   ];
 
   useEffect(() => {
     if (!visible || !ref.current) return;
-    const vals   = ref.current.querySelectorAll('.stat-val');
+    const vals = ref.current.querySelectorAll('.stat-val');
     const labels = ref.current.querySelectorAll('.stat-lbl');
     animate(vals, {
       opacity: [0, 1], translateY: [40, 0], scale: [0.85, 1],
@@ -948,12 +948,18 @@ function Trust() {
   }, [cardsVisible]);
 
   const items = [
-    { icon: ShieldCheck, title: 'Row-level security on every table',
-      body: 'Postgres RLS denies all anon access by default. Even a leaked API key cannot read a row.' },
-    { icon: Lock, title: 'Two-factor by default',
-      body: 'Every sign-in needs a 6-digit code sent to your email. Sessions expire after 7 days.' },
-    { icon: Fingerprint, title: 'Master PIN gate',
-      body: 'A four-digit PIN you choose stands between casual eyes and your balance figures.' },
+    {
+      icon: ShieldCheck, title: 'Row-level security on every table',
+      body: 'Postgres RLS denies all anon access by default. Even a leaked API key cannot read a row.'
+    },
+    {
+      icon: Lock, title: 'Two-factor by default',
+      body: 'Every sign-in needs a 6-digit code sent to your email. Sessions expire after 7 days.'
+    },
+    {
+      icon: Fingerprint, title: 'Master PIN gate',
+      body: 'A four-digit PIN you choose stands between casual eyes and your balance figures.'
+    },
   ];
 
   return (
@@ -999,7 +1005,7 @@ function Trust() {
 function ClosingCta() {
   const p = useContext(PaletteCtx);
   const [headRef, headVisible] = useScrollReveal(0.2);
-  const [ctaRef,  ctaVisible]  = useScrollReveal(0.3);
+  const [ctaRef, ctaVisible] = useScrollReveal(0.3);
 
   useEffect(() => {
     if (!headVisible || !headRef.current) return;
@@ -1072,12 +1078,12 @@ function Footer() {
           </span>
         </div>
         <p className="text-xs" style={{ color: p.mute, fontFamily: fontMono }}>
-          © {new Date().getFullYear()} — Designed and built in Karachi.
+          © {new Date().getFullYear()} — Designed and built in Lahore.
         </p>
         <div className="flex items-center gap-5 text-sm flex-wrap" style={{ color: p.inkSoft }}>
-          <Link to="/privacy"  className="hover:opacity-70 transition-opacity">Privacy</Link>
-          <Link to="/terms"    className="hover:opacity-70 transition-opacity">Terms</Link>
-          <Link to="/login"    className="hover:opacity-70 transition-opacity">Sign in</Link>
+          <Link to="/privacy" className="hover:opacity-70 transition-opacity">Privacy</Link>
+          <Link to="/terms" className="hover:opacity-70 transition-opacity">Terms</Link>
+          <Link to="/login" className="hover:opacity-70 transition-opacity">Sign in</Link>
           <Link to="/register" className="hover:opacity-70 transition-opacity">Start free</Link>
         </div>
       </div>

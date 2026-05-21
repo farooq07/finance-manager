@@ -116,62 +116,62 @@ export default function AssetsScreen() {
       <FAB onPress={() => setShowModal(true)} />
 
       <BottomDrawer visible={showModal} title="Add Asset" onClose={() => setShowModal(false)}>
-            <TextInput
-              label="Asset Name *"
-              mode="outlined"
-              value={name}
-              onChangeText={setName}
-              placeholder="e.g. House in Karachi"
-            />
+        <TextInput
+          label="Asset Name *"
+          mode="outlined"
+          value={name}
+          onChangeText={setName}
+          placeholder="e.g. House in Lahore"
+        />
 
-            <Text style={styles.label}>Type</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
-              {ASSET_TYPES.map((t) => (
-                <TouchableOpacity
-                  key={t}
-                  style={[styles.chip, type === t && styles.chipActive]}
-                  onPress={() => setType(t)}
-                >
-                  <Text style={[styles.chipText, type === t && styles.chipTextActive]}>{t}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-
-            <TextInput
-              label="Current Value (PKR)"
-              mode="outlined"
-              value={value}
-              onChangeText={setValue}
-              keyboardType="numeric"
-              placeholder="0"
-              style={{ marginTop: 16 }}
-            />
-
-            <TextInput
-              label="Purchase Date (YYYY-MM-DD)"
-              mode="outlined"
-              value={purchaseDate}
-              onChangeText={setPurchaseDate}
-              placeholder="Optional"
-              style={{ marginTop: 16 }}
-            />
-
-            <TextInput
-              label="Description"
-              mode="outlined"
-              style={{ marginTop: 16 }}
-              value={description}
-              onChangeText={setDescription}
-              placeholder="Optional"
-              placeholderTextColor={Colors.textTertiary}
-              multiline
-            />
-
-            <TouchableOpacity style={styles.saveBtn} onPress={handleAdd} disabled={createAsset.isPending}>
-              {createAsset.isPending
-                ? <ActivityIndicator color="#fff" />
-                : <Text style={styles.saveBtnText}>Add Asset</Text>}
+        <Text style={styles.label}>Type</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
+          {ASSET_TYPES.map((t) => (
+            <TouchableOpacity
+              key={t}
+              style={[styles.chip, type === t && styles.chipActive]}
+              onPress={() => setType(t)}
+            >
+              <Text style={[styles.chipText, type === t && styles.chipTextActive]}>{t}</Text>
             </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        <TextInput
+          label="Current Value (PKR)"
+          mode="outlined"
+          value={value}
+          onChangeText={setValue}
+          keyboardType="numeric"
+          placeholder="0"
+          style={{ marginTop: 16 }}
+        />
+
+        <TextInput
+          label="Purchase Date (YYYY-MM-DD)"
+          mode="outlined"
+          value={purchaseDate}
+          onChangeText={setPurchaseDate}
+          placeholder="Optional"
+          style={{ marginTop: 16 }}
+        />
+
+        <TextInput
+          label="Description"
+          mode="outlined"
+          style={{ marginTop: 16 }}
+          value={description}
+          onChangeText={setDescription}
+          placeholder="Optional"
+          placeholderTextColor={Colors.textTertiary}
+          multiline
+        />
+
+        <TouchableOpacity style={styles.saveBtn} onPress={handleAdd} disabled={createAsset.isPending}>
+          {createAsset.isPending
+            ? <ActivityIndicator color="#fff" />
+            : <Text style={styles.saveBtnText}>Add Asset</Text>}
+        </TouchableOpacity>
       </BottomDrawer>
     </View>
   );
