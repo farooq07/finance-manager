@@ -1,6 +1,55 @@
 import prisma from '../utils/prisma.js';
 import logger from '../utils/logger.js';
 
+// Merchant cleaning -----------------------------------------------------------
+// Bank statement descriptions are mostly noise: running balances, account
+// numbers, transaction codes, dates. We strip the noise and bucket the rest
+// into recognisable categories so the "Top destinations" list isn't a wall
+// of "PK-019-260401- 60,000.00 769,127.25" strings.
+
+const TXN_NOISE_PATTERNS = [
+    /(?:Rs\.?|PKR)\s*[\d,]+(?:\.\d{1,2})?/gi,                  // "Rs. 60,000.00"
+    /\b\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?\b/g,                   // grouped decimals like "769,127.25"
+    /\b\d{6,}\b/g,                                              // long digit sequences (account numbers)
+    /\bPK[-\s]?\d+[-\s]?\d+[-\s]?/gi,                          // "PK-019-260401-"
+    /\bDt[:.]?\s?[A-Za-z]{3}\s?\d{1,2}(?:[\s,]?\d{2,4})?/gi,   // "Dt:Apr 13" / "Dt.May 2 2026"
+    /\(\d+\)/g,                                                  // "(1234)"
+    /\b[A-Z]{2,4}\d{6,}\b/g,                                    // "REF1234567"
+    /\b\d{1,4}\.\d{2}\b/g,                                      // standalone "32544.00"
+];
+
+const MERCHANT_BUCKETS = [
+    { match: /\b(ATM|withdraw)\b/i,                       label: 'ATM withdrawal' },
+    { match: /\b(POS|DC\s?TXN|debit\s?card)\b/i,          label: 'Card payment' },
+    { match: /\b(RAAST|IBFT|MPBL|EFT|funds?\s?transfer)\b/i, label: 'Bank transfer' },
+    { match: /\b(salary|payroll|wages)\b/i,               label: 'Salary' },
+    { match: /\b(dividend|profit\s?credit|markup|mark[\s-]?up)\b/i, label: 'Profit / dividend' },
+    { match: /\b(service\s?charge|wht|withholding|maintenance\s?fee|sms\s?charge)\b/i, label: 'Bank charges' },
+    { match: /\b(bill\s?pay|utility|k[-\s]?electric|ptcl|wapda|sui\s?gas)\b/i, label: 'Utility' },
+];
+
+function cleanDescription(desc) {
+    if (!desc) return '';
+    let s = String(desc);
+    for (const re of TXN_NOISE_PATTERNS) s = s.replace(re, ' ');
+    s = s.replace(/[-_/\\|]+/g, ' ');
+    s = s.replace(/\s+/g, ' ').trim();
+    return s;
+}
+
+function resolveMerchant(rawDesc) {
+    if (!rawDesc) return { key: 'Bank transfer', name: 'Bank transfer' };
+    for (const { match, label } of MERCHANT_BUCKETS) {
+        if (match.test(rawDesc)) return { key: label, name: label };
+    }
+    const cleaned = cleanDescription(rawDesc);
+    if (!cleaned || cleaned.length < 3) {
+        return { key: 'Bank transfer', name: 'Bank transfer' };
+    }
+    const name = cleaned.length > 38 ? cleaned.slice(0, 38).trim() + '…' : cleaned;
+    return { key: name.toUpperCase(), name };
+}
+
 // Period helpers --------------------------------------------------------------
 
 function startOfMonth(d) {
@@ -171,20 +220,28 @@ export const getInsights = async (req, res) => {
             .sort((a, b) => b.total - a.total)
             .slice(0, 12);
 
-        // Top "merchants" — group spending by description (cleaned)
+        // Top destinations — bank/wallet transaction descriptions are noisy
+        // (account codes, running balances, dates). Clean them, bucket
+        // unrecognisable ones into well-known categories, count occurrences.
         const merchantMap = new Map();
         const collectMerchant = (desc, amt) => {
-            if (!desc || amt <= 0) return;
-            const key = desc.trim().slice(0, 60);
-            if (!key) return;
-            merchantMap.set(key, (merchantMap.get(key) || 0) + amt);
+            if (amt <= 0) return;
+            const { key, name } = resolveMerchant(desc);
+            const existing = merchantMap.get(key);
+            if (existing) {
+                existing.total += amt;
+                existing.count += 1;
+            } else {
+                merchantMap.set(key, { merchant: name, total: amt, count: 1 });
+            }
         };
         current.bankRows.forEach(r    => collectMerchant(r.description, Number(r.debit || 0)));
         current.walletRows.forEach(r  => collectMerchant(r.description, Number(r.debit || 0)));
         current.expenseRows.forEach(r => collectMerchant(r.description, Number(r.amount || 0)));
-        const topMerchants = Array.from(merchantMap, ([merchant, total]) => ({ merchant, total }))
+        const topMerchants = Array.from(merchantMap.values())
             .sort((a, b) => b.total - a.total)
-            .slice(0, 8);
+            .slice(0, 8)
+            .map((m) => ({ merchant: m.merchant, total: m.total, count: m.count }));
 
         // Daily trend for current period
         const dayMap = new Map();

@@ -208,13 +208,53 @@ function Hero({ summary, history, loading }) {
                     )}
                 </div>
 
-                {/* Composition strip — only top contributors */}
+                {/* Composition strip — the four pieces that actually make up Net Worth */}
                 <div className="mt-7 pt-5 border-t border-emerald-300/15 grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-3 text-sm">
-                    <CompositionPiece label="Bank"        value={m.totalBankBalance} />
-                    <CompositionPiece label="Wallet"      value={m.totalWalletBalance} />
-                    <CompositionPiece label="Invested"    value={m.totalInvestments} />
-                    <CompositionPiece label="Receivables" value={m.totalReceivable} />
+                    <CompositionPiece label="Bank"     value={m.totalBankBalance} />
+                    <CompositionPiece label="Wallet"   value={m.totalWalletBalance} />
+                    <CompositionPiece label="Invested" value={m.totalInvestments} />
+                    <CompositionPiece label="Rent"     value={m.totalRentBalance} />
                 </div>
+
+                {/* Dues row — surfaced separately because they're conditional cash flows,
+                    not realised wealth (so they don't move the headline net-worth figure). */}
+                {(Number(m.totalReceivable) > 0 || Number(m.totalPayable) > 0) && (
+                    <div className="mt-4 pt-4 border-t border-emerald-300/10 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs">
+                        {Number(m.totalReceivable) > 0 && (
+                            <div className="flex items-center gap-1.5">
+                                <ArrowUpRight className="w-3.5 h-3.5 text-emerald-300/80" />
+                                <span className="uppercase tracking-[0.14em] text-emerald-200/60">To receive</span>
+                                <MaskedBalance
+                                    value={m.totalReceivable}
+                                    className="font-semibold tabular-nums text-emerald-50 inline-block"
+                                    iconClassName="text-emerald-100/40 hover:text-emerald-50 ml-1"
+                                />
+                            </div>
+                        )}
+                        {Number(m.totalPayable) > 0 && (
+                            <div className="flex items-center gap-1.5">
+                                <ArrowDownRight className="w-3.5 h-3.5 text-rose-300/80" />
+                                <span className="uppercase tracking-[0.14em] text-emerald-200/60">To pay</span>
+                                <MaskedBalance
+                                    value={m.totalPayable}
+                                    className="font-semibold tabular-nums text-rose-200 inline-block"
+                                    iconClassName="text-emerald-100/40 hover:text-emerald-50 ml-1"
+                                />
+                            </div>
+                        )}
+                        {Number(m.totalDebt) > 0 && (
+                            <div className="flex items-center gap-1.5">
+                                <ArrowDownRight className="w-3.5 h-3.5 text-rose-300/80" />
+                                <span className="uppercase tracking-[0.14em] text-emerald-200/60">Debt</span>
+                                <MaskedBalance
+                                    value={m.totalDebt}
+                                    className="font-semibold tabular-nums text-rose-200 inline-block"
+                                    iconClassName="text-emerald-100/40 hover:text-emerald-50 ml-1"
+                                />
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
         </div>
     );

@@ -146,8 +146,15 @@ export const fetchDashboardData = async (userId) => {
         const debts = await prisma.debt.findMany({ where: { user_id: userId, is_active: true } });
         const totalDebt = debts.reduce((sum, d) => sum + Number(d.outstanding), 0);
 
-    // Net Worth formula = Liquid Cash + Assets/Investments + Receivables - Payables - Expenses + Rent Balance - Debt
-    const netWorth = totalBankBalance + totalWalletBalance + totalInvestments + totalReceivable - totalPayable - totalExpenses + totalRentBalance - totalDebt;
+    // Net Worth = what you currently own.
+    //   bank + wallet + investments (stocks + mutual funds + PSX trading cash) + rent balance
+    //
+    // Expenses are NOT subtracted here — when you spend, the bank balance already
+    // reflects the lower number, so subtracting them again would double-count.
+    // Dues (receivable / payable) and Debt are surfaced as separate metrics for
+    // visibility but intentionally do not move the headline net-worth figure;
+    // they're conditional cash flows, not realised wealth.
+    const netWorth = totalBankBalance + totalWalletBalance + totalInvestments + totalRentBalance;
 
     return {
         metrics: {

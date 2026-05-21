@@ -485,23 +485,52 @@ function TopDestinations({ data, className }) {
     if (!data || data.length === 0) {
         return <ChartCard title="Top destinations" subtitle="No data" className={className}><Empty /></ChartCard>;
     }
+    const max = data[0]?.total || 1;
     return (
-        <ChartCard title="Top destinations" subtitle="Where most of your money went" height="auto" className={className}>
-            <ul className="space-y-2.5">
+        <ChartCard
+            title="Top destinations"
+            subtitle="Where most of your money went"
+            height="auto"
+            className={className}
+        >
+            <ul className="space-y-1.5">
                 {data.map((m, i) => {
-                    const max = data[0]?.total || 1;
                     const pct = (m.total / max) * 100;
+                    const isTop = i === 0;
                     return (
-                        <li key={i} className="flex items-center gap-3">
-                            <span className="w-5 text-xs text-gray-400 tabular-nums">{i + 1}</span>
-                            <div className="flex-1 min-w-0">
-                                <div className="flex items-center justify-between gap-3">
-                                    <span className="text-sm text-gray-700 dark:text-gray-300 truncate">{m.merchant}</span>
-                                    <span className="text-sm font-medium text-gray-900 dark:text-gray-100 tabular-nums shrink-0">{fmtPKR(m.total)}</span>
-                                </div>
-                                <div className="mt-1 h-1.5 rounded-full bg-gray-100 dark:bg-neutral-800 overflow-hidden">
-                                    <div className="h-full rounded-full bg-emerald-500/70" style={{ width: `${pct}%` }} />
-                                </div>
+                        <li
+                            key={i}
+                            className="relative overflow-hidden rounded-lg group"
+                            title={m.merchant}
+                        >
+                            {/* Tinted bar IS the visualisation — fills proportional to spend */}
+                            <span
+                                aria-hidden
+                                className={`absolute inset-y-0 left-0 transition-[width] duration-500 ${
+                                    isTop
+                                        ? 'bg-emerald-100/80 dark:bg-emerald-900/40'
+                                        : 'bg-emerald-50/80 dark:bg-emerald-950/30'
+                                }`}
+                                style={{ width: `${Math.max(pct, 3)}%` }}
+                            />
+                            <div className="relative flex items-center gap-3 px-3 py-2.5">
+                                <span
+                                    className="text-[10px] font-mono tabular-nums text-gray-400 dark:text-neutral-500 w-5 shrink-0"
+                                    aria-label={`Rank ${i + 1}`}
+                                >
+                                    {String(i + 1).padStart(2, '0')}
+                                </span>
+                                <span className="flex-1 min-w-0 text-[13px] font-medium text-gray-900 dark:text-gray-100 truncate">
+                                    {m.merchant}
+                                </span>
+                                {m.count > 1 && (
+                                    <span className="hidden sm:inline-flex text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 tabular-nums shrink-0">
+                                        {m.count}×
+                                    </span>
+                                )}
+                                <span className="text-[13px] font-semibold text-gray-900 dark:text-gray-100 tabular-nums shrink-0">
+                                    {fmtPKR(m.total)}
+                                </span>
                             </div>
                         </li>
                     );
