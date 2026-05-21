@@ -21,12 +21,12 @@ function addPeriod(d, period) {
     return out;
 }
 
-function getRanges(period) {
-    const now = new Date();
+function getRanges(period, anchor) {
+    const baseDate = anchor instanceof Date && !isNaN(anchor) ? anchor : new Date();
     let currentStart;
-    if (period === 'quarter')   currentStart = startOfQuarter(now);
-    else if (period === 'year') currentStart = startOfYear(now);
-    else                        currentStart = startOfMonth(now);
+    if (period === 'quarter')   currentStart = startOfQuarter(baseDate);
+    else if (period === 'year') currentStart = startOfYear(baseDate);
+    else                        currentStart = startOfMonth(baseDate);
 
     const currentEnd = addPeriod(currentStart, period);
     const previousStart = new Date(currentStart);
@@ -126,14 +126,17 @@ function mergeBuckets(...maps) {
     return out;
 }
 
-// GET /api/dashboard/insights?period=month|quarter|year
+// GET /api/dashboard/insights?period=month|quarter|year&anchor=YYYY-MM-DD
+// anchor lets the client ask for a specific historical period rather than
+// always the current one — used by the Spending page's month navigator.
 export const getInsights = async (req, res) => {
     try {
         const period = ['month', 'quarter', 'year'].includes(req.query.period)
             ? req.query.period
             : 'month';
+        const anchor = req.query.anchor ? new Date(req.query.anchor) : null;
         const userId = req.user.id;
-        const { currentStart, currentEnd, previousStart, previousEnd } = getRanges(period);
+        const { currentStart, currentEnd, previousStart, previousEnd } = getRanges(period, anchor);
 
         const current  = await loadCategorizedFlows(userId, currentStart,  currentEnd);
         const previous = await loadCategorizedFlows(userId, previousStart, previousEnd);

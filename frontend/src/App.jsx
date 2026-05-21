@@ -31,7 +31,8 @@ import ChangeFirstPassword from './pages/ChangeFirstPassword';
 import AiAssistant from './pages/AiAssistant';
 import Privacy from './pages/Privacy';
 import Terms from './pages/Terms';
-import Insights from './pages/Insights';
+// Insights and Expenses are now the same merged Spending page.
+import Insights from './pages/Expenses';
 import NetWorth from './pages/NetWorth';
 import Bills from './pages/Bills';
 import Debts from './pages/Debts';
