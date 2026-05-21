@@ -66,7 +66,7 @@ export default function Sidebar() {
             </div>
 
             {/* Navigation */}
-            <nav className="flex-1 flex flex-col gap-1 w-full px-2 mt-2">
+            <nav className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-1 w-full px-2 mt-2">
                 {(() => {
                     return navItems.map((item) => {
                         const isActive = location.pathname === item.path ||
