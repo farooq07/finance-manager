@@ -142,8 +142,12 @@ export const fetchDashboardData = async (userId) => {
         const assets = await prisma.asset.findMany({ where: { user_id: userId } });
         const totalAssetValue = assets.reduce((sum, asset) => sum + Number(asset.value), 0);
 
-    // Net Worth formula = Liquid Cash + Assets/Investments + Receivables - Payables - Expenses + Rent Balance (Physical Assets excluded from Comprehensive Net Worth)
-    const netWorth = totalBankBalance + totalWalletBalance + totalInvestments + totalReceivable - totalPayable - totalExpenses + totalRentBalance;
+        // 8. Institutional debt (credit cards, loans) — counted as a liability.
+        const debts = await prisma.debt.findMany({ where: { user_id: userId, is_active: true } });
+        const totalDebt = debts.reduce((sum, d) => sum + Number(d.outstanding), 0);
+
+    // Net Worth formula = Liquid Cash + Assets/Investments + Receivables - Payables - Expenses + Rent Balance - Debt
+    const netWorth = totalBankBalance + totalWalletBalance + totalInvestments + totalReceivable - totalPayable - totalExpenses + totalRentBalance - totalDebt;
 
     return {
         metrics: {
@@ -160,7 +164,8 @@ export const fetchDashboardData = async (userId) => {
             totalExpenses,
             currentMonthExpenses,
             totalAssetValue,
-            totalRentBalance
+            totalRentBalance,
+            totalDebt,
         },
         charts: {
             monthlyExpenses: chartData,

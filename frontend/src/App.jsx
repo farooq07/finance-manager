@@ -34,6 +34,8 @@ import Terms from './pages/Terms';
 import Insights from './pages/Insights';
 import NetWorth from './pages/NetWorth';
 import Bills from './pages/Bills';
+import Debts from './pages/Debts';
+import DebtDetail from './pages/DebtDetail';
 
 
 const ProtectedRoute = ({ children }) => {
@@ -98,6 +100,8 @@ function App() {
               <Route path="insights" element={<Insights />} />
               <Route path="net-worth" element={<NetWorth />} />
               <Route path="bills" element={<Bills />} />
+              <Route path="debts" element={<Debts />} />
+              <Route path="debts/:id" element={<DebtDetail />} />
               <Route path="design-system" element={<DesignSystem />} />
               <Route path="beneficiaries" element={<Beneficiaries />} />
               <Route path="beneficiaries/:id" element={<BeneficiaryDetail />} />
