@@ -6,6 +6,7 @@ import { fetchDashboardData } from '../controllers/dashboard.controller.js';
 import { snapshotAllUsersNetWorth } from './networthSnapshot.service.js';
 import { dispatchBillReminders } from './billReminder.service.js';
 import { fetchAndStoreFxRates } from './fxRate.service.js';
+import { syncGoldPrice } from './goldScraper.service.js';
 
 // Weekly summary email: every Sunday at 9:00 AM
 const WEEKLY_SUMMARY_SCHEDULE = '0 9 * * 0';
@@ -18,6 +19,9 @@ const BILL_REMINDER_SCHEDULE = '0 8 * * *';
 
 // Daily FX rate fetch: every day at 6:00 AM
 const FX_RATE_SCHEDULE = '0 6 * * *';
+
+// Daily gold price sync: every day at 10:00 AM Asia/Karachi
+const GOLD_SYNC_SCHEDULE = '0 10 * * *';
 
 export const initCronJobs = () => {
     logger.log(`[Cron] Initializing weekly email summary (${WEEKLY_SUMMARY_SCHEDULE})...`);
@@ -74,4 +78,15 @@ export const initCronJobs = () => {
             logger.error('[Cron] Error fetching FX rates:', error);
         }
     });
+
+    logger.log(`[Cron] Initializing daily gold price sync (${GOLD_SYNC_SCHEDULE} Asia/Karachi)...`);
+    cron.schedule(GOLD_SYNC_SCHEDULE, async () => {
+        logger.log('[Cron] Syncing gold price...');
+        try {
+            const row = await syncGoldPrice();
+            logger.log(`[Cron] Gold price synced: PKR ${row.price_24k_per_tola}/tola`);
+        } catch (error) {
+            logger.error('[Cron] Gold sync failed:', error.message);
+        }
+    }, { timezone: 'Asia/Karachi' });
 };
