@@ -22,6 +22,8 @@ export default function WalletDetail() {
     const [pdfPassword, setPdfPassword] = useState('');
     const [fileName, setFileName] = useState('');
     const [selectedStatement, setSelectedStatement] = useState(null);
+    const [duplicate, setDuplicate] = useState(null); // { month, year, transactionCount, uploadedAt } | null
+    const [replacing, setReplacing] = useState(false);
 
     const { data: allWallets = [], isLoading } = useWallets();
     const wallet = allWallets.find(w => w.id === id);
@@ -84,43 +86,58 @@ export default function WalletDetail() {
         deleteStatementMutation.mutate(statementId);
     };
 
+    /* Single-place upload helper so the duplicate-replace retry can reuse it. */
+    const doUpload = async ({ force = false } = {}) => {
+        if (!uploadFile) throw new Error('Please select a PDF file');
+        const formData = new FormData();
+        formData.append('file', uploadFile);
+        if (pdfPassword) formData.append('password', pdfPassword);
+        if (force) formData.append('force', 'true');
+        const { data } = await api.post(`/wallets/${id}/statements/upload`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        return data;
+    };
+
     const uploadStatementMutation = useMutation({
-        mutationFn: async () => {
-            if (!uploadFile) {
-                throw new Error('Please select a PDF file');
-            }
-
-            const formData = new FormData();
-            formData.append('file', uploadFile);
-            if (pdfPassword) {
-                formData.append('password', pdfPassword);
-            }
-
-            const { data } = await api.post(`/wallets/${id}/statements/upload`, formData, {
-                headers: {
-                    'Content-Type': 'multipart/form-data'
-                }
-            });
-            return data;
-        },
-        onSuccess: (data) => {
+        mutationFn: () => doUpload(),
+        onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['wallets', id] });
             queryClient.invalidateQueries({ queryKey: ['wallets'] });
             setIsUploadModalOpen(false);
             setUploadFile(null);
             setPdfPassword('');
             setFileName('');
-            toast.success('Statement uploaded successfully! Processing transactions...');
+            toast.success('Statement uploaded — processing transactions…');
         },
         onError: (error) => {
-            const message = error.response?.data?.message;
-            if (message?.includes('already imported')) {
-                toast.info('This PDF was already imported. Check the transactions table below to view existing data.');
-            } else {
-                toast.error(message || 'Failed to upload statement');
+            // 409 → existing statement with data. Surface the styled confirm modal.
+            if (error.response?.status === 409 && error.response.data?.duplicate) {
+                setDuplicate(error.response.data.existing || {});
+                return;
             }
+            toast.error(error.response?.data?.message || 'Failed to upload statement');
         }
     });
+
+    const handleConfirmReplace = async () => {
+        setReplacing(true);
+        try {
+            await doUpload({ force: true });
+            queryClient.invalidateQueries({ queryKey: ['wallets', id] });
+            queryClient.invalidateQueries({ queryKey: ['wallets'] });
+            setDuplicate(null);
+            setIsUploadModalOpen(false);
+            setUploadFile(null);
+            setPdfPassword('');
+            setFileName('');
+            toast.success('Statement replaced — processing transactions…');
+        } catch (retryErr) {
+            toast.error(retryErr.response?.data?.message || 'Failed to replace statement');
+        } finally {
+            setReplacing(false);
+        }
+    };
 
     const handleFileChange = (e) => {
         const file = e.target.files?.[0];
@@ -163,13 +180,6 @@ export default function WalletDetail() {
 
     return (
         <div className="max-w-7xl mx-auto space-y-6">
-            <div className="flex items-center gap-4 mb-2">
-                <Link to="/wallets" className="inline-flex items-center gap-2 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors">
-                    <ArrowLeft className="w-4 h-4" />
-                    Back to Wallets
-                </Link>
-            </div>
-
             <div className="bg-white dark:bg-neutral-900 rounded-xl shadow-sm border border-gray-200 dark:border-neutral-800 overflow-hidden transition-colors">
                 <div className="p-6 border-b border-gray-100 dark:border-neutral-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 transition-colors">
                     <div>
@@ -323,6 +333,36 @@ export default function WalletDetail() {
                         </Button>
                     </div>
                 </form>
+            </Modal>
+
+            {/* Duplicate-detected confirm — styled, not native window.confirm */}
+            <Modal
+                isOpen={!!duplicate}
+                onClose={() => !replacing && setDuplicate(null)}
+                title="Replace existing statement?"
+                description={
+                    duplicate
+                        ? `This file was already imported${duplicate.month ? ` for ${duplicate.month} ${duplicate.year}` : ''}${duplicate.uploadedAt ? ` on ${new Date(duplicate.uploadedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}` : ''}, with ${duplicate.transactionCount ?? 0} transactions.`
+                        : ''
+                }
+                type="warning"
+                primaryAction={{
+                    label: replacing ? 'Replacing…' : 'Replace & re-import',
+                    onClick: handleConfirmReplace,
+                    variant: 'danger',
+                    isLoading: replacing,
+                    disabled: replacing,
+                }}
+                secondaryAction={{
+                    label: 'Keep existing',
+                    onClick: () => setDuplicate(null),
+                    disabled: replacing,
+                }}
+            >
+                <p className="text-sm text-gray-600 dark:text-gray-300">
+                    Replacing will <span className="font-semibold text-error-600 dark:text-error-400">permanently delete</span> the
+                    previous record and all its transactions (including any approved expenses), then re-import the file from scratch.
+                </p>
             </Modal>
         </div>
     );

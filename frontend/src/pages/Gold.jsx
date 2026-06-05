@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import ReactECharts from 'echarts-for-react';
 import { toast } from 'sonner';
 import {
-    Plus, RefreshCcw, Gem, X, Loader2, ShieldCheck, AlertTriangle, ArrowRight, Trash2, Pencil,
+    Plus, RefreshCcw, Gem, X, Loader2, ShieldCheck, AlertTriangle, ArrowRight, Trash2, Pencil, ImageIcon,
 } from 'lucide-react';
 import GoldPinGate from '../components/GoldPinGate';
 import {
@@ -25,27 +25,27 @@ export default function Gold() {
 
 function GoldVault() {
     const [formOpen, setFormOpen] = useState(false);
-    const [editing,  setEditing]  = useState(null);
+    const [editing, setEditing] = useState(null);
 
-    const items   = useGoldItems();
-    const latest  = useGoldLatestPrice();
+    const items = useGoldItems();
+    const latest = useGoldLatestPrice();
     const history = useGoldPriceHistory(30);
-    const zakat   = useGoldZakatSummary();
-    const sync    = useSyncGoldPrice();
-    const remove  = useDeleteGoldItem();
+    const zakat = useGoldZakatSummary();
+    const sync = useSyncGoldPrice();
+    const remove = useDeleteGoldItem();
 
     const lastSyncedLabel = useMemo(() => {
         const dt = latest.data?.row?.date;
         return dt ? fmtDateLong(dt) : null;
     }, [latest.data]);
 
-    function openNew()  { setEditing(null); setFormOpen(true); }
+    function openNew() { setEditing(null); setFormOpen(true); }
     function openEdit(item) { setEditing(item); setFormOpen(true); }
 
     function handleSync() {
         sync.mutate(undefined, {
             onSuccess: () => toast.success('Gold price synced'),
-            onError:  () => toast.error('Could not sync gold price right now'),
+            onError: () => toast.error('Could not sync gold price right now'),
         });
     }
 
@@ -53,7 +53,7 @@ function GoldVault() {
         if (!confirm(`Delete "${item.name}"?`)) return;
         remove.mutate(item.id, {
             onSuccess: () => toast.success('Item removed'),
-            onError:  () => toast.error('Could not delete'),
+            onError: () => toast.error('Could not delete'),
         });
     }
 
@@ -89,6 +89,8 @@ function GoldVault() {
                 <ItemFormModal
                     item={editing}
                     perGram24k={Number(latest.data?.row?.price_24k_per_gram || 0)}
+                    onSync={handleSync}
+                    syncing={sync.isPending}
                     onClose={() => { setFormOpen(false); setEditing(null); }}
                 />
             )}
@@ -141,7 +143,7 @@ function Header({ lastSyncedLabel, onSync, syncing, onAdd }) {
 
 function LivePricesCard({ latest, loading, onSync, syncing }) {
     if (loading) {
-        return <div className="h-44 rounded-2xl bg-gray-100 dark:bg-neutral-800/60 animate-pulse" />;
+        return <div className="h-44 rounded-2xl bg-gray-200 dark:bg-neutral-800/60 animate-pulse" />;
     }
 
     if (!latest?.row || !latest?.per_carat) {
@@ -226,7 +228,7 @@ function LivePricesCard({ latest, loading, onSync, syncing }) {
 
 function TrendChart({ history, loading }) {
     if (loading) {
-        return <div className="h-72 rounded-2xl bg-gray-100 dark:bg-neutral-800/60 animate-pulse" />;
+        return <div className="h-72 rounded-2xl bg-gray-200 dark:bg-neutral-800/60 animate-pulse" />;
     }
     if (!history || history.length === 0) {
         return (
@@ -267,10 +269,12 @@ function TrendChart({ history, loading }) {
             itemStyle: { color: GOLD_AMBER },
             lineStyle: { width: 2.5, color: GOLD_AMBER },
             areaStyle: {
-                color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [
-                    { offset: 0, color: 'rgba(212,175,55,0.35)' },
-                    { offset: 1, color: 'transparent' },
-                ] },
+                color: {
+                    type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [
+                        { offset: 0, color: 'rgba(212,175,55,0.35)' },
+                        { offset: 1, color: 'transparent' },
+                    ]
+                },
             },
         }],
     };
@@ -292,11 +296,15 @@ const TYPE_LABELS = { ring: 'Ring', set: 'Set', chain: 'Chain', bangle: 'Bangle'
 
 function ItemsSection({ data, loading, onAdd, onEdit, onDelete }) {
     if (loading) {
-        return <div className="h-40 rounded-2xl bg-gray-100 dark:bg-neutral-800/60 animate-pulse" />;
+        return <div className="h-40 rounded-2xl bg-gray-200 dark:bg-neutral-800/60 animate-pulse" />;
     }
     const items = data?.items || [];
-    const total = data?.total_value_pkr || 0;
+    const todayTotal = data?.total_value_pkr || 0;
+    const purchaseTotal = data?.total_purchase_pkr ?? null;
     const totalWeight = items.reduce((s, i) => s + Number(i.weight_grams || 0), 0);
+
+    const gainLoss = purchaseTotal != null ? todayTotal - purchaseTotal : null;
+    const gainLossPct = (purchaseTotal && purchaseTotal > 0) ? ((gainLoss / purchaseTotal) * 100) : null;
 
     if (items.length === 0) {
         return (
@@ -319,20 +327,25 @@ function ItemsSection({ data, loading, onAdd, onEdit, onDelete }) {
 
     return (
         <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="p-5 rounded-2xl border border-gray-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/40">
-                    <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Total value</p>
-                    <p className="mt-2 text-2xl font-semibold tabular-nums" style={{ color: GOLD_AMBER }}>{fmtPKR(total)}</p>
-                </div>
-                <div className="p-5 rounded-2xl border border-gray-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/40">
-                    <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Total weight</p>
-                    <p className="mt-2 text-2xl font-semibold text-gray-900 dark:text-gray-100 tabular-nums">
-                        {totalWeight.toFixed(2)} g
-                        <span className="ml-2 text-sm text-gray-500 dark:text-gray-400 font-normal">
-                            · {(totalWeight / 11.664).toFixed(2)} tola
-                        </span>
-                    </p>
-                </div>
+            {/* Stats row */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <StatCard label="Today's Value" value={fmtPKR(todayTotal)} highlight />
+                <StatCard
+                    label="Purchase Value"
+                    value={purchaseTotal != null ? fmtPKR(purchaseTotal) : '—'}
+                />
+                <StatCard
+                    label="Gain / Loss"
+                    value={gainLoss != null ? fmtPKR(Math.abs(gainLoss)) : '—'}
+                    sub={gainLossPct != null ? `${gainLoss >= 0 ? '+' : '−'}${Math.abs(gainLossPct).toFixed(1)}%` : null}
+                    subColor={gainLoss != null ? (gainLoss >= 0 ? '#22c55e' : '#ef4444') : undefined}
+                    valueColor={gainLoss != null ? (gainLoss >= 0 ? '#22c55e' : '#ef4444') : undefined}
+                />
+                <StatCard
+                    label="Total Weight"
+                    value={`${totalWeight.toFixed(2)} g`}
+                    sub={`${(totalWeight / 11.664).toFixed(2)} tola`}
+                />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -344,42 +357,109 @@ function ItemsSection({ data, loading, onAdd, onEdit, onDelete }) {
     );
 }
 
-function ItemCard({ item, onEdit, onDelete }) {
+function StatCard({ label, value, sub, highlight, subColor, valueColor }) {
     return (
-        <div className="p-5 rounded-2xl border border-gray-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/40">
-            <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-3 min-w-0">
-                    <div
-                        className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
-                        style={{ background: 'rgba(212,175,55,0.12)' }}
-                    >
-                        <Gem className="w-5 h-5" style={{ color: GOLD_AMBER }} />
+        <div className="p-4 rounded-2xl border border-gray-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/40">
+            <p className="text-[11px] uppercase tracking-wider text-gray-500 dark:text-gray-400">{label}</p>
+            <p
+                className="mt-1.5 text-xl font-semibold tabular-nums truncate"
+                style={{ color: valueColor || (highlight ? GOLD_AMBER : undefined) }}
+            >
+                {value}
+            </p>
+            {sub && (
+                <p className="mt-0.5 text-xs font-medium tabular-nums" style={{ color: subColor || '#9ca3af' }}>
+                    {sub}
+                </p>
+            )}
+        </div>
+    );
+}
+
+function ItemCard({ item, onEdit, onDelete }) {
+    const hasPurchase = item.purchase_value_pkr != null;
+    const gainLoss = hasPurchase ? item.current_value_pkr - item.purchase_value_pkr : null;
+    const gainPct = (hasPurchase && item.purchase_value_pkr > 0) ? ((gainLoss / item.purchase_value_pkr) * 100) : null;
+
+    return (
+        <div className="rounded-2xl border border-gray-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/40 overflow-hidden">
+            {/* Image strip or icon row */}
+            {item.image_url ? (
+                <div className="h-40 bg-gray-200 dark:bg-neutral-800 overflow-hidden">
+                    <img src={item.image_url} alt={item.name} className="w-full h-full object-cover" />
+                </div>
+            ) : null}
+
+            <div className="p-5">
+                <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                        {!item.image_url && (
+                            <div
+                                className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
+                                style={{ background: 'rgba(212,175,55,0.12)' }}
+                            >
+                                <Gem className="w-5 h-5" style={{ color: GOLD_AMBER }} />
+                            </div>
+                        )}
+                        <div className="min-w-0">
+                            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">{item.name}</h3>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                                {TYPE_LABELS[item.type] || item.type} · {item.carats}K · {Number(item.weight_grams).toFixed(2)} g
+                            </p>
+                        </div>
                     </div>
-                    <div className="min-w-0">
-                        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">{item.name}</h3>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                            {TYPE_LABELS[item.type] || item.type} · {item.carats}K · {Number(item.weight_grams).toFixed(2)} g
+                    <div className="flex items-center gap-1 shrink-0">
+                        <button onClick={() => onEdit(item)} className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-neutral-800" title="Edit">
+                            <Pencil className="w-4 h-4" />
+                        </button>
+                        <button onClick={() => onDelete(item)} className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30" title="Delete">
+                            <Trash2 className="w-4 h-4" />
+                        </button>
+                    </div>
+                </div>
+
+                {/* Values row */}
+                <div className="mt-4 flex items-end justify-between gap-3">
+                    <div>
+                        <p className="text-[10px] uppercase tracking-wider text-gray-400 dark:text-gray-500">Today's value</p>
+                        <p className="text-xl font-bold tabular-nums mt-0.5" style={{ color: GOLD_AMBER }}>
+                            {fmtPKR(item.current_value_pkr)}
                         </p>
                     </div>
+                    {hasPurchase && (
+                        <div className="text-right">
+                            <p className="text-[10px] uppercase tracking-wider text-gray-400 dark:text-gray-500">Purchased at</p>
+                            <p className="text-sm font-medium tabular-nums text-gray-700 dark:text-gray-300 mt-0.5">
+                                {fmtPKR(item.purchase_value_pkr)}
+                            </p>
+                        </div>
+                    )}
                 </div>
-                <div className="flex items-center gap-1">
-                    <button onClick={() => onEdit(item)} className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-neutral-800" title="Edit">
-                        <Pencil className="w-4 h-4" />
-                    </button>
-                    <button onClick={() => onDelete(item)} className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30" title="Delete">
-                        <Trash2 className="w-4 h-4" />
-                    </button>
-                </div>
-            </div>
-            <div className="mt-4 flex items-baseline justify-between gap-3">
-                <p className="text-xl font-bold tabular-nums" style={{ color: GOLD_AMBER }}>{fmtPKR(item.current_value_pkr)}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                    {Number(item.equivalent_24k_grams).toFixed(2)} g 24K-eq
+
+                {/* P&L badge */}
+                {gainLoss != null && (
+                    <div className="mt-2 flex items-center gap-1.5">
+                        <span
+                            className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-md text-[11px] font-semibold tabular-nums"
+                            style={{
+                                background: gainLoss >= 0 ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
+                                color: gainLoss >= 0 ? '#16a34a' : '#dc2626',
+                            }}
+                        >
+                            {gainLoss >= 0 ? '+' : '−'}{fmtPKR(Math.abs(gainLoss))}
+                            {gainPct != null && ` (${Math.abs(gainPct).toFixed(1)}%)`}
+                        </span>
+                        <span className="text-[10px] text-gray-400 dark:text-gray-500">since purchase</span>
+                    </div>
+                )}
+
+                {item.purchase_date && (
+                    <p className="mt-2 text-[11px] text-gray-400 dark:text-gray-500">Purchased {fmtDateLong(item.purchase_date)}</p>
+                )}
+                <p className="mt-1 text-[11px] text-gray-400 dark:text-gray-500">
+                    {Number(item.equivalent_24k_grams).toFixed(2)} g 24K-equivalent
                 </p>
             </div>
-            {item.purchase_date && (
-                <p className="mt-2 text-[11px] text-gray-400 dark:text-gray-500">Purchased {fmtDateLong(item.purchase_date)}</p>
-            )}
         </div>
     );
 }
@@ -390,7 +470,7 @@ function ZakatPanel({ summary, loading }) {
     const navigate = useNavigate();
 
     if (loading) {
-        return <div className="h-44 rounded-2xl bg-gray-100 dark:bg-neutral-800/60 animate-pulse" />;
+        return <div className="h-44 rounded-2xl bg-gray-200 dark:bg-neutral-800/60 animate-pulse" />;
     }
     if (!summary) return null;
 
@@ -427,9 +507,9 @@ function ZakatPanel({ summary, loading }) {
 
                     <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
                         <Stat label="Your gold (24K eq.)" value={`${summary.total_24k_equivalent_grams.toFixed(2)} g`} />
-                        <Stat label="Nisab threshold"     value={`${summary.nisab_gold_grams} g`} />
-                        <Stat label="Total value"         value={fmtPKR(summary.total_value_pkr)} />
-                        <Stat label="Zakat due (2.5%)"    value={fmtPKR(summary.zakat_due_pkr)} highlight={eligible} />
+                        <Stat label="Nisab threshold" value={`${summary.nisab_gold_grams} g`} />
+                        <Stat label="Total value" value={fmtPKR(summary.total_value_pkr)} />
+                        <Stat label="Zakat due (2.5%)" value={fmtPKR(summary.zakat_due_pkr)} highlight={eligible} />
                     </div>
 
                     {eligible && summary.zakat_due_pkr > 0 && (
@@ -465,125 +545,304 @@ function Stat({ label, value, highlight }) {
 
 const TYPES = ['ring', 'set', 'chain', 'bangle', 'earring', 'other'];
 const CARATS = [24, 22, 21, 20, 18];
+const GRAMS_PER_TOLA = 11.664;
 
-function ItemFormModal({ item, perGram24k, onClose }) {
+function toLocalDateStr(d) {
+    const dt = d instanceof Date ? d : new Date(d);
+    return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+}
+
+async function compressImage(file, maxPx = 600, quality = 0.75) {
+    return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const img = new Image();
+            img.onload = () => {
+                const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
+                const w = Math.round(img.width * scale);
+                const h = Math.round(img.height * scale);
+                const canvas = document.createElement('canvas');
+                canvas.width = w;
+                canvas.height = h;
+                canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                resolve(canvas.toDataURL('image/jpeg', quality));
+            };
+            img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+    });
+}
+
+function ItemFormModal({ item, perGram24k, onSync, syncing, onClose }) {
     const isEdit = !!item;
-    const add    = useAddGoldItem();
+    const add = useAddGoldItem();
     const update = useUpdateGoldItem();
 
     const [form, setForm] = useState({
-        name:          item?.name || '',
-        type:          item?.type || 'ring',
-        weight_grams:  item ? String(item.weight_grams) : '',
-        carats:        item?.carats || 20,
-        purchase_date: item?.purchase_date ? new Date(item.purchase_date).toISOString().slice(0, 10) : '',
-        notes:         item?.notes || '',
+        name: item?.name || '',
+        type: item?.type || 'ring',
+        weight_grams: item ? String(item.weight_grams) : '',
+        carats: item?.carats || 20,
+        purchase_date: item?.purchase_date ? toLocalDateStr(new Date(item.purchase_date)) : '',
+        // stored per-gram in DB; we show per-tola to the user
+        purchase_price_per_tola: item?.purchase_price_per_gram
+            ? String(Number((Number(item.purchase_price_per_gram) * GRAMS_PER_TOLA).toFixed(0)))
+            : '',
+        image_url: item?.image_url || '',
+        notes: item?.notes || '',
     });
 
-    const livePreview = useMemo(() => {
+    const perTola24k = perGram24k ? perGram24k * GRAMS_PER_TOLA : 0;
+
+    // per-gram equivalent of what the user typed (shown as hint)
+    const purchasePricePerGram = useMemo(() => {
+        const t = Number(form.purchase_price_per_tola);
+        if (!(t > 0)) return null;
+        return Number((t / GRAMS_PER_TOLA).toFixed(2));
+    }, [form.purchase_price_per_tola]);
+
+    const todayPreview = useMemo(() => {
         const w = Number(form.weight_grams);
         if (!(w > 0) || !perGram24k) return null;
         return Number((w * perGram24k * (Number(form.carats) / 24)).toFixed(2));
     }, [form.weight_grams, form.carats, perGram24k]);
 
+    const purchasePreview = useMemo(() => {
+        const w = Number(form.weight_grams);
+        const p = purchasePricePerGram;
+        if (!(w > 0) || !(p > 0)) return null;
+        return Number((w * p * (Number(form.carats) / 24)).toFixed(2));
+    }, [form.weight_grams, form.carats, purchasePricePerGram]);
+
     function field(k, v) { setForm((f) => ({ ...f, [k]: v })); }
+
+    async function handleImageChange(e) {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const dataUrl = await compressImage(file);
+        field('image_url', dataUrl);
+    }
 
     function submit(e) {
         e.preventDefault();
+        const tolaVal = Number(form.purchase_price_per_tola);
         const payload = {
-            ...form,
+            name: form.name,
+            type: form.type,
             weight_grams: Number(form.weight_grams),
             carats: Number(form.carats),
             purchase_date: form.purchase_date || null,
+            // convert tola → gram for storage
+            purchase_price_per_gram: tolaVal > 0 ? Number((tolaVal / GRAMS_PER_TOLA).toFixed(4)) : null,
+            image_url: form.image_url || null,
             notes: form.notes || null,
         };
         const mutation = isEdit ? update : add;
         const args = isEdit ? { id: item.id, ...payload } : payload;
         mutation.mutate(args, {
-            onSuccess: () => {
-                toast.success(isEdit ? 'Updated' : 'Item added');
-                onClose();
-            },
+            onSuccess: () => { toast.success(isEdit ? 'Updated' : 'Item added'); onClose(); },
             onError: (err) => toast.error(err?.response?.data?.message || 'Could not save'),
         });
     }
 
-    return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-            <form onSubmit={submit} className="w-full max-w-lg bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-neutral-800 overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-200 dark:border-neutral-800 flex items-center justify-between">
-                    <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{isEdit ? 'Edit gold item' : 'Add gold item'}</h2>
-                    <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
-                        <X className="w-5 h-5" />
-                    </button>
-                </div>
+    const isBusy = add.isPending || update.isPending;
 
-                <div className="px-6 py-5 space-y-4 max-h-[70vh] overflow-y-auto">
-                    <Field label="Name">
-                        <input type="text" required value={form.name} onChange={(e) => field('name', e.target.value)} className={inputCls} placeholder="Bridal set, Engagement ring…" />
-                    </Field>
-                    <Field label="Type">
-                        <div className="grid grid-cols-3 gap-2">
-                            {TYPES.map((t) => (
-                                <button
-                                    key={t}
-                                    type="button"
-                                    onClick={() => field('type', t)}
-                                    className={`px-3 py-2 rounded-lg text-sm font-medium capitalize transition-colors border ${
-                                        form.type === t
+    return (
+        /* Scrollable backdrop — modal never clips at top */
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/70 backdrop-blur-sm">
+            <div className="flex min-h-full items-center justify-center p-4 py-8">
+                <form
+                    onSubmit={submit}
+                    className="w-full max-w-lg bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-neutral-800 overflow-hidden"
+                >
+                    {/* Header */}
+                    <div className="px-6 py-4 border-b border-gray-200 dark:border-neutral-800 flex items-center justify-between">
+                        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                            {isEdit ? 'Edit gold item' : 'Add gold item'}
+                        </h2>
+                        <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                            <X className="w-5 h-5" />
+                        </button>
+                    </div>
+
+                    {/* Body */}
+                    <div className="px-6 py-5 space-y-5">
+
+                        {/* Today's rate strip */}
+                        <div
+                            className="flex items-center justify-between px-3 py-2 rounded-lg text-sm"
+                            style={{ background: 'rgba(212,175,55,0.08)', border: '1px solid rgba(212,175,55,0.2)' }}
+                        >
+                            <span style={{ color: '#a08020' }}>
+                                Today's 24K:&nbsp;
+                                <strong style={{ color: GOLD_AMBER }}>
+                                    {perTola24k ? `${Number(perTola24k).toLocaleString('en-PK', { maximumFractionDigits: 0 })} /tola` : 'No data'}
+                                </strong>
+                                {perGram24k > 0 && (
+                                    <span className="ml-2 text-[11px] opacity-60">
+                                        ({Number(perGram24k).toLocaleString('en-PK', { maximumFractionDigits: 0 })} /g)
+                                    </span>
+                                )}
+                            </span>
+                            <button
+                                type="button"
+                                onClick={onSync}
+                                disabled={syncing}
+                                className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded"
+                                style={{ color: GOLD_AMBER }}
+                            >
+                                {syncing ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCcw className="w-3 h-3" />}
+                                Sync
+                            </button>
+                        </div>
+
+                        {/* Image upload */}
+                        <div>
+                            <span className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">
+                                Photo (optional)
+                            </span>
+                            {form.image_url ? (
+                                <div className="relative">
+                                    <img
+                                        src={form.image_url}
+                                        alt="preview"
+                                        className="w-full h-40 object-cover rounded-lg border border-gray-200 dark:border-neutral-700"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => field('image_url', '')}
+                                        className="absolute top-2 right-2 p-1 rounded-full bg-black/60 text-white hover:bg-black/80"
+                                    >
+                                        <X className="w-3.5 h-3.5" />
+                                    </button>
+                                </div>
+                            ) : (
+                                <label className="flex flex-col items-center gap-2 p-4 rounded-lg border-2 border-dashed border-gray-200 dark:border-neutral-700 cursor-pointer hover:border-amber-400 dark:hover:border-amber-600 transition-colors">
+                                    <ImageIcon className="w-6 h-6 text-gray-400 dark:text-gray-500" />
+                                    <span className="text-xs text-gray-500 dark:text-gray-400">Click to upload a photo</span>
+                                    <input type="file" accept="image/*" className="sr-only" onChange={handleImageChange} />
+                                </label>
+                            )}
+                        </div>
+
+                        <Field label="Name">
+                            <input type="text" required value={form.name} onChange={(e) => field('name', e.target.value)} className={inputCls} placeholder="Bridal set, Engagement ring…" />
+                        </Field>
+
+                        <Field label="Type">
+                            <div className="grid grid-cols-3 gap-2">
+                                {TYPES.map((t) => (
+                                    <button
+                                        key={t}
+                                        type="button"
+                                        onClick={() => field('type', t)}
+                                        className={`px-3 py-2 rounded-lg text-sm font-medium capitalize transition-colors border ${form.type === t
                                             ? 'border-amber-400 bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300'
                                             : 'border-gray-200 dark:border-neutral-700 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-neutral-800'
-                                    }`}
-                                >
-                                    {TYPE_LABELS[t]}
-                                </button>
-                            ))}
+                                            }`}
+                                    >
+                                        {TYPE_LABELS[t]}
+                                    </button>
+                                ))}
+                            </div>
+                        </Field>
+
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <span className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">Weight (grams)</span>
+                                <div className="relative">
+                                    <input type="number" required min="0" step="0.001" value={form.weight_grams} onChange={(e) => field('weight_grams', e.target.value)} className={inputCls} placeholder="0.000" />
+                                    {Number(form.weight_grams) > 0 && (
+                                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-gray-400 dark:text-gray-500 pointer-events-none tabular-nums">
+                                            = {(Number(form.weight_grams) / GRAMS_PER_TOLA).toFixed(3)} tola
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                            <Field label="Carats">
+                                <select value={form.carats} onChange={(e) => field('carats', Number(e.target.value))} className={inputCls}>
+                                    {CARATS.map((c) => <option key={c} value={c}>{c}K</option>)}
+                                </select>
+                            </Field>
                         </div>
-                    </Field>
-                    <div className="grid grid-cols-2 gap-3">
-                        <Field label="Weight (grams)">
-                            <input type="number" required min="0" step="0.001" value={form.weight_grams} onChange={(e) => field('weight_grams', e.target.value)} className={inputCls} placeholder="0.000" />
+
+                        <div className="grid grid-cols-2 gap-3">
+                            <Field label="Purchase date (optional)">
+                                <input type="date" value={form.purchase_date} onChange={(e) => field('purchase_date', e.target.value)} className={inputCls} />
+                            </Field>
+                            <div>
+                                <span className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">
+                                    Purchase price / tola (PKR)
+                                </span>
+                                <div className="relative">
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        step="1"
+                                        value={form.purchase_price_per_tola}
+                                        onChange={(e) => field('purchase_price_per_tola', e.target.value)}
+                                        className={inputCls}
+                                        placeholder="e.g. 110,000"
+                                    />
+                                    {purchasePricePerGram !== null && (
+                                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-gray-400 dark:text-gray-500 pointer-events-none tabular-nums">
+                                            = {Number(purchasePricePerGram).toLocaleString('en-PK', { maximumFractionDigits: 0 })} /g
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        <Field label="Notes (optional)">
+                            <textarea rows="2" value={form.notes} onChange={(e) => field('notes', e.target.value)} className={inputCls} />
                         </Field>
-                        <Field label="Carats">
-                            <select value={form.carats} onChange={(e) => field('carats', Number(e.target.value))} className={inputCls}>
-                                {CARATS.map((c) => <option key={c} value={c}>{c}K</option>)}
-                            </select>
-                        </Field>
+
+                        {/* Live value preview */}
+                        {(todayPreview !== null || purchasePreview !== null) && (
+                            <div
+                                className="p-3 rounded-lg space-y-1"
+                                style={{ background: 'rgba(212,175,55,0.07)', border: '1px solid rgba(212,175,55,0.2)' }}
+                            >
+                                {todayPreview !== null && (
+                                    <div className="flex justify-between text-sm">
+                                        <span style={{ color: '#a08020' }}>Today's value</span>
+                                        <strong style={{ color: GOLD_AMBER }}>{fmtPKR(todayPreview)}</strong>
+                                    </div>
+                                )}
+                                {purchasePreview !== null && (
+                                    <div className="flex justify-between text-sm">
+                                        <span style={{ color: '#a08020' }}>Purchase value</span>
+                                        <strong style={{ color: GOLD_AMBER }}>{fmtPKR(purchasePreview)}</strong>
+                                    </div>
+                                )}
+                                {todayPreview !== null && purchasePreview !== null && (
+                                    <div className="flex justify-between text-sm border-t border-amber-400/20 pt-1 mt-1">
+                                        <span style={{ color: '#a08020' }}>Gain / Loss</span>
+                                        <strong style={{ color: todayPreview >= purchasePreview ? '#22c55e' : '#ef4444' }}>
+                                            {todayPreview >= purchasePreview ? '+' : '−'}{fmtPKR(Math.abs(todayPreview - purchasePreview))}
+                                        </strong>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
-                    <Field label="Purchase date (optional)">
-                        <input type="date" value={form.purchase_date} onChange={(e) => field('purchase_date', e.target.value)} className={inputCls} />
-                    </Field>
-                    <Field label="Notes (optional)">
-                        <textarea rows="2" value={form.notes} onChange={(e) => field('notes', e.target.value)} className={inputCls} />
-                    </Field>
 
-                    {livePreview !== null && (
-                        <div
-                            className="p-3 rounded-lg text-sm"
-                            style={{
-                                background: 'rgba(212,175,55,0.08)',
-                                border: '1px solid rgba(212,175,55,0.25)',
-                                color: '#a08020',
-                            }}
+                    {/* Footer */}
+                    <div className="px-6 py-4 bg-gray-50 dark:bg-neutral-900/60 border-t border-gray-200 dark:border-neutral-800 flex items-center justify-end gap-3">
+                        <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200">
+                            Cancel
+                        </button>
+                        <button
+                            type="submit"
+                            disabled={isBusy}
+                            className="px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-60"
+                            style={{ backgroundColor: GOLD_AMBER, color: '#1a1a1a' }}
                         >
-                            Estimated current value: <strong style={{ color: GOLD_AMBER }}>{fmtPKR(livePreview)}</strong>
-                            <span className="text-xs opacity-70"> at today's rate</span>
-                        </div>
-                    )}
-                </div>
-
-                <div className="px-6 py-4 bg-gray-50 dark:bg-neutral-900/60 border-t border-gray-200 dark:border-neutral-800 flex items-center justify-end gap-3">
-                    <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200">Cancel</button>
-                    <button
-                        type="submit"
-                        disabled={add.isPending || update.isPending}
-                        className="px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-60"
-                        style={{ backgroundColor: GOLD_AMBER, color: '#1a1a1a' }}
-                    >
-                        {add.isPending || update.isPending ? 'Saving…' : isEdit ? 'Save changes' : 'Add item'}
-                    </button>
-                </div>
-            </form>
+                            {isBusy ? 'Saving…' : isEdit ? 'Save changes' : 'Add item'}
+                        </button>
+                    </div>
+                </form>
+            </div>
         </div>
     );
 }

@@ -19,7 +19,7 @@ import { fmtDate } from '../utils/dates';
 
 function anchorForPeriod(period, baseDate = new Date()) {
     const d = new Date(baseDate);
-    if (period === 'month')   return new Date(d.getFullYear(), d.getMonth(), 1);
+    if (period === 'month') return new Date(d.getFullYear(), d.getMonth(), 1);
     if (period === 'quarter') return new Date(d.getFullYear(), Math.floor(d.getMonth() / 3) * 3, 1);
     return new Date(d.getFullYear(), 0, 1);
 }
@@ -27,17 +27,17 @@ function anchorForPeriod(period, baseDate = new Date()) {
 function shiftPeriod(period, anchor, direction) {
     const d = new Date(anchor);
     const step = direction === 'prev' ? -1 : 1;
-    if (period === 'month')   d.setMonth(d.getMonth() + step);
+    if (period === 'month') d.setMonth(d.getMonth() + step);
     if (period === 'quarter') d.setMonth(d.getMonth() + step * 3);
-    if (period === 'year')    d.setFullYear(d.getFullYear() + step);
+    if (period === 'year') d.setFullYear(d.getFullYear() + step);
     return d;
 }
 
 function periodEnd(period, anchor) {
     const d = new Date(anchor);
-    if (period === 'month')   d.setMonth(d.getMonth() + 1);
+    if (period === 'month') d.setMonth(d.getMonth() + 1);
     if (period === 'quarter') d.setMonth(d.getMonth() + 3);
-    if (period === 'year')    d.setFullYear(d.getFullYear() + 1);
+    if (period === 'year') d.setFullYear(d.getFullYear() + 1);
     return d;
 }
 
@@ -59,13 +59,13 @@ function isCurrentPeriod(period, anchor) {
 }
 
 const DEFAULT_BILLS = [
-    { category: 'Gas Bill',        amount: '', notes: '' },
+    { category: 'Gas Bill', amount: '', notes: '' },
     { category: 'Electricity Bill', amount: '', notes: '' },
-    { category: 'Water Bill',       amount: '', notes: '' },
-    { category: 'Mobile Bill',      amount: '', notes: '' },
-    { category: 'Internet Bill',    amount: '', notes: '' },
-    { category: 'Gardener',         amount: '', notes: '' },
-    { category: 'School',           amount: '', notes: '' },
+    { category: 'Water Bill', amount: '', notes: '' },
+    { category: 'Mobile Bill', amount: '', notes: '' },
+    { category: 'Internet Bill', amount: '', notes: '' },
+    { category: 'Gardener', amount: '', notes: '' },
+    { category: 'School', amount: '', notes: '' },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -76,7 +76,12 @@ export default function Expenses() {
     const [period, setPeriod] = useState('month');
     const [anchor, setAnchor] = useState(() => anchorForPeriod('month'));
 
-    const anchorISO = useMemo(() => anchor.toISOString().slice(0, 10), [anchor]);
+    const anchorISO = useMemo(() => {
+        const y = anchor.getFullYear();
+        const m = String(anchor.getMonth() + 1).padStart(2, '0');
+        const d = String(anchor.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    }, [anchor]);
 
     const insights = useQuery({
         queryKey: ['insights', period, anchorISO],
@@ -84,24 +89,13 @@ export default function Expenses() {
         staleTime: 30_000,
     });
 
-    const expenses = useQuery({
-        queryKey: ['expenses'],
-        queryFn: () => api.get('/expenses').then((r) => r.data),
+    const spending = useQuery({
+        queryKey: ['spending', period, anchorISO],
+        queryFn: () => api.get('/dashboard/spending', { params: { period, anchor: anchorISO } }).then((r) => r.data),
     });
 
     // Filter expenses to the active period.
-    const entriesInRange = useMemo(() => {
-        if (!expenses.data) return [];
-        const start = anchor.getTime();
-        const end = periodEnd(period, anchor).getTime();
-        return expenses.data
-            .filter((e) => {
-                if (!e.expense_date) return false;
-                const t = new Date(e.expense_date).getTime();
-                return t >= start && t < end;
-            })
-            .sort((a, b) => new Date(b.expense_date) - new Date(a.expense_date));
-    }, [expenses.data, period, anchor]);
+    const entriesInRange = spending.data?.rows || [];
 
     return (
         <div className="space-y-10">
@@ -115,11 +109,10 @@ export default function Expenses() {
 
             <Story insights={insights} period={period} />
 
-            <Journal
+            <Transactions
                 entries={entriesInRange}
-                loading={expenses.isLoading}
+                loading={spending.isLoading}
                 periodLabel={labelForRange(period, anchor)}
-                onChanged={() => expenses.refetch()}
             />
         </div>
     );
@@ -130,12 +123,12 @@ export default function Expenses() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function Lens({ period, anchor, onChangePeriod, onShift, onReset }) {
-    const [addOpen, setAddOpen]     = useState(false);
-    const [editing,  setEditing]    = useState(null);
+    const [addOpen, setAddOpen] = useState(false);
+    const [editing, setEditing] = useState(null);
     const [batchOpen, setBatchOpen] = useState(false);
 
     return (
-        <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
+        <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-3">
             {/* Title block */}
             <div className="min-w-0">
                 <p className="text-[11px] tracking-[0.16em] uppercase text-gray-400 dark:text-neutral-500 mb-1">Money out</p>
@@ -148,14 +141,14 @@ function Lens({ period, anchor, onChangePeriod, onShift, onReset }) {
             </div>
 
             {/* Unified toolbar: anchor · period · actions */}
-            <div className="flex items-center gap-2 flex-wrap p-1 rounded-xl bg-gray-50 dark:bg-neutral-900/60 border border-gray-200 dark:border-neutral-800">
+            <div className="flex items-center gap-2 shrink-0 p-1 rounded-xl bg-gray-50 dark:bg-neutral-900/60 border border-gray-200 dark:border-neutral-800">
                 <AnchorControl period={period} anchor={anchor} onShift={onShift} onReset={onReset} />
                 <Separator />
                 <PeriodSwitcher period={period} onChange={onChangePeriod} />
                 <Separator />
                 <button
                     onClick={() => setBatchOpen(true)}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-white dark:hover:bg-neutral-800 text-gray-700 dark:text-gray-300 text-sm font-medium transition-colors"
+                    className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg hover:bg-white dark:hover:bg-neutral-800 text-gray-700 dark:text-gray-300 text-sm font-medium transition-colors"
                     title="Log monthly bills in a batch"
                 >
                     <Receipt className="w-4 h-4" />
@@ -163,7 +156,7 @@ function Lens({ period, anchor, onChangePeriod, onShift, onReset }) {
                 </button>
                 <button
                     onClick={() => { setEditing(null); setAddOpen(true); }}
-                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium transition-colors"
+                    className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium transition-colors"
                 >
                     <Plus className="w-4 h-4" />
                     Add entry
@@ -194,11 +187,10 @@ function PeriodSwitcher({ period, onChange }) {
                 <button
                     key={p}
                     onClick={() => onChange(p)}
-                    className={`px-3 py-1 text-sm rounded-md transition-colors capitalize ${
-                        period === p
-                            ? 'bg-white dark:bg-neutral-900 text-gray-900 dark:text-gray-100 shadow-sm font-medium'
-                            : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'
-                    }`}
+                    className={`px-3 py-1 text-sm rounded-md transition-colors capitalize ${period === p
+                        ? 'bg-white dark:bg-neutral-900 text-gray-900 dark:text-gray-100 shadow-sm font-medium'
+                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'
+                        }`}
                 >
                     {p}
                 </button>
@@ -306,13 +298,13 @@ const PERIOD_NOUN = { month: 'month', quarter: 'quarter', year: 'year' };
 
 function StatsRow({ data, period }) {
     const { totals } = data;
-    const spendDelta  = totals.spendDelta;
+    const spendDelta = totals.spendDelta;
     const incomeDelta = totals.incomeDelta;
 
     return (
         <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
             {/* Hero — Spent */}
-            <div className="md:col-span-6 p-6 rounded-2xl border border-gray-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/40 relative overflow-hidden">
+            <div className="md:col-span-6 p-6 rounded-2xl shadow-sm border border-gray-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/40 relative overflow-hidden">
                 <div className="absolute -right-8 -top-8 w-32 h-32 rounded-full bg-rose-50 dark:bg-rose-950/30 opacity-60" />
                 <div className="relative">
                     <div className="flex items-center gap-2 mb-2">
@@ -357,10 +349,10 @@ function StatsRow({ data, period }) {
 function SecondaryStat({ className = '', icon: Icon, label, value, tint, delta, period }) {
     const colorMap = {
         emerald: 'text-emerald-600 dark:text-emerald-400',
-        rose:    'text-rose-600 dark:text-rose-400',
+        rose: 'text-rose-600 dark:text-rose-400',
     };
     return (
-        <div className={`p-5 rounded-2xl border border-gray-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/40 ${className}`}>
+        <div className={`p-6 rounded-2xl shadow-sm border border-gray-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/40 ${className}`}>
             <div className="flex items-center gap-2 mb-2">
                 <Icon className={`w-4 h-4 ${colorMap[tint]}`} />
                 <p className="text-[11px] uppercase tracking-[0.14em] text-gray-500 dark:text-gray-400 font-semibold">{label}</p>
@@ -397,7 +389,7 @@ function DeltaPill({ delta, inverted }) {
 
 function ChartCard({ title, subtitle, children, className = '', height = 280, action = null }) {
     return (
-        <div className={`p-5 rounded-2xl border border-gray-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/40 ${className}`}>
+        <div className={`p-6 rounded-2xl shadow-sm border border-gray-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/40 ${className}`}>
             <div className="flex items-start justify-between mb-3 gap-3">
                 <div>
                     <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{title}</h3>
@@ -443,10 +435,12 @@ function DailyTrend({ data, className }) {
             itemStyle: { color: '#0a5c3b' },
             lineStyle: { width: 2 },
             areaStyle: {
-                color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [
-                    { offset: 0, color: 'rgba(10,92,59,0.35)' },
-                    { offset: 1, color: 'transparent' },
-                ] },
+                color: {
+                    type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [
+                        { offset: 0, color: 'rgba(10,92,59,0.35)' },
+                        { offset: 1, color: 'transparent' },
+                    ]
+                },
             },
         }],
     };
@@ -513,11 +507,10 @@ function TopDestinations({ data, className }) {
                             {/* Tinted bar IS the visualisation — fills proportional to spend */}
                             <span
                                 aria-hidden
-                                className={`absolute inset-y-0 left-0 transition-[width] duration-500 ${
-                                    isTop
-                                        ? 'bg-emerald-100/80 dark:bg-emerald-900/40'
-                                        : 'bg-emerald-50/80 dark:bg-emerald-950/30'
-                                }`}
+                                className={`absolute inset-y-0 left-0 transition-[width] duration-500 ${isTop
+                                    ? 'bg-emerald-100/80 dark:bg-emerald-900/40'
+                                    : 'bg-emerald-50/80 dark:bg-emerald-950/30'
+                                    }`}
                                 style={{ width: `${Math.max(pct, 3)}%` }}
                             />
                             <div className="relative flex items-center gap-3 px-3 py-2.5">
@@ -581,15 +574,16 @@ function Empty() {
 //  Journal — manual entries for the period
 // ─────────────────────────────────────────────────────────────────────────────
 
-function Journal({ entries, loading, periodLabel, onChanged }) {
+function Transactions({ entries, loading, periodLabel }) {
     const [editing, setEditing] = useState(null);
     const [editOpen, setEditOpen] = useState(false);
     const qc = useQueryClient();
 
     const removeMutation = useMutation({
-        mutationFn: (id) => api.delete(`/expenses/${id}`),
+        mutationFn: (id) => api.delete(`/expenses/${String(id).replace('manual:', '')}`),
         onSuccess: () => {
             qc.invalidateQueries({ queryKey: ['expenses'] });
+            qc.invalidateQueries({ queryKey: ['spending'] });
             qc.invalidateQueries({ queryKey: ['insights'] });
             toast.success('Entry deleted');
             onChanged?.();
@@ -601,10 +595,10 @@ function Journal({ entries, loading, periodLabel, onChanged }) {
 
     return (
         <div className="space-y-4">
-            <SectionDivider label="The journal" />
+            <SectionDivider label="All Transactions" />
             <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
                 <div>
-                    <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Manual entries</h2>
+                    <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 tracking-tight">Transactions</h2>
                     <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                         {loading
                             ? 'Loading…'
@@ -613,9 +607,7 @@ function Journal({ entries, loading, periodLabel, onChanged }) {
                                 : `${entries.length} entr${entries.length === 1 ? 'y' : 'ies'} in ${periodLabel} — ${fmtPKR(total)} total.`}
                     </p>
                 </div>
-                {!loading && entries.length === 0 && (
-                    <EmptyJournalHint />
-                )}
+
             </div>
 
             {loading ? (
@@ -638,55 +630,60 @@ function Journal({ entries, loading, periodLabel, onChanged }) {
     );
 }
 
-function EmptyJournalHint() {
-    return (
-        <p className="text-xs text-gray-400 dark:text-gray-500 inline-flex items-center gap-1.5">
-            <Sparkles className="w-3.5 h-3.5" />
-            Bank/wallet transactions show in their own pages — log only what you pay outside of them.
-        </p>
-    );
-}
+
 
 function EntryList({ entries, onEdit, onDelete }) {
     return (
-        <div className="rounded-2xl border border-gray-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/40 overflow-hidden">
+        <div className="rounded-2xl border border-gray-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/40 shadow-sm overflow-hidden">
             <ul className="divide-y divide-gray-100 dark:divide-neutral-800">
                 {entries.map((e) => (
                     <li
                         key={e.id}
-                        className="flex items-center gap-4 px-5 py-3.5 hover:bg-gray-50 dark:hover:bg-neutral-900/60 transition-colors group"
+                        className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 px-5 py-4 hover:bg-gray-50 dark:hover:bg-neutral-900/60 transition-colors group"
                     >
-                        <div className="w-14 text-[11px] text-gray-400 dark:text-neutral-500 uppercase tracking-wider tabular-nums shrink-0">
-                            {fmtDate(e.expense_date).split(' ').slice(0, 2).join(' ')}
+                        <div className="w-16 text-xs text-gray-400 dark:text-neutral-500 uppercase tracking-wider tabular-nums shrink-0">
+                            {fmtDate(e.date).split(' ').slice(0, 2).join(' ')}
                         </div>
                         <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{e.category}</p>
-                            {(e.payment_method || e.notes) && (
+                            <div className="flex items-center gap-2 mb-0.5">
+                                <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">{e.category}</p>
+                                <span className={`text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full ${e.source === 'bank' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
+                                    e.source === 'wallet' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' :
+                                        'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                                    }`}>
+                                    {e.sourceLabel}
+                                </span>
+                            </div>
+                            {e.description && (
                                 <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                                    {[e.payment_method, e.notes].filter(Boolean).join(' · ')}
+                                    {e.description}
                                 </p>
                             )}
                         </div>
                         <div className="text-right shrink-0">
-                            <p className="text-sm font-semibold text-rose-600 dark:text-rose-400 tabular-nums">
-                                −{fmtPKR(e.amount)}
+                            <p className={`text-sm font-bold tabular-nums ${e.kind === 'credit' ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                                {e.kind === 'credit' ? '+' : '−'}{fmtPKR(e.amount)}
                             </p>
                         </div>
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                            <button
-                                onClick={() => onEdit(e)}
-                                className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-neutral-800"
-                                title="Edit"
-                            >
-                                <Pencil className="w-4 h-4" />
-                            </button>
-                            <button
-                                onClick={() => onDelete(e.id)}
-                                className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30"
-                                title="Delete"
-                            >
-                                <Trash2 className="w-4 h-4" />
-                            </button>
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 sm:w-16 justify-end">
+                            {e.source === 'manual' && (
+                                <>
+                                    <button
+                                        onClick={() => onEdit(e)}
+                                        className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-neutral-800 transition-colors"
+                                        title="Edit"
+                                    >
+                                        <Pencil className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                        onClick={() => onDelete(e.id)}
+                                        className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
+                                        title="Delete"
+                                    >
+                                        <Trash2 className="w-4 h-4" />
+                                    </button>
+                                </>
+                            )}
                         </div>
                     </li>
                 ))}
@@ -698,6 +695,14 @@ function EntryList({ entries, onEdit, onDelete }) {
 // ─────────────────────────────────────────────────────────────────────────────
 //  Forms — single entry + batch bills
 // ─────────────────────────────────────────────────────────────────────────────
+
+function toLocalDateStr(d = new Date()) {
+    const dt = d instanceof Date ? d : new Date(d);
+    const y = dt.getFullYear();
+    const m = String(dt.getMonth() + 1).padStart(2, '0');
+    const day = String(dt.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+}
 
 function paymentMethods(banks = [], wallets = []) {
     return [...banks.map((b) => b.name), ...wallets.map((w) => w.name || w.institution), 'Cash']
@@ -713,19 +718,20 @@ function EntryFormModal({ item, onClose }) {
     const methods = paymentMethods(banks, wallets);
 
     const [form, setForm] = useState({
-        amount:        item ? String(item.amount) : '',
-        category:      item?.category || '',
-        expense_date:  item?.expense_date ? new Date(item.expense_date).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
-        payment_method: item?.payment_method || '',
-        notes:         item?.notes || '',
+        amount: item ? String(item.amount) : '',
+        category: item?.category || '',
+        expense_date: item?.date ? toLocalDateStr(new Date(item.date)) : toLocalDateStr(),
+        payment_method: item?.source === 'manual' ? item?.sourceLabel : '',
+        notes: item?.description || '',
     });
 
     const save = useMutation({
         mutationFn: (payload) => isEdit
-            ? api.put(`/expenses/${item.id}`, payload)
+            ? api.put(`/expenses/${String(item.id).replace('manual:', '')}`, payload)
             : api.post('/expenses', payload),
         onSuccess: () => {
             qc.invalidateQueries({ queryKey: ['expenses'] });
+            qc.invalidateQueries({ queryKey: ['spending'] });
             qc.invalidateQueries({ queryKey: ['insights'] });
             toast.success(isEdit ? 'Entry updated' : 'Entry added');
             onClose();
@@ -783,7 +789,7 @@ function EntryFormModal({ item, onClose }) {
 }
 
 function BatchModal({ onClose }) {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = toLocalDateStr();
     const [rows, setRows] = useState(() => DEFAULT_BILLS.map((b) => ({ ...b, expense_date: today, payment_method: '' })));
     const qc = useQueryClient();
     const { data: banks = [] } = useBanks();
@@ -794,6 +800,7 @@ function BatchModal({ onClose }) {
         mutationFn: (validRows) => api.post('/expenses/batch', validRows),
         onSuccess: () => {
             qc.invalidateQueries({ queryKey: ['expenses'] });
+            qc.invalidateQueries({ queryKey: ['spending'] });
             qc.invalidateQueries({ queryKey: ['insights'] });
             toast.success('Bills logged');
             onClose();

@@ -55,10 +55,6 @@ export default function DebtDetail() {
 
     return (
         <div className="space-y-6">
-            <Link to="/debts" className="inline-flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100">
-                <ArrowLeft className="w-4 h-4" /> All debts
-            </Link>
-
             <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{debt.name}</h1>

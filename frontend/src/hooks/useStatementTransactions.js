@@ -28,9 +28,9 @@ export const useBankAllTransactions = (bankId) => {
 export const useApproveTransaction = () => {
     const queryClient = useQueryClient();
     return useMutation({
-        mutationFn: async ({ bankId, statementId, txId, approvedCategory, notes }) => {
+        mutationFn: async ({ bankId, txId, approvedCategory, notes }) => {
             const { data } = await api.post(
-                `/banks/${bankId}/statements/${statementId}/transactions/${txId}/approve`,
+                `/banks/${bankId}/transactions/${txId}/approve`,
                 { approvedCategory, notes }
             );
             return data;
@@ -46,9 +46,9 @@ export const useApproveTransaction = () => {
 export const useDeleteTransaction = () => {
     const queryClient = useQueryClient();
     return useMutation({
-        mutationFn: async ({ bankId, statementId, txId }) => {
+        mutationFn: async ({ bankId, txId }) => {
             const { data } = await api.delete(
-                `/banks/${bankId}/statements/${statementId}/transactions/${txId}`
+                `/banks/${bankId}/transactions/${txId}`
             );
             return data;
         },
@@ -62,9 +62,9 @@ export const useDeleteTransaction = () => {
 export const useUpdateTransactionCategory = () => {
     const queryClient = useQueryClient();
     return useMutation({
-        mutationFn: async ({ bankId, statementId, txId, approvedCategory, notes, transaction_type, amount }) => {
+        mutationFn: async ({ bankId, txId, approvedCategory, notes, transaction_type, amount }) => {
             const { data } = await api.put(
-                `/banks/${bankId}/statements/${statementId}/transactions/${txId}`,
+                `/banks/${bankId}/transactions/${txId}`,
                 { approvedCategory, notes, transaction_type, amount }
             );
             return data;

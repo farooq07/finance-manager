@@ -21,23 +21,23 @@ const fontBody = `'DM Sans', 'Inter', system-ui, -apple-system, sans-serif`;
 const fontMono = `'JetBrains Mono', ui-monospace, monospace`;
 
 const lightPalette = {
-  paper: '#f5f0e6',
-  paperDeep: '#ede6d6',
+  paper: '#F2F4EE',
+  paperDeep: '#E8EBE2',
   ink: '#0e0f12',
   inkSoft: '#3a3a3f',
-  brand: '#0a5c3b',
-  brandSoft: '#13744c',
+  brand: '#1F4842',
+  brandSoft: '#14302C',
   accent: '#c75a2f',
-  mute: '#94908a',
-  cardBg: '#fbf8f1',
-  cardBorder: 'rgba(14,15,18,0.1)',
-  cardShadow: '0 30px 80px -40px rgba(14,15,18,0.18)',
-  marqueeBg: '#ede6d6',
-  marqueeBorder: 'rgba(14,15,18,0.1)',
-  numbersBg: '#ede6d6',
-  trustCardBg: '#f5f0e6',
-  trustGrid: 'rgba(14,15,18,0.1)',
-  divider: 'rgba(14,15,18,0.1)',
+  mute: '#8a8e85',
+  cardBg: '#FFFFFF',
+  cardBorder: 'rgba(14,15,18,0.08)',
+  cardShadow: '0 24px 60px -32px rgba(31,72,66,0.18)',
+  marqueeBg: '#E8EBE2',
+  marqueeBorder: 'rgba(14,15,18,0.08)',
+  numbersBg: '#E8EBE2',
+  trustCardBg: '#FFFFFF',
+  trustGrid: 'rgba(14,15,18,0.08)',
+  divider: 'rgba(14,15,18,0.08)',
   // ThreePillars is always dark regardless of mode
   pillarsBg: '#0e0f12',
   pillarsAlt: '#141618',
@@ -90,6 +90,31 @@ function useClock() {
   return new Date(t);
 }
 
+/* ── Easing & timing tokens — tuned for aose-style smooth reveals ── */
+const REVEAL_EASE = 'cubicBezier(0.22, 1, 0.36, 1)'; // outQuart-ish, slower decel
+const REVEAL_DUR = 800;
+const REVEAL_STAGGER = 85;
+
+/* ── Mask helper: wraps a word/line in an overflow-hidden box so the
+   child's translateY reveal reads as a clean reveal-from-below.
+   Use `<Mask>word</Mask>`; the inner element exposes `.reveal-inner`
+   which the section's IntersectionObserver-driven animate() targets. ── */
+function Mask({ children, className = '', style = {}, innerStyle = {} }) {
+  return (
+    <span
+      className={`inline-block align-bottom overflow-hidden ${className}`}
+      style={{ paddingBottom: '0.12em', lineHeight: 1, ...style }}
+    >
+      <span
+        className="reveal-inner inline-block"
+        style={{ transform: 'translateY(110%)', willChange: 'transform', ...innerStyle }}
+      >
+        {children}
+      </span>
+    </span>
+  );
+}
+
 /* ── IntersectionObserver-based scroll reveal trigger ── */
 function useScrollReveal(threshold = 0.18) {
   const ref = useRef(null);
@@ -120,7 +145,7 @@ function RotatingWord({ words, interval = 2800 }) {
       animate(el, {
         opacity: [1, 0], translateY: [0, -14], rotate: [0, -3],
         duration: 380, ease: 'inQuad',
-        complete: () => {
+        onComplete: () => {
           setIndex(i => (i + 1) % words.length);
           animate(el, { opacity: [0, 1], translateY: [14, 0], rotate: [3, 0], duration: 520, ease: 'outBack' });
         },
@@ -234,22 +259,22 @@ function Hero() {
   const ctasRef = useRef(null);
 
   useEffect(() => {
-    const tl = createTimeline({ defaults: { ease: 'outExpo' } });
+    const tl = createTimeline({ defaults: { ease: REVEAL_EASE } });
     if (eyebrowRef.current)
-      tl.add(eyebrowRef.current, { opacity: [0, 1], translateY: [12, 0], duration: 700 }, 0);
+      tl.add(eyebrowRef.current, { opacity: [0, 1], translateY: [12, 0], duration: 800 }, 0);
     if (headlineRef.current) {
-      const words = headlineRef.current.querySelectorAll('.word');
-      tl.add(words, { opacity: [0, 1], translateY: [40, 0], rotate: [-2, 0], duration: 900, delay: stagger(70) }, 100);
+      const inners = headlineRef.current.querySelectorAll('.reveal-inner');
+      tl.add(inners, { translateY: ['110%', '0%'], duration: REVEAL_DUR, delay: stagger(REVEAL_STAGGER) }, 150);
     }
     if (subRef.current)
-      tl.add(subRef.current, { opacity: [0, 1], translateY: [16, 0], duration: 700 }, 700);
+      tl.add(subRef.current, { opacity: [0, 1], translateY: [16, 0], duration: 800 }, 900);
     if (ctasRef.current)
-      tl.add(ctasRef.current.children, { opacity: [0, 1], translateY: [8, 0], duration: 500, delay: stagger(80) }, 900);
+      tl.add(ctasRef.current.children, { opacity: [0, 1], translateY: [8, 0], duration: 600, delay: stagger(90) }, 1100);
   }, []);
 
   const renderWords = (text) =>
     text.split(' ').map((w, i) => (
-      <span key={i} className="word inline-block opacity-0" style={{ marginRight: '0.18em' }}>{w}</span>
+      <Mask key={i} style={{ marginRight: '0.18em' }}>{w}</Mask>
     ));
 
   return (
@@ -258,7 +283,7 @@ function Hero() {
         {/* Eyebrow */}
         <div
           ref={eyebrowRef}
-          className="flex items-center gap-3 text-xs uppercase tracking-[0.18em] mb-12 opacity-0"
+          className="flex items-center gap-3 text-xs uppercase tracking-[0.18em] mb-8 opacity-0"
           style={{ color: p.mute }}
         >
           <span className="block w-8 h-px" style={{ background: p.mute }} />
@@ -276,17 +301,17 @@ function Hero() {
             <h1
               ref={headlineRef}
               style={{ fontFamily: fontDisplay, fontWeight: 400, lineHeight: 0.95, letterSpacing: '-0.025em' }}
-              className="text-[56px] sm:text-[80px] lg:text-[112px] xl:text-[128px]"
+              className="text-[48px] sm:text-[72px] lg:text-[96px] xl:text-[108px]"
             >
               {renderWords('Your money,')}
               <br />
-              <span className="word inline-block opacity-0" style={{ fontStyle: 'italic', fontWeight: 300, marginRight: '0.18em' }}>finally</span>
+              <Mask style={{ marginRight: '0.18em' }} innerStyle={{ fontStyle: 'italic', fontWeight: 300 }}>finally</Mask>
               {renderWords('in one')}
               <br />
-              <span className="word inline-block opacity-0" style={{ color: p.brand, marginRight: '0.18em' }}>
+              <Mask style={{ marginRight: '0.18em' }} innerStyle={{ color: p.brand }}>
                 <RotatingWord words={['quiet', 'single', 'honest', 'clear']} interval={2600} />
-              </span>
-              <span className="word inline-block opacity-0">place.</span>
+              </Mask>
+              <Mask>place.</Mask>
             </h1>
 
             <div ref={subRef} className="opacity-0 mt-10 max-w-xl">
@@ -541,10 +566,10 @@ function CategoryIndex() {
 
   useEffect(() => {
     if (!headVisible || !headRef.current) return;
-    const words = headRef.current.querySelectorAll('.s-word');
-    animate(words, {
-      opacity: [0, 1], translateY: [44, 0], rotate: [-2, 0],
-      duration: 900, delay: stagger(55), ease: 'outExpo',
+    const inners = headRef.current.querySelectorAll('.reveal-inner');
+    animate(inners, {
+      translateY: ['110%', '0%'],
+      duration: REVEAL_DUR, delay: stagger(REVEAL_STAGGER), ease: REVEAL_EASE,
     });
   }, [headVisible]);
 
@@ -553,7 +578,7 @@ function CategoryIndex() {
     const articles = gridRef.current.querySelectorAll('article');
     animate(articles, {
       opacity: [0, 1], translateY: [28, 0],
-      duration: 700, delay: stagger(50), ease: 'outExpo',
+      duration: 900, delay: stagger(60), ease: REVEAL_EASE,
     });
   }, [gridVisible]);
 
@@ -585,14 +610,14 @@ function CategoryIndex() {
             style={{ fontFamily: fontDisplay, fontWeight: 400, letterSpacing: '-0.02em' }}
           >
             {'Twelve kinds of money,'.split(' ').map((w, i) => (
-              <span key={i} className="s-word inline-block opacity-0" style={{ marginRight: '0.2em' }}>{w}</span>
+              <Mask key={i} style={{ marginRight: '0.2em' }}>{w}</Mask>
             ))}
             <br />
-            <span className="s-word inline-block opacity-0" style={{ fontStyle: 'italic', color: p.brand, marginRight: '0.18em' }}>
+            <Mask style={{ marginRight: '0.12em' }} innerStyle={{ fontStyle: 'italic', color: p.brand }}>
               one{' '}
               <RotatingWord words={['quiet', 'honest', 'clear', 'orderly']} interval={3000} />
-            </span>
-            <span className="s-word inline-block opacity-0">ledger.</span>
+            </Mask>
+            <Mask>ledger.</Mask>
           </h2>
         </div>
 
@@ -634,10 +659,10 @@ function PillarUpload() {
 
   useEffect(() => {
     if (!headVisible || !headRef.current) return;
-    const lines = headRef.current.querySelectorAll('.s-line');
-    animate(lines, {
-      opacity: [0, 1], translateX: [-24, 0],
-      duration: 800, delay: stagger(120), ease: 'outExpo',
+    const inners = headRef.current.querySelectorAll('.reveal-inner');
+    animate(inners, {
+      translateY: ['110%', '0%'],
+      duration: REVEAL_DUR, delay: stagger(140), ease: REVEAL_EASE,
     });
   }, [headVisible]);
 
@@ -653,10 +678,10 @@ function PillarUpload() {
             className="text-4xl lg:text-[56px] leading-[1.05] mb-6"
             style={{ fontFamily: fontDisplay, fontWeight: 400, letterSpacing: '-0.02em' }}
           >
-            <span className="s-line block opacity-0">Upload your PDF.</span>
-            <span className="s-line block opacity-0">
+            <Mask style={{ display: 'block' }}>Upload your PDF.</Mask>
+            <Mask style={{ display: 'block' }}>
               <span style={{ fontStyle: 'italic', color: p.pillarsAccent }}>That's the end</span> of the work.
-            </span>
+            </Mask>
           </h3>
           <p className="text-base lg:text-lg leading-relaxed mb-8" style={{ color: p.pillarsTextSoft }}>
             Drop in a bank statement — protected or not, scanned or digital — and it parses every row,
@@ -685,6 +710,51 @@ function StatementMock() {
     { d: '04/05', label: 'K-ELECTRIC BILL', cat: 'Utilities', amt: '-12,450', kind: 'debit' },
     { d: '02/05', label: 'METRO CASH&CARRY', cat: 'Groceries', amt: '-6,720', kind: 'debit' },
   ];
+
+  const [listRef, visible] = useScrollReveal(0.15);
+  const counterRef = useRef(null);
+
+  // Stagger each row in from below with a spring landing — magic-ui AnimatedList feel.
+  useEffect(() => {
+    if (!visible || !listRef.current) return;
+    const items = listRef.current.querySelectorAll('.stmt-row');
+    animate(items, {
+      opacity: [0, 1],
+      translateY: [42, 0],
+      scale: [0.94, 1],
+      filter: ['blur(6px)', 'blur(0px)'],
+      duration: 720,
+      delay: stagger(180, { start: 120 }),
+      ease: 'outBack',
+    });
+
+    // Subtle highlight sweep on each row as it lands (mimics "newly parsed").
+    items.forEach((el, i) => {
+      const flash = el.querySelector('.stmt-flash');
+      if (!flash) return;
+      animate(flash, {
+        opacity: [0, 0.5, 0],
+        duration: 900,
+        delay: 120 + i * 180 + 200,
+        ease: 'outQuad',
+      });
+    });
+
+    // Count up the "847 transactions" number from 0 — feels live.
+    if (counterRef.current) {
+      const target = 847;
+      const start = performance.now();
+      const dur = 1400;
+      const tick = (now) => {
+        const t = Math.min((now - start) / dur, 1);
+        const eased = 1 - Math.pow(1 - t, 3);
+        counterRef.current.textContent = Math.floor(target * eased).toString();
+        if (t < 1) requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    }
+  }, [visible]);
+
   return (
     <div className="rounded-2xl border overflow-hidden" style={{ borderColor: p.pillarsBorder, background: 'rgba(255,255,255,0.03)' }}>
       <div className="px-5 py-4 flex items-center justify-between border-b" style={{ borderColor: p.pillarsBorderFaint }}>
@@ -697,22 +767,38 @@ function StatementMock() {
           <p style={{ fontFamily: fontMono }} className="text-sm">PKR 1,006,232.25</p>
         </div>
       </div>
-      <div className="divide-y" style={{ borderColor: p.pillarsBorderFaint }}>
+      <div ref={listRef} className="divide-y" style={{ borderColor: p.pillarsBorderFaint }}>
         {rows.map((r, i) => (
-          <div key={i} className="px-5 py-3.5 flex items-center gap-4 text-sm" style={{ borderColor: p.pillarsBorderFaint }}>
-            <span style={{ fontFamily: fontMono, color: 'rgba(245,240,230,0.4)' }} className="text-xs w-10 shrink-0">{r.d}</span>
-            <span className="flex-1 truncate">{r.label}</span>
-            <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full" style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(245,240,230,0.55)' }}>
+          <div
+            key={i}
+            className="stmt-row relative px-5 py-3.5 flex items-center gap-4 text-sm"
+            style={{ borderColor: p.pillarsBorderFaint, opacity: 0, willChange: 'transform, opacity, filter' }}
+          >
+            {/* Highlight sweep — fades in then out as the row lands */}
+            <span
+              className="stmt-flash absolute inset-0 pointer-events-none"
+              style={{
+                background: `linear-gradient(90deg, transparent 0%, ${p.pillarsAccent}14 50%, transparent 100%)`,
+                opacity: 0,
+              }}
+              aria-hidden="true"
+            />
+            <span style={{ fontFamily: fontMono, color: 'rgba(245,240,230,0.4)' }} className="text-xs w-10 shrink-0 relative">{r.d}</span>
+            <span className="flex-1 truncate relative">{r.label}</span>
+            <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full relative" style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(245,240,230,0.55)' }}>
               {r.cat}
             </span>
-            <span style={{ fontFamily: fontMono, color: r.kind === 'credit' ? p.pillarsAccent : '#f9a98a' }} className="w-24 text-right text-sm">
+            <span style={{ fontFamily: fontMono, color: r.kind === 'credit' ? p.pillarsAccent : '#f9a98a' }} className="w-24 text-right text-sm relative">
               {r.amt}
             </span>
           </div>
         ))}
       </div>
       <div className="px-5 py-3 flex items-center justify-between text-xs" style={{ background: 'rgba(255,255,255,0.02)' }}>
-        <span style={{ color: 'rgba(245,240,230,0.45)' }}>847 transactions parsed in 4.2s</span>
+        <span style={{ color: 'rgba(245,240,230,0.45)' }}>
+          <span ref={counterRef} style={{ fontFamily: fontMono }}>0</span>
+          {' '}transactions parsed in 4.2s
+        </span>
         <span className="inline-flex items-center gap-1" style={{ color: p.pillarsAccent }}>
           <Sparkles className="w-3 h-3" /> Auto-categorised
         </span>
@@ -727,10 +813,10 @@ function PillarAi() {
 
   useEffect(() => {
     if (!headVisible || !headRef.current) return;
-    const lines = headRef.current.querySelectorAll('.s-line');
-    animate(lines, {
-      opacity: [0, 1], translateX: [24, 0],
-      duration: 800, delay: stagger(120), ease: 'outExpo',
+    const inners = headRef.current.querySelectorAll('.reveal-inner');
+    animate(inners, {
+      translateY: ['110%', '0%'],
+      duration: REVEAL_DUR, delay: stagger(140), ease: REVEAL_EASE,
     });
   }, [headVisible]);
 
@@ -749,10 +835,10 @@ function PillarAi() {
             className="text-4xl lg:text-[56px] leading-[1.05] mb-6"
             style={{ fontFamily: fontDisplay, fontWeight: 400, letterSpacing: '-0.02em' }}
           >
-            <span className="s-line block opacity-0">Ask in English.</span>
-            <span className="s-line block opacity-0">
+            <Mask style={{ display: 'block' }}>Ask in English.</Mask>
+            <Mask style={{ display: 'block' }}>
               Get an <span style={{ fontStyle: 'italic', color: p.pillarsAccent }}>honest</span> answer.
-            </span>
+            </Mask>
           </h3>
           <p className="text-base lg:text-lg leading-relaxed mb-8" style={{ color: p.pillarsTextSoft }}>
             Most "AI for finance" tools hallucinate numbers. Ours runs a real query on your real data
@@ -810,10 +896,10 @@ function PillarLocal() {
 
   useEffect(() => {
     if (!headVisible || !headRef.current) return;
-    const lines = headRef.current.querySelectorAll('.s-line');
-    animate(lines, {
-      opacity: [0, 1], translateY: [30, 0],
-      duration: 800, delay: stagger(120), ease: 'outExpo',
+    const inners = headRef.current.querySelectorAll('.reveal-inner');
+    animate(inners, {
+      translateY: ['110%', '0%'],
+      duration: REVEAL_DUR, delay: stagger(140), ease: REVEAL_EASE,
     });
   }, [headVisible]);
 
@@ -849,10 +935,10 @@ function PillarLocal() {
             className="text-4xl lg:text-[56px] leading-[1.05] mb-6"
             style={{ fontFamily: fontDisplay, fontWeight: 400, letterSpacing: '-0.02em' }}
           >
-            <span className="s-line block opacity-0">Built for the way</span>
-            <span className="s-line block opacity-0">
+            <Mask style={{ display: 'block' }}>Built for the way</Mask>
+            <Mask style={{ display: 'block' }}>
               <span style={{ fontStyle: 'italic', color: p.pillarsAccent }}>Pakistan</span> handles money.
-            </span>
+            </Mask>
           </h3>
           <p className="text-base lg:text-lg leading-relaxed" style={{ color: p.pillarsTextSoft }}>
             Every value is PKR. Every Hijri date is real. Every bank format — HBL, MCB, Meezan,
@@ -931,10 +1017,10 @@ function Trust() {
 
   useEffect(() => {
     if (!headVisible || !headRef.current) return;
-    const words = headRef.current.querySelectorAll('.s-word');
-    animate(words, {
-      opacity: [0, 1], translateY: [40, 0], rotate: [-1.5, 0],
-      duration: 900, delay: stagger(55), ease: 'outExpo',
+    const inners = headRef.current.querySelectorAll('.reveal-inner');
+    animate(inners, {
+      translateY: ['110%', '0%'],
+      duration: REVEAL_DUR, delay: stagger(REVEAL_STAGGER), ease: REVEAL_EASE,
     });
   }, [headVisible]);
 
@@ -942,8 +1028,8 @@ function Trust() {
     if (!cardsVisible || !cardsRef.current) return;
     const cards = cardsRef.current.querySelectorAll('.trust-card');
     animate(cards, {
-      opacity: [0, 1], translateY: [32, 0],
-      duration: 700, delay: stagger(100), ease: 'outExpo',
+      opacity: [0, 1], translateY: [40, 0],
+      duration: 1000, delay: stagger(120), ease: REVEAL_EASE,
     });
   }, [cardsVisible]);
 
@@ -975,12 +1061,12 @@ function Trust() {
             style={{ fontFamily: fontDisplay, fontWeight: 400, letterSpacing: '-0.02em' }}
           >
             {'You bring the data.'.split(' ').map((w, i) => (
-              <span key={`a${i}`} className="s-word inline-block opacity-0" style={{ marginRight: '0.2em' }}>{w}</span>
+              <Mask key={`a${i}`} style={{ marginRight: '0.2em' }}>{w}</Mask>
             ))}
             <br />
-            <span className="s-word inline-block opacity-0" style={{ fontStyle: 'italic', color: p.brand, marginRight: '0.2em' }}>We keep it</span>
+            <Mask style={{ marginRight: '0.2em' }} innerStyle={{ fontStyle: 'italic', color: p.brand }}>We keep it</Mask>
             {'to ourselves.'.split(' ').map((w, i) => (
-              <span key={`b${i}`} className="s-word inline-block opacity-0" style={{ marginRight: '0.2em' }}>{w}</span>
+              <Mask key={`b${i}`} style={{ marginRight: '0.2em' }}>{w}</Mask>
             ))}
           </h2>
         </div>
@@ -1009,10 +1095,10 @@ function ClosingCta() {
 
   useEffect(() => {
     if (!headVisible || !headRef.current) return;
-    const words = headRef.current.querySelectorAll('.s-word');
-    animate(words, {
-      opacity: [0, 1], translateY: [50, 0], rotate: [-2, 0],
-      duration: 1000, delay: stagger(65), ease: 'outExpo',
+    const inners = headRef.current.querySelectorAll('.reveal-inner');
+    animate(inners, {
+      translateY: ['110%', '0%'],
+      duration: REVEAL_DUR + 200, delay: stagger(REVEAL_STAGGER + 10), ease: REVEAL_EASE,
     });
   }, [headVisible]);
 
@@ -1020,7 +1106,7 @@ function ClosingCta() {
     if (!ctaVisible || !ctaRef.current) return;
     animate(ctaRef.current.children, {
       opacity: [0, 1], translateY: [16, 0],
-      duration: 600, delay: stagger(80), ease: 'outExpo',
+      duration: 800, delay: stagger(120), ease: REVEAL_EASE,
     });
   }, [ctaVisible]);
 
@@ -1033,16 +1119,16 @@ function ClosingCta() {
             <h2
               ref={headRef}
               style={{ fontFamily: fontDisplay, fontWeight: 400, lineHeight: 0.95, letterSpacing: '-0.025em' }}
-              className="text-[48px] sm:text-[80px] lg:text-[120px]"
+              className="text-[42px] sm:text-[72px] md:text-[84px] lg:text-[108px]"
             >
               {'Take your money'.split(' ').map((w, i) => (
-                <span key={`a${i}`} className="s-word inline-block opacity-0" style={{ marginRight: '0.18em' }}>{w}</span>
+                <Mask key={`a${i}`} style={{ marginRight: '0.18em' }}>{w}</Mask>
               ))}
               <br />
-              <span className="s-word inline-block opacity-0" style={{ fontStyle: 'italic', color: p.brand, marginRight: '0.1em' }}>
+              <Mask style={{ marginRight: '0.1em' }} innerStyle={{ fontStyle: 'italic', color: p.brand }}>
                 <RotatingWord words={['seriously', 'calmly', 'thoughtfully', 'kindly']} interval={3200} />
-              </span>
-              <span className="s-word inline-block opacity-0">, gently.</span>
+              </Mask>
+              <Mask>, gently.</Mask>
             </h2>
           </div>
 

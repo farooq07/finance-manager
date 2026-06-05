@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import {
     Home, Receipt, TrendingUp, BarChart2, Users, FileText, Building, Wallet,
     Settings, ChevronLeft, ChevronRight, Layers, HeartHandshake, Box, Shield,
-    Contact, MessageSquare, CreditCard, Gem,
+    Contact, MessageSquare, CreditCard, Gem, Scale, LifeBuoy,
 } from 'lucide-react';
 import clsx from 'clsx';
 import logosm from '../assets/logosm.svg';
@@ -15,7 +15,7 @@ import api from '../services/api';
 const ICONS = {
     Home, Receipt, TrendingUp, BarChart2, Users, FileText, Building, Wallet,
     Settings, Layers, HeartHandshake, Box, Shield, Contact, MessageSquare,
-    CreditCard, Gem,
+    CreditCard, Gem, Scale, LifeBuoy,
 };
 
 // Logical groupings for the sidebar. Sections are rendered in this order;
@@ -30,7 +30,7 @@ const SECTIONS = [
     {
         id: 'money',
         label: 'Money',
-        paths: ['/accounts', '/banks', '/wallets', '/expenses', '/bills', '/debts'],
+        paths: ['/accounts', '/banks', '/wallets', '/expenses', '/ledger'],
     },
     {
         id: 'investments',
@@ -40,12 +40,12 @@ const SECTIONS = [
     {
         id: 'personal',
         label: 'Personal',
-        paths: ['/personal', '/dues', '/zakat', '/rents', '/assets', '/gold', '/beneficiaries'],
+        paths: ['/personal', '/zakat', '/rents', '/assets'],
     },
     {
         id: 'tools',
         label: 'Tools',
-        paths: ['/assistant', '/design-system', '/settings'],
+        paths: ['/assistant', '/design-system', '/settings', '/help'],
     },
 ];
 

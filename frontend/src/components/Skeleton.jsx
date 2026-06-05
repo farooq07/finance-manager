@@ -7,7 +7,7 @@ import { clsx } from 'clsx';
 export function Skeleton({ className, ...props }) {
     return (
         <div
-            className={clsx("animate-pulse bg-gray-200 dark:bg-neutral-800 rounded-md transition-colors", className)}
+            className={clsx("animate-pulse bg-gray-300 dark:bg-neutral-700 rounded-md transition-colors", className)}
             {...props}
         />
     );
@@ -64,7 +64,7 @@ export function TableSkeleton({ rows = 5 }) {
 export function CardSkeleton() {
     return (
         <div className="h-64 rounded-2xl p-6 flex flex-col justify-between shadow-lg bg-white dark:bg-neutral-900 border border-gray-100 dark:border-neutral-800 relative overflow-hidden transition-colors">
-            <div className="absolute inset-0 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-neutral-800 dark:to-neutral-900 animate-pulse transition-colors" />
+            <div className="absolute inset-0 bg-gradient-to-br from-gray-200 to-gray-300 dark:from-neutral-700 dark:to-neutral-800 animate-pulse transition-colors" />
 
             <div className="relative z-10 flex justify-between items-start">
                 <div className="space-y-2">

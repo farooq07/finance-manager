@@ -81,6 +81,23 @@ const brandColors = {
 		800: '#2D31A6',
 		900: '#2D3282',
 	},
+	// Brushed gold — single accent for the "Dark Vault" auth aesthetic.
+	// Used sparingly: hover ticks, focus ring, the one number that matters.
+	vault: {
+		ink:     '#0a0a0b',  // page background
+		graphite:'#13131a',  // surface
+		stone:   '#1c1c25',  // raised surface
+		hairline:'#2a2a35',  // borders
+		mute:    '#6a6a73',  // secondary ink
+		bone:    '#e8e6df',  // primary ink (warm)
+		gold: {
+			300: '#e0c596',
+			400: '#d4b078',
+			500: '#c9a96e',  // default accent
+			600: '#b8945a',
+			700: '#9d7d49',
+		},
+	},
 };
 
 export default {
@@ -100,7 +117,13 @@ export default {
 					'Segoe UI',
 					'Roboto',
 					'sans-serif'
-				]
+				],
+				serif: ['Fraunces', 'Georgia', 'serif'],
+				mono: ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace']
+			},
+			letterSpacing: {
+				'mono-wide': '0.08em',
+				'mono-xwide': '0.16em',
 			},
 			colors: {
 				...brandColors,

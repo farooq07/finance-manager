@@ -11,7 +11,14 @@ function generateVerificationToken() {
 }
 
 export const getAuthConfig = (req, res) => {
-    res.json({ registrationEnabled: process.env.ALLOW_REGISTRATION !== 'false' });
+    res.json({
+        registrationEnabled: process.env.ALLOW_REGISTRATION !== 'false',
+        googleEnabled: !!process.env.GOOGLE_CLIENT_ID,
+        googleClientId: process.env.GOOGLE_CLIENT_ID || null,
+        appleEnabled: !!process.env.APPLE_CLIENT_ID,
+        appleClientId: process.env.APPLE_CLIENT_ID || null,
+        appleRedirectUri: process.env.APPLE_REDIRECT_URI || null,
+    });
 };
 
 export const register = async (req, res) => {

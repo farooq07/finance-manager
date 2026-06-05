@@ -11,8 +11,8 @@ import { fmtPKR } from '../utils/currency';
 import MaskedBalance from '../components/MaskedBalance';
 
 const RANGES = [
-    { days: 30,  label: '1M' },
-    { days: 90,  label: '3M' },
+    { days: 30, label: '1M' },
+    { days: 90, label: '3M' },
     { days: 180, label: '6M' },
     { days: 365, label: '1Y' },
     { days: 730, label: '2Y' },
@@ -47,7 +47,7 @@ export default function Dashboard() {
     const emailSummary = useMutation({
         mutationFn: () => api.post('/dashboard/send-summary'),
         onSuccess: () => toast.success('Summary email sent'),
-        onError:   () => toast.error('Could not send the summary email'),
+        onError: () => toast.error('Could not send the summary email'),
     });
 
     return (
@@ -144,11 +144,10 @@ function RangeSwitcher({ days, onChange }) {
                 <button
                     key={r.days}
                     onClick={() => onChange(r.days)}
-                    className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
-                        days === r.days
+                    className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${days === r.days
                             ? 'bg-white dark:bg-neutral-900 text-gray-900 dark:text-gray-100 shadow-sm font-medium'
                             : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'
-                    }`}
+                        }`}
                 >
                     {r.label}
                 </button>
@@ -163,7 +162,7 @@ function RangeSwitcher({ days, onChange }) {
 
 function Hero({ summary, history, loading }) {
     if (loading || !summary) {
-        return <div className="h-44 rounded-2xl bg-gray-100 dark:bg-neutral-800/60 animate-pulse" />;
+        return <div className="h-44 rounded-2xl bg-gray-200 dark:bg-neutral-800/60 animate-pulse" />;
     }
 
     const m = summary.metrics;
@@ -210,10 +209,10 @@ function Hero({ summary, history, loading }) {
 
                 {/* Composition strip — the four pieces that actually make up Net Worth */}
                 <div className="mt-7 pt-5 border-t border-emerald-300/15 grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-3 text-sm">
-                    <CompositionPiece label="Bank"     value={m.totalBankBalance} />
-                    <CompositionPiece label="Wallet"   value={m.totalWalletBalance} />
+                    <CompositionPiece label="Bank" value={m.totalBankBalance} />
+                    <CompositionPiece label="Wallet" value={m.totalWalletBalance} />
                     <CompositionPiece label="Invested" value={m.totalInvestments} />
-                    <CompositionPiece label="Rent"     value={m.totalRentBalance} />
+                    <CompositionPiece label="Rent" value={m.totalRentBalance} />
                 </div>
 
                 {/* Dues row — surfaced separately because they're conditional cash flows,
@@ -368,10 +367,12 @@ function HistoryChart({ history, loading, className, onSnapshot, snapshotting })
             itemStyle: { color: '#0a5c3b' },
             lineStyle: { width: 2.5 },
             areaStyle: {
-                color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [
-                    { offset: 0, color: 'rgba(10,92,59,0.35)' },
-                    { offset: 1, color: 'transparent' },
-                ] },
+                color: {
+                    type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [
+                        { offset: 0, color: 'rgba(10,92,59,0.35)' },
+                        { offset: 1, color: 'transparent' },
+                    ]
+                },
             },
         }],
     };
@@ -459,14 +460,14 @@ function Metrics({ summary, loading }) {
     const pl = (value, cost) => cost > 0 ? ((Number(value) - Number(cost)) / Number(cost)) * 100 : null;
 
     const cards = [
-        { label: 'Bank',              value: m.totalBankBalance,   icon: Landmark,         tint: 'emerald' },
-        { label: 'Wallet',            value: m.totalWalletBalance, icon: Wallet,           tint: 'teal' },
-        { label: 'PSX',               value: m.stockValue,         icon: TrendingUp,       tint: 'emerald', pl: pl(m.stockValue, m.stockCost) },
-        { label: 'Mutual Funds',      value: m.mutualFundValue,    icon: PieIcon,          tint: 'teal',    pl: pl(m.mutualFundValue, m.mutualFundCost) },
-        { label: 'Owed to you',       value: m.totalReceivable,    icon: ArrowUpCircle,    tint: 'emerald' },
-        { label: 'You owe',           value: m.totalPayable,       icon: ArrowDownCircle,  tint: 'rose' },
-        { label: 'Spent this month',  value: m.currentMonthExpenses, icon: FileText,       tint: 'amber' },
-        { label: 'Total expenses',    value: m.totalExpenses,      icon: Activity,         tint: 'amber' },
+        { label: 'Bank', value: m.totalBankBalance, icon: Landmark, tint: 'emerald' },
+        { label: 'Wallet', value: m.totalWalletBalance, icon: Wallet, tint: 'teal' },
+        { label: 'PSX', value: m.stockValue, icon: TrendingUp, tint: 'emerald', pl: pl(m.stockValue, m.stockCost) },
+        { label: 'Mutual Funds', value: m.mutualFundValue, icon: PieIcon, tint: 'teal', pl: pl(m.mutualFundValue, m.mutualFundCost) },
+        { label: 'Owed to you', value: m.totalReceivable, icon: ArrowUpCircle, tint: 'emerald' },
+        { label: 'You owe', value: m.totalPayable, icon: ArrowDownCircle, tint: 'rose' },
+        { label: 'Spent this month', value: m.currentMonthExpenses, icon: FileText, tint: 'amber' },
+        { label: 'Total expenses', value: m.totalExpenses, icon: Activity, tint: 'amber' },
     ];
 
     return (
@@ -478,9 +479,9 @@ function Metrics({ summary, loading }) {
 
 const TINT_CLASSES = {
     emerald: { icon: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-950/30' },
-    teal:    { icon: 'text-teal-600 dark:text-teal-400',       bg: 'bg-teal-50 dark:bg-teal-950/30' },
-    rose:    { icon: 'text-rose-600 dark:text-rose-400',       bg: 'bg-rose-50 dark:bg-rose-950/30' },
-    amber:   { icon: 'text-amber-700 dark:text-amber-400',     bg: 'bg-amber-50 dark:bg-amber-950/30' },
+    teal: { icon: 'text-teal-600 dark:text-teal-400', bg: 'bg-teal-50 dark:bg-teal-950/30' },
+    rose: { icon: 'text-rose-600 dark:text-rose-400', bg: 'bg-rose-50 dark:bg-rose-950/30' },
+    amber: { icon: 'text-amber-700 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-950/30' },
 };
 
 function MetricCard({ label, value, icon: Icon, tint, pl }) {

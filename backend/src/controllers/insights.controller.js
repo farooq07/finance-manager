@@ -298,3 +298,128 @@ export const getInsights = async (req, res) => {
         res.status(500).json({ message: 'Server error generating insights' });
     }
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  getSpendingRows — period-filtered, unified transaction list across
+//  bank statements + wallet statements + manual expenses.
+//  The Spending page uses this so the table matches the hero stats exactly
+//  (same period, same sources). Each row carries a `source` (bank|wallet|manual)
+//  and the human-readable `sourceLabel` (e.g. "Standard Chartered", "Naya Pay")
+//  so the frontend can colour-code by institution.
+// ─────────────────────────────────────────────────────────────────────────────
+export const getSpendingRows = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const period = ['month', 'quarter', 'year'].includes(req.query.period) ? req.query.period : 'month';
+        const anchor = req.query.anchor ? new Date(req.query.anchor) : new Date();
+        const { currentStart, currentEnd } = getRanges(period, anchor);
+
+        const [bankRows, walletRows, expenseRows] = await Promise.all([
+            prisma.bankTransactionLog.findMany({
+                where: {
+                    transaction_date: { gte: currentStart, lt: currentEnd },
+                    bank_statement: { bank: { user_id: userId } },
+                },
+                select: {
+                    id: true,
+                    transaction_date: true,
+                    description: true,
+                    debit_amount: true,
+                    credit_amount: true,
+                    approved_category: true,
+                    suggested_category: true,
+                    processing_status: true,
+                    bank_statement: { select: { bank: { select: { id: true, name: true } } } },
+                },
+            }),
+            prisma.walletTransactionLog.findMany({
+                where: {
+                    transaction_date: { gte: currentStart, lt: currentEnd },
+                    wallet_statement: { wallet: { user_id: userId } },
+                },
+                select: {
+                    id: true,
+                    transaction_date: true,
+                    description: true,
+                    debit_amount: true,
+                    credit_amount: true,
+                    approved_category: true,
+                    suggested_category: true,
+                    processing_status: true,
+                    wallet_statement: { select: { wallet: { select: { id: true, name: true, institution: true } } } },
+                },
+            }),
+            prisma.expense.findMany({
+                where: { user_id: userId, expense_date: { gte: currentStart, lt: currentEnd } },
+                select: { id: true, category: true, amount: true, notes: true, expense_date: true, payment_method: true },
+            }),
+        ]);
+
+        const rows = [];
+
+        for (const tx of bankRows) {
+            const debit = Number(tx.debit_amount || 0);
+            const credit = Number(tx.credit_amount || 0);
+            const amount = credit > 0 ? credit : debit;
+            const kind = credit > 0 ? 'credit' : 'debit';
+            rows.push({
+                id: `bank:${tx.id}`,
+                source: 'bank',
+                sourceId: tx.bank_statement?.bank?.id,
+                sourceLabel: tx.bank_statement?.bank?.name || 'Bank',
+                date: tx.transaction_date,
+                description: tx.description || '',
+                category: tx.approved_category || tx.suggested_category || 'Uncategorised',
+                amount,
+                kind,
+                status: tx.processing_status || 'approved',
+            });
+        }
+
+        for (const tx of walletRows) {
+            const debit = Number(tx.debit_amount || 0);
+            const credit = Number(tx.credit_amount || 0);
+            const amount = credit > 0 ? credit : debit;
+            const kind = credit > 0 ? 'credit' : 'debit';
+            rows.push({
+                id: `wallet:${tx.id}`,
+                source: 'wallet',
+                sourceId: tx.wallet_statement?.wallet?.id,
+                sourceLabel: tx.wallet_statement?.wallet?.institution || tx.wallet_statement?.wallet?.name || 'Wallet',
+                date: tx.transaction_date,
+                description: tx.description || '',
+                category: tx.approved_category || tx.suggested_category || 'Uncategorised',
+                amount,
+                kind,
+                status: tx.processing_status || 'approved',
+            });
+        }
+
+        for (const e of expenseRows) {
+            rows.push({
+                id: `manual:${e.id}`,
+                source: 'manual',
+                sourceId: null,
+                sourceLabel: e.payment_method || 'Manual',
+                date: e.expense_date,
+                description: e.notes || '',
+                category: e.category || 'Uncategorised',
+                amount: Number(e.amount || 0),
+                kind: 'debit',
+                status: 'approved',
+            });
+        }
+
+        rows.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+        res.json({
+            period,
+            range: { start: currentStart, end: currentEnd },
+            count: rows.length,
+            rows,
+        });
+    } catch (error) {
+        logger.error('[SPENDING_ROWS] failed:', error);
+        res.status(500).json({ message: 'Server error loading spending rows' });
+    }
+};

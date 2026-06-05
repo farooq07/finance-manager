@@ -1,73 +1,32 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, TrendingUp, PieChart, Wallet, ShieldCheck, BarChart3, Landmark, UserPlus, Mail, CheckCircle2 } from 'lucide-react';
-import logo from '../assets/logo.svg';
+import { ArrowRight, Mail, CheckCircle2, Sparkles } from 'lucide-react';
+import SocialAuthButtons from '../components/auth/SocialAuthButtons';
 
-/* ─── Bento Illustration Cards ─── */
-const BentoCard = ({ icon: Icon, title, description, gradient, iconColor, delay }) => (
-    <div
-        className={`group relative overflow-hidden rounded-2xl p-5 border border-white/10 backdrop-blur-sm
-            transition-all duration-500 hover:scale-[1.02] hover:shadow-2xl cursor-default`}
-        style={{ background: gradient, animationDelay: delay }}
-    >
-        <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-        <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-3 ${iconColor} shadow-lg`}>
-            <Icon className="w-5 h-5 text-white" strokeWidth={2} />
-        </div>
-        <h3 className="text-white font-semibold text-sm mb-1">{title}</h3>
-        <p className="text-white/60 text-xs leading-relaxed">{description}</p>
-    </div>
-);
-
-/* ─── Animated Dots Background ─── */
-const GridPattern = () => (
-    <svg className="absolute inset-0 w-full h-full opacity-[0.03]" xmlns="http://www.w3.org/2000/svg">
-        <defs>
-            <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
-                <circle cx="1" cy="1" r="1" fill="white" />
-            </pattern>
-        </defs>
-        <rect width="100%" height="100%" fill="url(#grid)" />
-    </svg>
-);
-
-/* ─── Mini Chart SVG Illustration ─── */
-const MiniChart = () => (
-    <svg viewBox="0 0 200 80" className="w-full h-16 mt-2 opacity-60" fill="none">
-        <defs>
-            <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#818cf8" stopOpacity="0.4" />
-                <stop offset="100%" stopColor="#818cf8" stopOpacity="0" />
-            </linearGradient>
-        </defs>
-        <path d="M0 60 Q25 55 40 45 T80 30 T120 35 T160 20 T200 15" stroke="#818cf8" strokeWidth="2" fill="none" />
-        <path d="M0 60 Q25 55 40 45 T80 30 T120 35 T160 20 T200 15 L200 80 L0 80Z" fill="url(#chartGrad)" />
-    </svg>
-);
-
-/* ─── Circular Progress SVG ─── */
-const CircularProgress = ({ percent, color, label }) => {
-    const r = 28;
-    const circ = 2 * Math.PI * r;
-    const offset = circ - (percent / 100) * circ;
+function Field({ id, label, type = 'text', value, onChange, placeholder, required, autoComplete, hint }) {
     return (
-        <div className="flex flex-col items-center gap-1">
-            <svg width="68" height="68" viewBox="0 0 68 68">
-                <circle cx="34" cy="34" r={r} fill="none" stroke="white" strokeOpacity="0.1" strokeWidth="5" />
-                <circle cx="34" cy="34" r={r} fill="none" stroke={color} strokeWidth="5"
-                    strokeDasharray={circ} strokeDashoffset={offset}
-                    strokeLinecap="round" transform="rotate(-90 34 34)"
-                    className="transition-all duration-1000"
-                />
-                <text x="34" y="38" textAnchor="middle" fill="white" fontSize="13" fontWeight="600">
-                    {percent}%
-                </text>
-            </svg>
-            <span className="text-[10px] text-white/50 font-medium">{label}</span>
+        <div className="text-left">
+            <div className="mb-1.5">
+                <label htmlFor={id} className="text-[12px] font-medium text-gray-700">{label}</label>
+            </div>
+            <input
+                id={id}
+                type={type}
+                required={required}
+                autoComplete={autoComplete}
+                placeholder={placeholder}
+                value={value}
+                onChange={onChange}
+                className="w-full h-11 px-3.5 rounded-xl bg-white
+                           border border-gray-200 text-[14px] text-gray-900 placeholder-gray-400
+                           focus:outline-none focus:border-primary-600 focus:ring-4 focus:ring-primary-600/10
+                           transition-all duration-200"
+            />
+            {hint && <p className="mt-1 text-[11.5px] text-gray-400">{hint}</p>}
         </div>
     );
-};
+}
 
 export default function Register() {
     const { register, resendVerification } = useAuth();
@@ -78,6 +37,7 @@ export default function Register() {
 
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+    const [socialBusy, setSocialBusy] = useState(false);
     const [submittedEmail, setSubmittedEmail] = useState('');
     const [resending, setResending] = useState(false);
     const [resentNote, setResentNote] = useState('');
@@ -98,7 +58,7 @@ export default function Register() {
             const status = err.response?.status;
             const message = err.response?.data?.message;
             if (status === 403) {
-                setError(message || 'Registration is currently disabled. Please contact your administrator.');
+                setError(message || 'Registration is currently disabled.');
             } else {
                 setError(message || 'Failed to create account');
             }
@@ -114,236 +74,197 @@ export default function Register() {
             await resendVerification(submittedEmail);
             setResentNote('A new verification link has been sent.');
         } catch {
-            setResentNote('Could not resend right now. Please try again shortly.');
+            setResentNote('Could not resend right now.');
         } finally {
             setResending(false);
         }
     };
 
     return (
-        <div className="min-h-screen flex bg-gray-950">
+        <div className="min-h-screen flex flex-col items-center px-4" style={{ background: '#F2F4EE' }}>
+            <header className="pt-10 sm:pt-14 flex items-center gap-2.5">
+                <span className="w-9 h-9 rounded-xl bg-primary-600 flex items-center justify-center shadow-sm">
+                    <Sparkles className="w-4 h-4 text-primary-100" strokeWidth={2.5} />
+                </span>
+                <span className="text-[18px] font-semibold tracking-tight text-gray-900">
+                    FSWealth <span className="text-primary-600">Axis</span>
+                </span>
+            </header>
 
-            {/* ─── LEFT: Bento Showcase Panel ─── */}
-            <div className="hidden lg:flex lg:w-[55%] xl:w-[58%] relative overflow-hidden flex-col justify-between p-8 xl:p-12"
-                style={{ background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 40%, #1e1b4b 100%)' }}
-            >
-                <GridPattern />
+            <main className="flex-1 w-full flex items-center justify-center py-10">
+                <div className="w-full max-w-[440px]">
+                    <div className="bg-white rounded-3xl border border-gray-200/80 shadow-[0_4px_24px_rgba(31,72,66,0.04)] p-7 sm:p-9">
 
-                {/* Top: Brand */}
-                <div className="relative z-10 flex items-center justify-between">
-                    <span class="text-2xl font-bold text-white tracking-tight">FSWealth <span class="text-emerald-400">Axis</span></span>
-                    <span className="px-4 py-1.5 rounded-full bg-white/10 text-white border border-white/20 text-xs font-medium tracking-wide">
-                        Join 2,000+ Users
-                    </span>
-                </div>
-
-                {/* Bento Grid */}
-                <div className="relative z-10 flex-1 flex items-center py-8">
-                    <div className="w-full max-w-2xl grid grid-cols-3 grid-rows-3 gap-4">
-
-                        {/* Card 1 — Large: Growth Overview */}
-                        <div className="col-span-2 row-span-1 rounded-2xl p-6 border border-white/10 overflow-hidden"
-                            style={{ background: 'linear-gradient(135deg, rgba(129,140,248,0.12) 0%, rgba(30,27,75,0.8) 100%)' }}>
-                            <div className="flex items-center justify-between mb-1">
-                                <div>
-                                    <p className="text-white/50 text-xs font-medium uppercase tracking-wider">Start Growing</p>
-                                    <p className="text-white text-2xl font-bold mt-1">Accelerate <span className="text-indigo-400 font-medium ml-2">Wealth</span></p>
+                        {submittedEmail ? (
+                            /* ─── Email-sent confirmation ─── */
+                            <div className="text-center">
+                                <div className="mx-auto w-14 h-14 rounded-2xl bg-primary-50 flex items-center justify-center mb-5">
+                                    <Mail className="w-6 h-6 text-primary-600" />
                                 </div>
-                                <div className="w-10 h-10 rounded-xl bg-indigo-500/20 flex items-center justify-center">
-                                    <UserPlus className="w-5 h-5 text-indigo-400" />
-                                </div>
-                            </div>
-                            <MiniChart />
-                        </div>
-
-                        {/* Card 2 — Small: Security */}
-                        <BentoCard icon={ShieldCheck} title="Bank-Level Security" description="256-bit encrypted" gradient="linear-gradient(135deg, rgba(99,102,241,0.15) 0%, rgba(30,27,75,0.8) 100%)" iconColor="bg-indigo-500/80" delay="0.1s" />
-                        <BentoCard icon={Wallet} title="Smart Wallets" description="Track every account" gradient="linear-gradient(135deg, rgba(251,191,36,0.12) 0%, rgba(30,27,75,0.8) 100%)" iconColor="bg-amber-500/80" delay="0.2s" />
-
-                        <div className="col-span-2 rounded-2xl p-5 border border-white/10" style={{ background: 'linear-gradient(135deg, rgba(139,92,246,0.1) 0%, rgba(30,27,75,0.8) 100%)' }}>
-                            <p className="text-white/50 text-xs font-medium uppercase tracking-wider mb-3">Asset Allocation</p>
-                            <div className="flex items-center gap-6">
-                                <CircularProgress percent={42} color="#34d399" label="Stocks" />
-                                <CircularProgress percent={28} color="#818cf8" label="Bonds" />
-                                <CircularProgress percent={18} color="#fbbf24" label="Real Estate" />
-                                <CircularProgress percent={12} color="#f87171" label="Cash" />
-                            </div>
-                        </div>
-
-                        <BentoCard icon={BarChart3} title="Live Reports" description="Real-time analytics" gradient="linear-gradient(135deg, rgba(244,63,94,0.12) 0%, rgba(30,27,75,0.8) 100%)" iconColor="bg-rose-500/80" delay="0.3s" />
-
-                        <div className="col-span-3 rounded-2xl p-5 border border-white/10 flex items-center gap-5" style={{ background: 'linear-gradient(135deg, rgba(129,140,248,0.06) 0%, rgba(30,27,75,0.6) 100%)' }}>
-                            <div className="w-12 h-12 rounded-2xl bg-indigo-500/20 flex items-center justify-center shrink-0">
-                                <Landmark className="w-6 h-6 text-indigo-400" />
-                            </div>
-                            <div>
-                                <h3 className="text-white font-semibold text-sm">Create your free account today</h3>
-                                <p className="text-white/40 text-xs mt-0.5">Start tracking investments, expenses, dues, and rents — all in one unified dashboard.</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="absolute top-1/4 -right-20 w-72 h-72 bg-indigo-500/10 rounded-full blur-3xl" />
-                <div className="absolute -bottom-10 left-1/4 w-48 h-48 bg-purple-500/8 rounded-full blur-3xl" />
-            </div>
-
-            {/* ─── RIGHT: Register Form ─── */}
-            <div className="w-full lg:w-[45%] xl:w-[42%] flex items-center justify-center p-6 sm:p-8 lg:p-12 bg-white dark:bg-gray-950 border-l border-gray-100 dark:border-gray-800">
-                <div className="w-full max-w-[420px]">
-
-                    {submittedEmail ? (
-                        /* ─── Email-sent success state ─── */
-                        <div className="text-center">
-                            <img src={logo} alt="WealthAxis Logo" className="h-10 w-auto mb-8 mx-auto" />
-                            <div className="mx-auto w-16 h-16 rounded-full bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center mb-6">
-                                <Mail className="w-8 h-8 text-emerald-600 dark:text-emerald-400" />
-                            </div>
-                            <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">
-                                Confirm your email
-                            </h1>
-                            <p className="mt-3 text-gray-500 dark:text-gray-400 text-sm leading-relaxed">
-                                We've sent a verification link to
-                                <br />
-                                <span className="font-semibold text-gray-900 dark:text-gray-100">{submittedEmail}</span>
-                            </p>
-                            <p className="mt-2 text-gray-400 dark:text-gray-500 text-xs">
-                                Click the link in your inbox to activate your account. The link expires in 24 hours.
-                            </p>
-
-                            {existingNote && (
-                                <div className="mt-5 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 px-3 py-2.5 rounded-xl text-xs border border-amber-200 dark:border-amber-800/40">
-                                    {existingNote}
-                                </div>
-                            )}
-
-                            {resentNote && (
-                                <div className="mt-5 inline-flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400">
-                                    <CheckCircle2 className="w-4 h-4" />
-                                    {resentNote}
-                                </div>
-                            )}
-
-                            <div className="mt-8 space-y-3">
-                                <button
-                                    onClick={handleResend}
-                                    disabled={resending}
-                                    className="w-full py-2.5 px-4 rounded-xl text-sm font-semibold text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 hover:bg-primary-100 dark:hover:bg-primary-900/30 border border-primary-200 dark:border-primary-800/40 transition-all disabled:opacity-50"
-                                >
-                                    {resending ? 'Sending…' : 'Resend verification email'}
-                                </button>
-                                <Link
-                                    to="/login"
-                                    className="block w-full py-2.5 px-4 rounded-xl text-sm font-semibold text-white bg-primary-600 hover:bg-primary-700 transition-all shadow-sm hover:shadow-md"
-                                >
-                                    Back to sign in
-                                </Link>
-                            </div>
-                        </div>
-                    ) : (
-                        <>
-                            {/* Logo & Header */}
-                            <div className="mb-10">
-                                <img src={logo} alt="WealthAxis Logo" className="h-10 w-auto mb-8" />
-                                <h1 className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">
-                                    Create an account
+                                <h1 className="text-[26px] font-semibold text-gray-900 tracking-tight leading-tight">
+                                    Confirm your email
                                 </h1>
-                                <p className="mt-2 text-gray-500 dark:text-gray-400 text-sm">
-                                    Join WealthAxis to take control of your financial future.
+                                <p className="mt-2 text-[13.5px] text-gray-500 leading-relaxed">
+                                    We sent a verification link to<br />
+                                    <span className="font-semibold text-gray-900">{submittedEmail}</span>
                                 </p>
-                            </div>
+                                <p className="mt-3 text-[12px] text-gray-400">
+                                    The link expires in 24 hours.
+                                </p>
 
-                            {/* Register Form */}
-                            <form className="space-y-5" onSubmit={handleSubmit}>
+                                {existingNote && (
+                                    <div className="mt-5 px-3.5 py-2.5 rounded-xl bg-warning-25 border border-warning-100 text-warning-800 text-[12.5px] text-left">
+                                        {existingNote}
+                                    </div>
+                                )}
+
+                                {resentNote && (
+                                    <div className="mt-4 inline-flex items-center gap-1.5 text-[12.5px] text-success-700">
+                                        <CheckCircle2 className="w-3.5 h-3.5" />
+                                        {resentNote}
+                                    </div>
+                                )}
+
+                                <div className="mt-7 space-y-2.5">
+                                    <button
+                                        onClick={handleResend}
+                                        disabled={resending}
+                                        className="w-full h-11 inline-flex items-center justify-center
+                                                   rounded-xl border border-gray-200 bg-white hover:bg-gray-50 hover:border-gray-300
+                                                   text-[14px] font-semibold text-gray-700 transition-all duration-200 disabled:opacity-50"
+                                    >
+                                        {resending ? 'Sending…' : 'Resend verification email'}
+                                    </button>
+                                    <Link
+                                        to="/login"
+                                        className="group w-full h-11 inline-flex items-center justify-center gap-2
+                                                   rounded-xl text-[14px] font-semibold text-white
+                                                   bg-primary-600 hover:bg-primary-700 active:bg-primary-800
+                                                   transition-all duration-200 shadow-sm hover:shadow"
+                                    >
+                                        Back to sign in
+                                        <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" strokeWidth={2.5} />
+                                    </Link>
+                                </div>
+                            </div>
+                        ) : (
+                            <>
+                                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary-50 text-primary-700 text-[11px] font-medium mb-6">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-primary-500" />
+                                    Get started
+                                </div>
+
+                                <h1 className="text-[28px] font-semibold text-gray-900 tracking-tight leading-tight">
+                                    Create your account
+                                </h1>
+                                <p className="mt-2 text-[13.5px] text-gray-500 mb-7">
+                                    Track every rupee across banks, wallets, and investments.
+                                </p>
+
                                 {error && (
-                                    <div className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-3.5 rounded-xl text-sm border border-red-100 dark:border-red-900/40 flex items-center gap-2">
-                                        <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-red-500" />
+                                    <div
+                                        role="alert"
+                                        className="mb-5 px-3.5 py-2.5 rounded-xl bg-error-50 border border-error-100 text-error-700 text-[12.5px] flex items-start gap-2"
+                                    >
+                                        <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-error-500 mt-1.5" />
                                         {error}
                                     </div>
                                 )}
 
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                                        Full Name
-                                    </label>
-                                    <input
-                                        type="text"
-                                        required
-                                        placeholder="John Doe"
-                                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500/40 focus:border-primary-500 text-sm transition-all duration-200"
+                                <div className="mb-5">
+                                    <SocialAuthButtons mode="signup" onBusy={setSocialBusy} onError={setError} />
+                                </div>
+
+                                <div className="flex items-center gap-3 mb-5">
+                                    <div className="flex-1 h-px bg-gray-200" />
+                                    <span className="text-[11px] text-gray-400 uppercase tracking-wider">or sign up with email</span>
+                                    <div className="flex-1 h-px bg-gray-200" />
+                                </div>
+
+                                <form className="space-y-4" onSubmit={handleSubmit}>
+                                    <Field
+                                        id="register-name"
+                                        label="Full name"
                                         value={name}
                                         onChange={(e) => setName(e.target.value)}
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                                        Email address
-                                    </label>
-                                    <input
-                                        type="email"
+                                        placeholder="Andrew Forbist"
                                         required
-                                        placeholder="you@example.com"
-                                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500/40 focus:border-primary-500 text-sm transition-all duration-200"
+                                        autoComplete="name"
+                                    />
+                                    <Field
+                                        id="register-email"
+                                        label="Email address"
+                                        type="email"
                                         value={email}
                                         onChange={(e) => setEmail(e.target.value)}
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                                        Password
-                                    </label>
-                                    <input
-                                        type="password"
+                                        placeholder="you@example.com"
                                         required
-                                        placeholder="Create a strong password"
-                                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500/40 focus:border-primary-500 text-sm transition-all duration-200"
+                                        autoComplete="email"
+                                    />
+                                    <Field
+                                        id="register-password"
+                                        label="Password"
+                                        type="password"
                                         value={password}
                                         onChange={(e) => setPassword(e.target.value)}
+                                        placeholder="At least 8 characters"
+                                        required
+                                        autoComplete="new-password"
+                                        hint="Use a mix of letters and numbers."
                                     />
-                                </div>
 
-                                <button
-                                    type="submit"
-                                    disabled={loading}
-                                    className="w-full py-2.5 px-4 rounded-xl text-sm font-semibold text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-sm hover:shadow-md active:scale-[0.98]"
-                                >
-                                    {loading ? (
-                                        <span className="flex items-center justify-center gap-2">
-                                            <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                                            </svg>
-                                            Creating account...
-                                        </span>
-                                    ) : 'Sign up'}
-                                </button>
-                            </form>
+                                    <button
+                                        type="submit"
+                                        disabled={loading || socialBusy}
+                                        className="group w-full h-11 mt-1 inline-flex items-center justify-center gap-2
+                                                   rounded-xl text-[14px] font-semibold text-white
+                                                   bg-primary-600 hover:bg-primary-700 active:bg-primary-800
+                                                   disabled:opacity-50 disabled:cursor-not-allowed
+                                                   transition-all duration-200 shadow-sm hover:shadow"
+                                    >
+                                        {loading ? (
+                                            <>
+                                                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                                                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" fill="none" opacity="0.25" />
+                                                    <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.4 0 0 5.4 0 12h4z" />
+                                                </svg>
+                                                <span>Creating…</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <span>Create account</span>
+                                                <ArrowRight className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-0.5" strokeWidth={2.5} />
+                                            </>
+                                        )}
+                                    </button>
+                                </form>
 
-                            {/* Divider */}
-                            <div className="relative my-8">
-                                <div className="absolute inset-0 flex items-center">
-                                    <div className="w-full border-t border-gray-200 dark:border-gray-800" />
-                                </div>
-                                <div className="relative flex justify-center text-xs">
-                                    <span className="px-3 bg-white dark:bg-gray-950 text-gray-400 dark:text-gray-500 font-medium">
-                                        Already have an account?
-                                    </span>
-                                </div>
-                            </div>
+                                <p className="mt-5 text-[11.5px] text-gray-400 leading-relaxed text-center">
+                                    By signing up you agree to our{' '}
+                                    <Link to="/terms" className="underline underline-offset-2 hover:text-gray-700">Terms</Link>
+                                    {' '}and{' '}
+                                    <Link to="/privacy" className="underline underline-offset-2 hover:text-gray-700">Privacy Policy</Link>.
+                                </p>
 
-                            {/* Login Link */}
-                            <Link
-                                to="/login"
-                                className="w-full flex justify-center py-2.5 px-4 rounded-xl text-sm font-semibold text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 hover:bg-primary-100 dark:hover:bg-primary-900/30 border border-primary-200 dark:border-primary-800/40 transition-all duration-200"
-                            >
-                                Sign in instead
-                            </Link>
-                        </>
-                    )}
+                                <p className="mt-5 text-center text-[13px] text-gray-500">
+                                    Already have an account?{' '}
+                                    <Link to="/login" className="font-semibold text-primary-600 hover:text-primary-700">
+                                        Sign in
+                                    </Link>
+                                </p>
+                            </>
+                        )}
+                    </div>
+
+                    <div className="mt-6 flex items-center justify-center gap-4 text-[11.5px] text-gray-400">
+                        <Link to="/terms" className="hover:text-gray-700 transition-colors">Terms</Link>
+                        <span className="text-gray-300">·</span>
+                        <Link to="/privacy" className="hover:text-gray-700 transition-colors">Privacy</Link>
+                        <span className="text-gray-300">·</span>
+                        <span>© 2026 FSWealth Axis</span>
+                    </div>
                 </div>
-            </div>
+            </main>
         </div>
     );
 }

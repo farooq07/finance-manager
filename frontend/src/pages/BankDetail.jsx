@@ -1,19 +1,41 @@
-import React, { useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import React, { useMemo, useState } from 'react';
+import { useParams } from 'react-router-dom';
 import { useBank, useBankCategorySummary } from '../hooks/useBanks';
 import { useBankAllTransactions } from '../hooks/useStatementTransactions';
 import { fmtPKR } from '../utils/currency';
-import { ArrowLeft, UploadCloud, AlertCircle, Loader2, X, Trash2, TrendingUp, TrendingDown, BarChart3, ChevronsUpDown, RefreshCw } from 'lucide-react';
+import {
+    UploadCloud, Loader2, Trash2, TrendingUp, TrendingDown, RefreshCw,
+    ArrowDownLeft, ArrowUpRight, Activity, Mail, FileText, Settings,
+    BarChart3, ChevronRight, MapPin,
+} from 'lucide-react';
 import { Skeleton, TableSkeleton } from '../components/Skeleton';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../services/api';
 import { toast } from 'sonner';
 import Button from '../components/Button';
-import TextInput from '../components/TextInput';
 import Modal from '../components/Modal';
 import StatementTransactionsModal from '../components/StatementTransactionsModal';
 import BankTransactionsTable from '../components/BankTransactionsTable';
 import StatementFileUpload from '../components/StatementFileUpload';
+
+/* ─── PKR shorthand: 6.82 L (lakh), 12.4 K, etc. ──────────────── */
+function fmtPKRShort(n) {
+    const abs = Math.abs(Number(n) || 0);
+    if (abs >= 1e7) return `${(n / 1e7).toFixed(2)} Cr`;
+    if (abs >= 1e5) return `${(n / 1e5).toFixed(2)} L`;
+    if (abs >= 1e3) return `${(n / 1e3).toFixed(1)} K`;
+    return `${Math.round(n)}`;
+}
+
+/* ─── Two-letter monogram for the account logo square ─────────── */
+function monogram(name = '') {
+    return name
+        .split(/[\s_-]+/)
+        .filter(Boolean)
+        .slice(0, 1)
+        .map((w) => w.charAt(0).toUpperCase())
+        .join('') || 'A';
+}
 
 export default function BankDetail() {
     const { id } = useParams();
@@ -26,8 +48,9 @@ export default function BankDetail() {
     const [pdfPassword, setPdfPassword] = useState('');
     const [fileName, setFileName] = useState('');
     const [selectedStatement, setSelectedStatement] = useState(null);
+    const [duplicate, setDuplicate] = useState(null);
+    const [replacing, setReplacing] = useState(false);
 
-    // Delete statement mutation
     const deleteStatementMutation = useMutation({
         mutationFn: async (statementId) => {
             const { data } = await api.delete(`/banks/${id}/statements/${statementId}`);
@@ -41,17 +64,9 @@ export default function BankDetail() {
         },
         onError: (error) => {
             toast.error(error.response?.data?.message || 'Failed to delete statement');
-        }
+        },
     });
 
-    const handleDeleteStatement = (statementId, statementTitle) => {
-        if (!window.confirm(`Delete the statement "${statementTitle}"? This will remove all its transactions and any approved expenses created from them.`)) {
-            return;
-        }
-        deleteStatementMutation.mutate(statementId);
-    };
-
-    // Sync statement balance mutation
     const syncBalanceMutation = useMutation({
         mutationFn: async (statementId) => {
             const { data } = await api.post(`/banks/${id}/statements/${statementId}/sync`);
@@ -64,61 +79,88 @@ export default function BankDetail() {
         },
         onError: (error) => {
             toast.error(error.response?.data?.message || 'Failed to sync balance');
-        }
+        },
     });
 
-    // Upload statement mutation
+    const doUpload = async ({ force = false } = {}) => {
+        if (!uploadFile) throw new Error('Please select a PDF file');
+        const formData = new FormData();
+        formData.append('file', uploadFile);
+        if (pdfPassword) formData.append('password', pdfPassword);
+        if (force) formData.append('force', 'true');
+        const { data } = await api.post(`/banks/${id}/statements/upload`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        return data;
+    };
+
+    const resetUploadModal = () => {
+        setIsUploadModalOpen(false);
+        setUploadFile(null);
+        setPdfPassword('');
+        setFileName('');
+    };
+
     const uploadStatementMutation = useMutation({
-        mutationFn: async () => {
-            if (!uploadFile) {
-                throw new Error('Please select a PDF file');
-            }
-
-            const formData = new FormData();
-            formData.append('file', uploadFile);
-            if (pdfPassword) {
-                formData.append('password', pdfPassword);
-            }
-
-            const { data } = await api.post(`/banks/${id}/statements/upload`, formData, {
-                headers: {
-                    'Content-Type': 'multipart/form-data'
-                }
-            });
-            return data;
-        },
-        onSuccess: (data) => {
+        mutationFn: () => doUpload(),
+        onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['banks', id] });
             queryClient.invalidateQueries({ queryKey: ['banks'] });
-            setIsUploadModalOpen(false);
-            setUploadFile(null);
-            setPdfPassword('');
-            setFileName('');
-            toast.success('Statement uploaded successfully! Processing transactions...');
+            resetUploadModal();
+            toast.success('Statement uploaded — processing transactions…');
         },
         onError: (error) => {
-            const message = error.response?.data?.message;
-            if (message?.includes('already imported')) {
-                toast.info('This PDF was already imported. Check the transactions table below to view existing data.');
-            } else {
-                toast.error(message || 'Failed to upload statement');
+            if (error.response?.status === 409 && error.response.data?.duplicate) {
+                setDuplicate(error.response.data.existing || {});
+                return;
             }
-        }
+            toast.error(error.response?.data?.message || 'Failed to upload statement');
+        },
     });
+
+    const handleConfirmReplace = async () => {
+        setReplacing(true);
+        try {
+            await doUpload({ force: true });
+            queryClient.invalidateQueries({ queryKey: ['banks', id] });
+            queryClient.invalidateQueries({ queryKey: ['banks'] });
+            setDuplicate(null);
+            resetUploadModal();
+            toast.success('Statement replaced — processing transactions…');
+        } catch (retryErr) {
+            toast.error(retryErr.response?.data?.message || 'Failed to replace statement');
+        } finally {
+            setReplacing(false);
+        }
+    };
+
+    /* ─── Aggregate stats from real transactions ─────────────── */
+    const stats = useMemo(() => {
+        let inflow = 0, outflow = 0;
+        let deposits = 0, withdrawals = 0;
+        let pending = 0;
+        allTransactions.forEach((tx) => {
+            const credit = Number(tx.credit_amount || 0);
+            const debit = Number(tx.debit_amount || 0);
+            if (credit > 0) { inflow += credit; deposits++; }
+            if (debit > 0) { outflow += debit; withdrawals++; }
+            if (tx.processing_status !== 'approved') pending++;
+        });
+        return {
+            inflow, outflow, net: inflow - outflow,
+            deposits, withdrawals,
+            pending,
+            statementsCount: bank?.statements?.length || 0,
+        };
+    }, [allTransactions, bank?.statements?.length]);
 
     const handleFileChange = (e) => {
         const file = e.target.files?.[0];
         if (file) {
             const isPdf = file.type === 'application/pdf';
             const isCsv = file.type === 'text/csv' || file.type === 'application/csv' || file.name.toLowerCase().endsWith('.csv');
-            if (!isPdf && !isCsv) {
-                toast.error('Only PDF or CSV files are allowed');
-                return;
-            }
-            if (file.size > 10 * 1024 * 1024) {
-                toast.error('File size must be less than 10MB');
-                return;
-            }
+            if (!isPdf && !isCsv) { toast.error('Only PDF or CSV files are allowed'); return; }
+            if (file.size > 10 * 1024 * 1024) { toast.error('File size must be less than 10MB'); return; }
             setUploadFile(file);
             setFileName(file.name);
         }
@@ -126,189 +168,112 @@ export default function BankDetail() {
 
     const handleUpload = async (e) => {
         e.preventDefault();
-        if (!uploadFile) {
-            toast.error('Please select a PDF file');
-            return;
-        }
+        if (!uploadFile) { toast.error('Please select a PDF file'); return; }
         await uploadStatementMutation.mutateAsync();
     };
 
-    if (isLoading) return (
-        <div className="max-w-7xl mx-auto space-y-6">
-            <div className="h-4 w-24 bg-gray-200 dark:bg-neutral-800 animate-pulse rounded mb-4" />
-            <div className="bg-white dark:bg-neutral-900 rounded-xl shadow-sm border border-gray-100 dark:border-neutral-800 overflow-hidden transition-colors">
-                <div className="p-6 border-b border-gray-100 dark:border-neutral-800 flex justify-between items-center">
-                    <div className="space-y-2">
-                        <Skeleton className="h-8 w-48" />
-                        <Skeleton className="h-4 w-32" />
-                    </div>
-                    <div className="space-y-2 flex flex-col items-end">
-                        <Skeleton className="h-4 w-24" />
-                        <Skeleton className="h-8 w-40" />
-                    </div>
-                </div>
-                <div className="p-6 bg-gray-50 dark:bg-neutral-800/50 transition-colors">
-                    <div className="flex justify-between items-center mb-4">
-                        <Skeleton className="h-6 w-32" />
-                        <Skeleton className="h-10 w-32 rounded-lg" />
-                    </div>
-                    <TableSkeleton rows={3} />
-                </div>
+    if (isLoading) {
+        return (
+            <div className="max-w-[1400px] mx-auto space-y-5">
+                <Skeleton className="h-32" />
+                <Skeleton className="h-24" />
             </div>
-        </div>
-    );
-    if (!bank) return <div className="p-8 text-red-500 dark:text-red-400">Bank not found.</div>;
+        );
+    }
+    if (!bank) return <div className="p-8 text-error-500">Bank not found.</div>;
+
+    const hasOpening = bank.statements?.some(s => s.opening_balance != null);
+    const change = hasOpening ? stats.net : 0; // crude delta proxy from current statements
+    const changePct = hasOpening && bank.current_balance > 0
+        ? (change / Math.max(bank.current_balance - change, 1)) * 100
+        : 0;
 
     return (
-        <div className="max-w-7xl mx-auto space-y-6">
-            <div className="flex items-center gap-4 mb-2">
-                <Link to="/accounts" className="inline-flex items-center gap-2 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors">
-                    <ArrowLeft className="w-4 h-4" />
-                    Back to Accounts
-                </Link>
+        <div className="max-w-[1400px] mx-auto space-y-5">
+
+            {/* ── Action toolbar (the in-page breadcrumb is already in global Header) ── */}
+            <div className="flex flex-wrap items-center justify-end gap-2">
+                <button
+                    onClick={() => bank.statements?.[0] && syncBalanceMutation.mutate(bank.statements[0].id)}
+                    disabled={!bank.statements?.length || syncBalanceMutation.isPending}
+                    className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-neutral-800 border border-transparent hover:border-gray-200 dark:hover:border-neutral-700 transition-all disabled:opacity-40"
+                >
+                    <RefreshCw className={`w-4 h-4 ${syncBalanceMutation.isPending ? 'animate-spin' : ''}`} />
+                    Sync
+                </button>
+                <button className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-neutral-800 border border-transparent hover:border-gray-200 dark:hover:border-neutral-700 transition-all">
+                    <Settings className="w-4 h-4" />
+                    Settings
+                </button>
+                <button
+                    onClick={() => setIsUploadModalOpen(true)}
+                    className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg text-sm font-semibold text-white bg-primary-600 hover:bg-primary-700 active:bg-primary-800 transition-colors shadow-sm"
+                >
+                    <UploadCloud className="w-4 h-4" />
+                    Upload statement
+                </button>
             </div>
 
-            <div className="bg-white dark:bg-neutral-900 rounded-xl shadow-sm border border-gray-200 dark:border-neutral-800 overflow-hidden transition-colors">
-                <div className="p-6 border-b border-gray-100 dark:border-neutral-800 transition-colors">
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-start gap-4">
-                        <div>
-                            <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100">{bank.name}</h1>
-                            <p className="text-gray-500 dark:text-gray-400 font-mono mt-1 text-sm">{bank.account_no} • {bank.iban_no}</p>
-                        </div>
-                        <div className="flex gap-4 sm:gap-6 flex-wrap">
-                            {/* Opening balance — from latest statement */}
-                            {(() => {
-                                const latest = bank.statements?.find(s => s.opening_balance != null);
-                                return latest ? (
-                                    <div className="text-right">
-                                        <p className="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">Opening Balance</p>
-                                        <p className="text-lg font-semibold text-gray-600 dark:text-gray-300 mt-0.5">{fmtPKR(latest.opening_balance)}</p>
-                                        <p className="text-xs text-gray-400 dark:text-gray-500">{latest.month} {latest.year}</p>
-                                    </div>
-                                ) : null;
-                            })()}
-                            {/* Current / closing balance */}
-                            <div className="text-right">
-                                <p className="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">Current Balance</p>
-                                <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mt-0.5">{fmtPKR(bank.current_balance)}</h2>
-                                {bank.statements?.some(s => s.closing_balance != null) && (
-                                    <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-0.5">Synced from statement</p>
+            {/* ── Hero card ── */}
+            <HeroCard bank={bank} change={change} changePct={changePct} />
+
+            {/* ── 5-stat horizontal strip ── */}
+            <StatStrip stats={stats} />
+
+            {/* ── Two-column main area ── */}
+            <div className="grid grid-cols-12 gap-5">
+                {/* Left sidebar */}
+                <aside className="col-span-12 lg:col-span-3 space-y-5">
+                    <StatementsList
+                        statements={bank.statements || []}
+                        onUpload={() => setIsUploadModalOpen(true)}
+                        onSelect={(s) => setSelectedStatement({ id: s.id, title: `${s.month} ${s.year}` })}
+                        onSync={(id) => syncBalanceMutation.mutate(id)}
+                        onDelete={(s) => {
+                            if (window.confirm(`Delete the statement "${s.month} ${s.year}"? Its transactions and approved expenses will be removed.`)) {
+                                deleteStatementMutation.mutate(s.id);
+                            }
+                        }}
+                        syncing={syncBalanceMutation.isPending ? syncBalanceMutation.variables : null}
+                    />
+
+                    {categorySummaryData?.total_approved > 0 && (
+                        <CategoryMiniBreakdown data={categorySummaryData} />
+                    )}
+                </aside>
+
+                {/* Right main: transactions */}
+                <section className="col-span-12 lg:col-span-9">
+                    {(txLoading || allTransactions.length > 0) ? (
+                        <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-gray-200 dark:border-neutral-800 overflow-hidden">
+                            <div className="p-5">
+                                {txLoading ? (
+                                    <TableSkeleton rows={8} />
+                                ) : (
+                                    <BankTransactionsTable
+                                        bankId={id}
+                                        transactions={allTransactions}
+                                    />
                                 )}
                             </div>
                         </div>
-                    </div>
-                </div>
-
-                <div className="p-6 bg-gray-50 dark:bg-neutral-800/50 transition-colors">
-                    <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Monthly Statements</h3>
-                        <button
-                            onClick={() => setIsUploadModalOpen(true)}
-                            className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 border border-emerald-600 px-4 py-2 rounded-lg text-sm font-medium text-white transition-colors"
-                        >
-                            <UploadCloud className="w-4 h-4" />
-                            Upload Statement
-                        </button>
-                    </div>
-
-                    {!bank.statements || bank.statements.length === 0 ? (
-                        <div className="py-12 flex flex-col items-center justify-center text-center bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 border-dashed rounded-xl transition-colors">
-                            <UploadCloud className="w-10 h-10 text-gray-300 dark:text-gray-600 mb-3" />
-                            <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100">No statements yet</h4>
-                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 max-w-sm mx-auto">
-                                Upload a bank statement PDF to automatically extract and categorize transactions.
+                    ) : (
+                        <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-dashed border-gray-300 dark:border-neutral-700 px-6 py-16 text-center">
+                            <UploadCloud className="w-10 h-10 mx-auto text-gray-300 dark:text-gray-600 mb-3" />
+                            <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">No transactions yet</h3>
+                            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400 max-w-sm mx-auto">
+                                Upload a statement PDF to extract and categorise transactions automatically.
                             </p>
-                        </div>
-                    ) : (
-                        <div className="space-y-4">
-                            {bank.statements.map((statement) => (
-                                <div
-                                    key={statement.id}
-                                    className="bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-lg p-4 hover:shadow-md transition-shadow"
-                                >
-                                    <div className="flex items-start justify-between mb-3 gap-3">
-                                        <div>
-                                            <h4 className="font-semibold text-gray-900 dark:text-gray-100">
-                                                {statement.month} {statement.year}
-                                            </h4>
-                                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                                                {statement.transaction_count} transactions · {new Date(statement.upload_date).toLocaleDateString('en-PK')}
-                                            </p>
-                                        </div>
-                                        <div className="flex gap-4 shrink-0">
-                                            {statement.opening_balance != null && (
-                                                <div className="text-right">
-                                                    <p className="text-[10px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">Opening</p>
-                                                    <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">{fmtPKR(statement.opening_balance)}</p>
-                                                </div>
-                                            )}
-                                            {statement.closing_balance != null && (
-                                                <div className="text-right">
-                                                    <p className="text-[10px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">Closing</p>
-                                                    <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">{fmtPKR(statement.closing_balance)}</p>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    <div className="flex gap-2">
-                                        <button
-                                            onClick={() => setSelectedStatement({ id: statement.id, title: `${statement.month} ${statement.year}` })}
-                                            className="flex-1 px-3 py-2 text-sm bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 rounded hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors font-medium"
-                                        >
-                                            Review Transactions
-                                        </button>
-                                        <button
-                                            onClick={() => syncBalanceMutation.mutate(statement.id)}
-                                            disabled={syncBalanceMutation.isPending && syncBalanceMutation.variables === statement.id}
-                                            className="px-3 py-2 text-sm bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors disabled:opacity-50"
-                                            title="Sync balance from this statement"
-                                        >
-                                            <RefreshCw className={`w-4 h-4 ${syncBalanceMutation.isPending && syncBalanceMutation.variables === statement.id ? 'animate-spin' : ''}`} />
-                                        </button>
-                                        <button
-                                            onClick={() => handleDeleteStatement(statement.id, `${statement.month} ${statement.year}`)}
-                                            disabled={deleteStatementMutation.isPending}
-                                            className="px-3 py-2 text-sm bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors disabled:opacity-50"
-                                            title="Delete statement"
-                                        >
-                                            <Trash2 className="w-4 h-4" />
-                                        </button>
-                                    </div>
-                                </div>
-                            ))}
+                            <button
+                                onClick={() => setIsUploadModalOpen(true)}
+                                className="mt-5 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold transition-colors"
+                            >
+                                <UploadCloud className="w-4 h-4" /> Upload statement
+                            </button>
                         </div>
                     )}
-                </div>
+                </section>
             </div>
-
-            {/* Category Breakdown */}
-            {categorySummaryData?.total_approved > 0 && (
-                <CategoryBreakdown data={categorySummaryData} />
-            )}
-
-            {/* All Transactions Table */}
-            {(txLoading || allTransactions.length > 0) && (
-                <div className="bg-white dark:bg-neutral-900 rounded-xl shadow-sm border border-gray-200 dark:border-neutral-800 overflow-hidden transition-colors p-6">
-                    <div className="flex items-center justify-between mb-6">
-                        <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">All Transactions</h2>
-                        {txLoading && (
-                            <span className="text-xs text-gray-400 dark:text-gray-500 flex items-center gap-1.5">
-                                <span className="inline-block w-3 h-3 rounded-full border-2 border-gray-300 border-t-emerald-500 animate-spin" />
-                                Loading…
-                            </span>
-                        )}
-                    </div>
-                    {txLoading ? (
-                        <TableSkeleton rows={8} />
-                    ) : (
-                        <BankTransactionsTable
-                            bankId={id}
-                            transactions={allTransactions}
-                        />
-                    )}
-                </div>
-            )}
 
             {/* Statement Transactions Modal */}
             {selectedStatement && (
@@ -321,7 +286,7 @@ export default function BankDetail() {
                 />
             )}
 
-            {/* Upload Statement Modal */}
+            {/* Upload Modal */}
             <Modal
                 isOpen={isUploadModalOpen}
                 onClose={() => {
@@ -340,8 +305,7 @@ export default function BankDetail() {
                         onFileChange={handleFileChange}
                         inputId="bank-pdf-input"
                     />
-
-                    <div className="flex gap-3 pt-4">
+                    <div className="flex gap-3 pt-2 justify-end">
                         <Button
                             type="button"
                             variant="secondary"
@@ -360,86 +324,378 @@ export default function BankDetail() {
                             className="flex items-center gap-2"
                         >
                             {uploadStatementMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-                            Upload & Process
+                            Upload &amp; Process
                         </Button>
                     </div>
                 </form>
+            </Modal>
+
+            {/* Duplicate-detected confirm — styled, not native window.confirm */}
+            <Modal
+                isOpen={!!duplicate}
+                onClose={() => !replacing && setDuplicate(null)}
+                title="Replace existing statement?"
+                description={
+                    duplicate
+                        ? `This file was already imported${duplicate.month ? ` for ${duplicate.month} ${duplicate.year}` : ''}${duplicate.uploadedAt ? ` on ${new Date(duplicate.uploadedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}` : ''}, with ${duplicate.transactionCount ?? 0} transactions.`
+                        : ''
+                }
+                type="warning"
+                primaryAction={{
+                    label: replacing ? 'Replacing…' : 'Replace & re-import',
+                    onClick: handleConfirmReplace,
+                    variant: 'danger',
+                    isLoading: replacing,
+                    disabled: replacing,
+                }}
+                secondaryAction={{
+                    label: 'Keep existing',
+                    onClick: () => setDuplicate(null),
+                    disabled: replacing,
+                }}
+            >
+                <p className="text-sm text-gray-600 dark:text-gray-300">
+                    Replacing will <span className="font-semibold text-error-600 dark:text-error-400">permanently delete</span> the
+                    previous record and all its transactions (including any approved expenses), then re-import the file from scratch.
+                </p>
             </Modal>
         </div>
     );
 }
 
-// Category icons & colors
-const CATEGORY_META = {
-    'ATM Withdrawal': { icon: '🏧', color: 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border-red-100 dark:border-red-800/40' },
-    'Salary': { icon: '💼', color: 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-800/40' },
-    'Profit/Dividend': { icon: '📈', color: 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 border-green-100 dark:border-green-800/40' },
-    'Transfer': { icon: '↔️', color: 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-blue-100 dark:border-blue-800/40' },
-    'Bank Charges': { icon: '🏦', color: 'bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 border-orange-100 dark:border-orange-800/40' },
-    'Food & Dining': { icon: '🍽️', color: 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-600 dark:text-yellow-400 border-yellow-100 dark:border-yellow-800/40' },
-    'Groceries': { icon: '🛒', color: 'bg-lime-50 dark:bg-lime-900/20 text-lime-600 dark:text-lime-400 border-lime-100 dark:border-lime-800/40' },
-    'Utilities': { icon: '⚡', color: 'bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 border-amber-100 dark:border-amber-800/40' },
-    'Transportation': { icon: '🚗', color: 'bg-sky-50 dark:bg-sky-900/20 text-sky-600 dark:text-sky-400 border-sky-100 dark:border-sky-800/40' },
-    'Shopping': { icon: '🛍️', color: 'bg-pink-50 dark:bg-pink-900/20 text-pink-600 dark:text-pink-400 border-pink-100 dark:border-pink-800/40' },
-    'Entertainment': { icon: '🎬', color: 'bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 border-purple-100 dark:border-purple-800/40' },
-    'Healthcare': { icon: '💊', color: 'bg-teal-50 dark:bg-teal-900/20 text-teal-600 dark:text-teal-400 border-teal-100 dark:border-teal-800/40' },
-    'Investment': { icon: '💰', color: 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 border-indigo-100 dark:border-indigo-800/40' },
-    'Other': { icon: '📦', color: 'bg-gray-50 dark:bg-neutral-800 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-neutral-700' },
-};
+/* ──────────────────────────────────────────────────────────────
+   Hero card — logo + name + IBAN/A.C + balance + sparkline
+   ────────────────────────────────────────────────────────────── */
+function HeroCard({ bank, change, changePct }) {
+    const positive = change >= 0;
+    return (
+        <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-gray-200 dark:border-neutral-800 overflow-hidden">
+            <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-gray-200 dark:divide-neutral-800">
+                {/* Left — identity */}
+                <div className="p-6 flex items-start gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-primary-700 flex items-center justify-center shrink-0">
+                        <span className="text-white text-base font-semibold">{monogram(bank.name)}</span>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                            <span className="text-[10px] tracking-[0.18em] uppercase text-gray-500 dark:text-gray-400 font-semibold">
+                                Current account
+                            </span>
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-success-50 text-success-700 dark:bg-success-900/30 dark:text-success-400 text-[10px] font-semibold">
+                                <span className="w-1.5 h-1.5 rounded-full bg-success-500" />
+                                Active
+                            </span>
+                        </div>
+                        <h1 className="text-[26px] font-semibold text-gray-900 dark:text-gray-100 tracking-tight leading-tight">
+                            {bank.name}
+                        </h1>
+                        <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1 text-[11.5px] font-mono text-gray-500 dark:text-gray-400">
+                            {bank.account_no && <span><span className="text-gray-400">A/C</span> <span className="text-gray-700 dark:text-gray-200">{bank.account_no}</span></span>}
+                            {bank.iban_no && <span><span className="text-gray-400">IBAN</span> <span className="text-gray-700 dark:text-gray-200">{bank.iban_no}</span></span>}
+                            {bank.branch && (
+                                <span className="inline-flex items-center gap-1">
+                                    <MapPin className="w-3 h-3" />
+                                    {bank.branch}
+                                </span>
+                            )}
+                        </div>
+                    </div>
+                </div>
 
-function CategoryBreakdown({ data }) {
-    const { summary = [], total_approved } = data;
+                {/* Right — balance + sparkline */}
+                <div className="p-6 relative">
+                    <div className="flex justify-between items-start gap-4">
+                        <div>
+                            <p className="text-[10px] tracking-[0.18em] uppercase text-gray-500 dark:text-gray-400 font-semibold mb-1">
+                                Current balance
+                            </p>
+                            <p className="text-[34px] font-semibold text-gray-900 dark:text-gray-100 tracking-tight tabular-nums leading-none">
+                                {fmtPKR(bank.current_balance)}
+                            </p>
+                            {change !== 0 && (
+                                <div className="mt-3 flex items-center gap-2 text-[12px]">
+                                    <span className={`inline-flex items-center gap-1 font-semibold tabular-nums ${positive ? 'text-success-700 dark:text-success-400' : 'text-error-600 dark:text-error-400'}`}>
+                                        {positive ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
+                                        {positive ? '+' : '−'}{fmtPKRShort(Math.abs(change))} ({Math.abs(changePct).toFixed(1)}%)
+                                    </span>
+                                    <span className="text-gray-400 dark:text-gray-500 text-[11px]">over the period</span>
+                                </div>
+                            )}
+                        </div>
+                        <Sparkline positive={positive} />
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
 
-    const totalDebits = summary.reduce((s, r) => s + r.debits, 0);
-    const totalCredits = summary.reduce((s, r) => s + r.credits, 0);
+/* Mini sparkline — pseudo-trend, since we don't have day-level balance history yet */
+function Sparkline({ positive }) {
+    const points = positive
+        ? [40, 38, 35, 33, 30, 28, 24, 22, 19, 16, 12, 8]
+        : [10, 12, 15, 18, 22, 25, 28, 32, 36, 38, 42, 45];
+    const path = points.map((y, i) => `${i === 0 ? 'M' : 'L'}${(i / (points.length - 1)) * 140},${y}`).join(' ');
+    return (
+        <svg viewBox="0 0 140 50" className="w-32 h-12 shrink-0" preserveAspectRatio="none">
+            <path d={path} fill="none" stroke="#1F4842" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            <path d={`${path} L140,50 L0,50 Z`} fill="rgba(31,72,66,0.06)" />
+        </svg>
+    );
+}
+
+/* ──────────────────────────────────────────────────────────────
+   5-stat horizontal strip
+   ────────────────────────────────────────────────────────────── */
+function StatStrip({ stats }) {
+    const items = [
+        {
+            label: 'Inflow',
+            value: fmtPKRShort(stats.inflow),
+            sub: `${stats.deposits} ${stats.deposits === 1 ? 'deposit' : 'deposits'}`,
+            icon: ArrowDownLeft,
+            tone: 'success',
+        },
+        {
+            label: 'Outflow',
+            value: fmtPKRShort(stats.outflow),
+            sub: `${stats.withdrawals} ${stats.withdrawals === 1 ? 'withdrawal' : 'withdrawals'}`,
+            icon: ArrowUpRight,
+            tone: 'error',
+        },
+        {
+            label: 'Net change',
+            value: `${stats.net >= 0 ? '+' : '−'}${fmtPKRShort(Math.abs(stats.net))}`,
+            sub: stats.net >= 0 ? 'Balance grew' : 'Balance shrank',
+            icon: Activity,
+            tone: stats.net >= 0 ? 'success' : 'error',
+        },
+        {
+            label: 'To review',
+            value: stats.pending,
+            sub: stats.pending > 0 ? 'awaiting approval' : 'all caught up',
+            icon: Mail,
+            tone: stats.pending > 0 ? 'warning' : 'neutral',
+        },
+        {
+            label: 'Statements',
+            value: stats.statementsCount,
+            sub: `${stats.statementsCount === 1 ? 'month' : 'months'} synced`,
+            icon: FileText,
+            tone: 'neutral',
+        },
+    ];
+    return (
+        <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-gray-200 dark:border-neutral-800 overflow-hidden">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 divide-y sm:divide-y-0 sm:divide-x divide-gray-200 dark:divide-neutral-800">
+                {items.map((it) => <StatCell key={it.label} {...it} />)}
+            </div>
+        </div>
+    );
+}
+
+function StatCell({ label, value, sub, icon: Icon, tone }) {
+    const tints = {
+        success: { box: 'bg-success-50 text-success-700 dark:bg-success-900/20 dark:text-success-400', val: 'text-success-700 dark:text-success-400' },
+        error:   { box: 'bg-error-50 text-error-600 dark:bg-error-900/20 dark:text-error-400',         val: 'text-error-600 dark:text-error-400' },
+        warning: { box: 'bg-warning-50 text-warning-700 dark:bg-warning-900/20 dark:text-warning-400', val: 'text-gray-900 dark:text-gray-100' },
+        neutral: { box: 'bg-gray-100 text-gray-600 dark:bg-neutral-800 dark:text-gray-300',            val: 'text-gray-900 dark:text-gray-100' },
+    }[tone] || { box: 'bg-gray-100 text-gray-600', val: 'text-gray-900' };
 
     return (
-        <div className="bg-white dark:bg-neutral-900 rounded-xl shadow-sm border border-gray-200 dark:border-neutral-800 overflow-hidden transition-colors">
-            <div className="p-6 border-b border-gray-100 dark:border-neutral-800 flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center">
-                        <BarChart3 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                    </div>
-                    <div>
-                        <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">Category Breakdown</h2>
-                        <p className="text-xs text-gray-400 dark:text-gray-500">{total_approved} approved transactions</p>
-                    </div>
+        <div className="p-4 flex items-start gap-3">
+            <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${tints.box}`}>
+                <Icon className="w-4 h-4" />
+            </div>
+            <div className="min-w-0">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{label}</p>
+                <p className={`mt-1 text-xl font-semibold tabular-nums leading-none ${tints.val}`}>{value}</p>
+                <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">{sub}</p>
+            </div>
+        </div>
+    );
+}
+
+/* ──────────────────────────────────────────────────────────────
+   Statements list — compact horizontal rows
+   ────────────────────────────────────────────────────────────── */
+function StatementsList({ statements, onUpload, onSelect, onSync, onDelete, syncing }) {
+    const sorted = useMemo(() => [...statements].sort((a, b) => {
+        const monthOrder = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+        const dateA = a.year * 12 + (monthOrder.indexOf(a.month));
+        const dateB = b.year * 12 + (monthOrder.indexOf(b.month));
+        return dateB - dateA;
+    }), [statements]);
+
+    return (
+        <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-gray-200 dark:border-neutral-800 overflow-hidden">
+            {/* Header */}
+            <div className="px-4 py-3 flex items-center justify-between border-b border-gray-100 dark:border-neutral-800">
+                <div className="flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-gray-400 dark:text-neutral-500" />
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Monthly Statements</h3>
+                    {statements.length > 0 && (
+                        <span className="text-[10px] font-semibold tabular-nums px-1.5 py-0.5 rounded-full bg-gray-100 dark:bg-neutral-800 text-gray-500 dark:text-neutral-400">
+                            {statements.length}
+                        </span>
+                    )}
                 </div>
-                {/* Totals pill */}
-                <div className="hidden sm:flex items-center gap-4 text-sm">
-                    <span className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-semibold">
-                        <TrendingUp className="w-4 h-4" /> {fmtPKR(totalCredits)}
-                    </span>
-                    <span className="flex items-center gap-1.5 text-red-500 dark:text-red-400 font-semibold">
-                        <TrendingDown className="w-4 h-4" /> {fmtPKR(totalDebits)}
-                    </span>
-                </div>
+                <button
+                    onClick={onUpload}
+                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 transition-colors"
+                >
+                    <UploadCloud className="w-3 h-3" /> Upload
+                </button>
             </div>
 
-            <div className="p-6">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                    {summary.map(row => {
-                        const meta = CATEGORY_META[row.category] || CATEGORY_META['Other'];
-                        const isCredit = row.credits > row.debits;
-                        const displayAmount = isCredit ? row.credits : row.debits;
+            {sorted.length === 0 ? (
+                <div className="py-10 text-center">
+                    <FileText className="w-8 h-8 mx-auto text-gray-200 dark:text-neutral-700 mb-2" />
+                    <p className="text-xs text-gray-400 dark:text-neutral-500">No statements uploaded yet.</p>
+                </div>
+            ) : (
+                <ul className="divide-y divide-gray-100 dark:divide-neutral-800/60">
+                    {sorted.map((s) => {
+                        const delta = s.opening_balance != null && s.closing_balance != null
+                            ? Number(s.closing_balance) - Number(s.opening_balance)
+                            : null;
+                        const isSyncing = syncing === s.id;
 
                         return (
-                            <div key={row.category} className={`flex items-center gap-3 p-3.5 rounded-xl border ${meta.color} transition-all`}>
-                                <span className="text-xl shrink-0">{meta.icon}</span>
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-xs font-semibold truncate">{row.category}</p>
-                                    <p className="text-base font-bold mt-0.5">{fmtPKR(displayAmount)}</p>
-                                    <p className="text-[10px] opacity-60 mt-0.5">{row.count} {row.count === 1 ? 'transaction' : 'transactions'}</p>
+                            <li key={s.id} className="group flex items-center gap-0 hover:bg-gray-50/80 dark:hover:bg-neutral-800/30 transition-colors">
+                                {/* Clickable row area */}
+                                <button
+                                    onClick={() => onSelect(s)}
+                                    className="flex-1 min-w-0 flex items-center gap-3 px-4 py-2.5 text-left"
+                                >
+                                    {/* Month/year pill */}
+                                    <span className="shrink-0 text-[11px] font-bold tabular-nums text-gray-800 dark:text-gray-200 w-[72px]">
+                                        {s.month.slice(0, 3)} <span className="text-gray-400 dark:text-neutral-500 font-normal">{s.year}</span>
+                                    </span>
+
+                                    {/* Meta — txn count + upload date */}
+                                    <span className="flex-1 min-w-0 flex items-center gap-2">
+                                        <span className="text-[10px] font-medium text-gray-500 dark:text-neutral-400 tabular-nums whitespace-nowrap">
+                                            {s.transaction_count ?? 0} txn{s.transaction_count !== 1 ? 's' : ''}
+                                        </span>
+                                        {s.upload_date && (
+                                            <span className="text-[10px] text-gray-300 dark:text-neutral-600 hidden sm:inline whitespace-nowrap">
+                                                {new Date(s.upload_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
+                                            </span>
+                                        )}
+                                    </span>
+
+                                    {/* Balance + delta */}
+                                    <span className="shrink-0 text-right">
+                                        {s.closing_balance != null && (
+                                            <span className="block text-[11px] font-semibold tabular-nums text-gray-800 dark:text-gray-200">
+                                                {fmtPKRShort(s.closing_balance)}
+                                            </span>
+                                        )}
+                                        {delta !== null && (
+                                            <span className={`block text-[9.5px] tabular-nums font-medium ${delta >= 0 ? 'text-success-600 dark:text-success-400' : 'text-error-500 dark:text-error-400'}`}>
+                                                {delta >= 0 ? '+' : '−'}{fmtPKRShort(Math.abs(delta))}
+                                            </span>
+                                        )}
+                                    </span>
+                                </button>
+
+                                {/* Icon actions — always visible on hover */}
+                                <div className="flex items-center gap-0.5 px-2 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); onSync(s.id); }}
+                                        disabled={isSyncing}
+                                        title="Sync balance"
+                                        className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 dark:text-neutral-500 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 disabled:opacity-40 transition-colors"
+                                    >
+                                        <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+                                    </button>
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); onDelete(s); }}
+                                        title="Delete statement"
+                                        className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 dark:text-neutral-500 hover:text-error-600 dark:hover:text-error-400 hover:bg-error-50 dark:hover:bg-error-900/20 transition-colors"
+                                    >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
                                 </div>
-                                {isCredit
-                                    ? <TrendingUp className="w-4 h-4 shrink-0 opacity-50" />
-                                    : <TrendingDown className="w-4 h-4 shrink-0 opacity-50" />
-                                }
-                            </div>
+                            </li>
                         );
                     })}
+                </ul>
+            )}
+        </div>
+    );
+}
+
+/* ──────────────────────────────────────────────────────────────
+   Category mini-breakdown (left sidebar) — top 6 by amount
+   ────────────────────────────────────────────────────────────── */
+const CATEGORY_DOT = {
+    'ATM Withdrawal':   'bg-error-500',
+    'Salary':           'bg-success-500',
+    'Profit/Dividend':  'bg-success-600',
+    'Transfer':         'bg-primary-500',
+    'Bank Charges':     'bg-warning-500',
+    'Food & Dining':    'bg-warning-400',
+    'Groceries':        'bg-warning-500',
+    'Utilities':        'bg-warning-600',
+    'Transportation':   'bg-indigo-500',
+    'Shopping':         'bg-gray-500',
+    'Entertainment':    'bg-indigo-400',
+    'Healthcare':       'bg-success-400',
+    'Investment':       'bg-indigo-600',
+    'Other':            'bg-gray-400',
+};
+
+function CategoryMiniBreakdown({ data }) {
+    const { summary = [] } = data;
+    const sorted = useMemo(() => {
+        return [...summary]
+            .map((r) => ({ ...r, _abs: Math.max(r.credits, r.debits), _isCredit: r.credits > r.debits }))
+            .sort((a, b) => b._abs - a._abs)
+            .slice(0, 6);
+    }, [summary]);
+    const max = sorted[0]?._abs || 1;
+    const total = summary.length;
+
+    return (
+        <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-gray-200 dark:border-neutral-800 overflow-hidden">
+            <div className="px-4 py-3 flex items-center justify-between border-b border-gray-100 dark:border-neutral-800">
+                <div className="flex items-center gap-2">
+                    <BarChart3 className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">By category</h3>
                 </div>
+                <span className="text-[11px] text-gray-400 dark:text-gray-500">
+                    top {sorted.length} of {total}
+                </span>
             </div>
+
+            <ul className="px-4 py-3 space-y-3">
+                {sorted.map((row) => {
+                    const dot = CATEGORY_DOT[row.category] || 'bg-gray-400';
+                    const widthPct = (row._abs / max) * 100;
+                    return (
+                        <li key={row.category}>
+                            <div className="flex items-baseline justify-between gap-2 mb-1.5">
+                                <div className="flex items-center gap-2 min-w-0">
+                                    <span className={`w-2 h-2 rounded-full ${dot} shrink-0`} />
+                                    <span className="text-[12px] font-medium text-gray-700 dark:text-gray-200 truncate">{row.category}</span>
+                                    <span className="text-[10px] text-gray-400 dark:text-gray-500">{row.count}×</span>
+                                </div>
+                                <span className={`text-[12px] font-semibold tabular-nums shrink-0 ${row._isCredit ? 'text-success-700 dark:text-success-400' : 'text-error-600 dark:text-error-400'}`}>
+                                    {row._isCredit ? '+' : '−'}{fmtPKRShort(row._abs)}
+                                </span>
+                            </div>
+                            <div className="h-1 rounded-full bg-gray-100 dark:bg-neutral-800 overflow-hidden">
+                                <div
+                                    className={`h-full rounded-full ${row._isCredit ? 'bg-success-500' : 'bg-error-500/70'}`}
+                                    style={{ width: `${widthPct}%` }}
+                                />
+                            </div>
+                        </li>
+                    );
+                })}
+            </ul>
         </div>
     );
 }

@@ -301,7 +301,7 @@ export function LoginForm() {
 ```tsx
 <div className="min-h-screen bg-white dark:bg-gray-900">
   <div className="container mx-auto px-4 py-8">
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
       <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
         <CardContent className="p-6">
           <h3 className="text-xl font-semibold text-gray-900 dark:text-white">

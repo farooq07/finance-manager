@@ -264,10 +264,46 @@ export const uploadStatement = async (req, res) => {
             logger.log('[WALLET_STATEMENT] Checking for duplicate file...');
             fileHash = getFileHash(filePath);
             const isDuplicate = await isWalletFilePreviouslyImported(req.user.id, fileHash, walletId);
+            const forceReplace = req.body?.force === 'true' || req.query?.force === 'true';
 
             if (isDuplicate) {
-                fs.unlinkSync(filePath);
-                return res.status(400).json({ message: 'This file was already imported previously' });
+                // Find the existing statement so we can decide what to do with it.
+                const existing = await prisma.walletStatement.findFirst({
+                    where: { wallet_id: walletId, file_hash: fileHash },
+                    select: { id: true, month: true, year: true, transaction_count: true, upload_date: true, file_path: true },
+                });
+
+                // Auto-clean: the previous import created a row with zero transactions
+                // (parser failed silently). Treat it as a recoverable failure and replace
+                // it transparently — no user confirmation needed.
+                const isEmptyFailedImport = existing && (existing.transaction_count ?? 0) === 0;
+
+                if (isEmptyFailedImport || forceReplace) {
+                    try {
+                        if (existing?.file_path && fs.existsSync(existing.file_path)) {
+                            fs.unlinkSync(existing.file_path);
+                        }
+                        await prisma.walletStatement.delete({ where: { id: existing.id } });
+                        logger.log('[WALLET_STATEMENT] Replaced previous statement:', existing.id, '(reason:', isEmptyFailedImport ? 'empty-failed' : 'force-replace', ')');
+                    } catch (cleanupErr) {
+                        logger.log('[WALLET_STATEMENT] Cleanup of previous statement failed:', cleanupErr.message);
+                    }
+                    // Fall through to normal parsing path.
+                } else {
+                    // Existing record has data — let the frontend prompt the user.
+                    fs.unlinkSync(filePath);
+                    return res.status(409).json({
+                        message: 'This statement was already imported.',
+                        duplicate: true,
+                        existing: {
+                            id: existing.id,
+                            month: existing.month,
+                            year: existing.year,
+                            transactionCount: existing.transaction_count,
+                            uploadedAt: existing.upload_date,
+                        },
+                    });
+                }
             }
 
             if (fileIsCsv) {

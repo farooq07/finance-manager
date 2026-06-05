@@ -17,6 +17,13 @@ function valueForItem(item, pricePerGram24k) {
     return Number((grams * Number(pricePerGram24k) * purityFactor).toFixed(2));
 }
 
+function purchaseValueForItem(item) {
+    if (!item.purchase_price_per_gram) return null;
+    const grams = Number(item.weight_grams);
+    const purityFactor = Number(item.carats) / 24;
+    return Number((grams * Number(item.purchase_price_per_gram) * purityFactor).toFixed(2));
+}
+
 function equivalent24kGrams(item) {
     return Number(item.weight_grams) * (Number(item.carats) / 24);
 }
@@ -59,13 +66,17 @@ export const listItems = async (req, res) => {
         const enriched = items.map((i) => ({
             ...i,
             current_value_pkr: valueForItem(i, perGram),
+            purchase_value_pkr: purchaseValueForItem(i),
             equivalent_24k_grams: Number(equivalent24kGrams(i).toFixed(3)),
         }));
-        const totalValuePkr = enriched.reduce((s, i) => s + i.current_value_pkr, 0);
+        const totalValuePkr    = enriched.reduce((s, i) => s + i.current_value_pkr, 0);
+        const totalPurchasePkr = enriched.reduce((s, i) => s + (i.purchase_value_pkr ?? 0), 0);
+        const itemsWithPurchase = enriched.filter((i) => i.purchase_value_pkr !== null).length;
 
         res.json({
             items: enriched,
             total_value_pkr: Number(totalValuePkr.toFixed(2)),
+            total_purchase_pkr: itemsWithPurchase > 0 ? Number(totalPurchasePkr.toFixed(2)) : null,
             latest_price: priceRow,
         });
     } catch (error) {
@@ -82,13 +93,15 @@ export const createItem = async (req, res) => {
 
         const created = await prisma.goldItem.create({
             data: {
-                user_id:       req.user.id,
-                name:          req.body.name.trim(),
-                type:          req.body.type,
-                weight_grams:  Number(req.body.weight_grams),
-                carats:        Number(req.body.carats),
-                purchase_date: req.body.purchase_date ? new Date(req.body.purchase_date) : null,
-                notes:         req.body.notes || null,
+                user_id:                req.user.id,
+                name:                   req.body.name.trim(),
+                type:                   req.body.type,
+                weight_grams:           Number(req.body.weight_grams),
+                carats:                 Number(req.body.carats),
+                purchase_date:          req.body.purchase_date ? new Date(req.body.purchase_date) : null,
+                purchase_price_per_gram: req.body.purchase_price_per_gram != null ? Number(req.body.purchase_price_per_gram) : null,
+                image_url:              req.body.image_url || null,
+                notes:                  req.body.notes || null,
             },
         });
         res.status(201).json(created);
@@ -110,12 +123,14 @@ export const updateItem = async (req, res) => {
         if (errors.length) return res.status(400).json({ message: errors.join(', ') });
 
         const data = {};
-        if (req.body.name !== undefined)          data.name = req.body.name.trim();
-        if (req.body.type !== undefined)          data.type = req.body.type;
-        if (req.body.weight_grams !== undefined)  data.weight_grams = Number(req.body.weight_grams);
-        if (req.body.carats !== undefined)        data.carats = Number(req.body.carats);
-        if (req.body.purchase_date !== undefined) data.purchase_date = req.body.purchase_date ? new Date(req.body.purchase_date) : null;
-        if (req.body.notes !== undefined)         data.notes = req.body.notes || null;
+        if (req.body.name !== undefined)                   data.name = req.body.name.trim();
+        if (req.body.type !== undefined)                   data.type = req.body.type;
+        if (req.body.weight_grams !== undefined)           data.weight_grams = Number(req.body.weight_grams);
+        if (req.body.carats !== undefined)                 data.carats = Number(req.body.carats);
+        if (req.body.purchase_date !== undefined)          data.purchase_date = req.body.purchase_date ? new Date(req.body.purchase_date) : null;
+        if (req.body.purchase_price_per_gram !== undefined) data.purchase_price_per_gram = req.body.purchase_price_per_gram != null ? Number(req.body.purchase_price_per_gram) : null;
+        if (req.body.image_url !== undefined)              data.image_url = req.body.image_url || null;
+        if (req.body.notes !== undefined)                  data.notes = req.body.notes || null;
 
         const updated = await prisma.goldItem.update({ where: { id: existing.id }, data });
         res.json(updated);

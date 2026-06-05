@@ -12,6 +12,21 @@ const EXPENSE_CATEGORIES = [
     'Subscription', 'Insurance', 'Savings', 'Investment', 'Other'
 ];
 
+/* Compact summary cell — used by the single-row stat strip at the top */
+function SummaryCell({ label, value, hint, tone, emphasis }) {
+    const valueClass = {
+        positive: 'text-success-700 dark:text-success-400',
+        negative: 'text-error-600 dark:text-error-400',
+    }[tone] || 'text-gray-900 dark:text-gray-100';
+    return (
+        <div className={`px-4 py-3.5 ${emphasis ? 'bg-primary-50/40 dark:bg-primary-900/10' : ''}`}>
+            <p className="text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">{label}</p>
+            <p className={`mt-1 text-lg font-semibold tabular-nums ${valueClass}`}>{value}</p>
+            {hint && <p className="mt-0.5 text-[11px] text-gray-500 dark:text-gray-400">{hint}</p>}
+        </div>
+    );
+}
+
 export default function BankTransactionsTable({ bankId, transactions = [] }) {
     const approveMutation = useApproveTransaction();
     const bulkApproveMutation = useBulkApproveTransactions();
@@ -174,47 +189,28 @@ export default function BankTransactionsTable({ bankId, transactions = [] }) {
     const selectedCount = selectedIds.size;
     const actionCount = selectedCount > 0 ? selectedCount : pendingTxs.length;
 
+    const netChange = totalCredits - totalDebits;
+    const netPositive = netChange >= 0;
+
     return (
         <div className="space-y-6">
-            {/* Summary Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-                    <p className="text-xs font-medium text-blue-600 dark:text-blue-400 uppercase tracking-wide">Total Transactions</p>
-                    <p className="text-2xl font-bold text-blue-900 dark:text-blue-100 mt-2">{transactions.length}</p>
-                </div>
-                <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
-                    <p className="text-xs font-medium text-amber-600 dark:text-amber-400 uppercase tracking-wide">Pending Review</p>
-                    <p className="text-2xl font-bold text-amber-900 dark:text-amber-100 mt-2">{pendingTxs.length}</p>
-                </div>
-                <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
-                    <p className="text-xs font-medium text-green-600 dark:text-green-400 uppercase tracking-wide">Approved</p>
-                    <p className="text-2xl font-bold text-green-900 dark:text-green-100 mt-2">{approvedTxs.length}</p>
-                </div>
-                <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-4">
-                    <p className="text-xs font-medium text-purple-600 dark:text-purple-400 uppercase tracking-wide">Net Movement</p>
-                    <p className={`text-2xl font-bold mt-2 ${totalCredits > totalDebits ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                        {totalCredits > totalDebits ? '+' : '-'}{fmtPKR(Math.abs(totalCredits - totalDebits))}
-                    </p>
-                </div>
-            </div>
-
-            {/* Totals */}
-            <div className="bg-gray-50 dark:bg-neutral-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
-                <div className="grid grid-cols-3 gap-4">
-                    <div>
-                        <p className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase">Total Withdrawals</p>
-                        <p className="text-xl font-bold text-red-600 dark:text-red-400 mt-1">{fmtPKR(totalDebits)}</p>
-                    </div>
-                    <div>
-                        <p className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase">Total Deposits</p>
-                        <p className="text-xl font-bold text-green-600 dark:text-green-400 mt-1">{fmtPKR(totalCredits)}</p>
-                    </div>
-                    <div>
-                        <p className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase">Net Balance Change</p>
-                        <p className={`text-xl font-bold mt-1 ${totalCredits >= totalDebits ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                            {totalCredits >= totalDebits ? '+' : ''}{fmtPKR(totalCredits - totalDebits)}
-                        </p>
-                    </div>
+            {/* Compact summary strip — one row, all you need to know at a glance */}
+            <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-gray-200 dark:border-neutral-800 overflow-hidden">
+                <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-gray-200 dark:divide-neutral-800">
+                    <SummaryCell label="Transactions" value={transactions.length} hint={
+                        pendingTxs.length > 0
+                            ? `${pendingTxs.length} pending · ${approvedTxs.length} approved`
+                            : 'All approved'
+                    } />
+                    <SummaryCell label="In" value={fmtPKR(totalCredits)} tone="positive" hint={`${transactions.filter(t => Number(t.credit_amount || 0) > 0).length} deposits`} />
+                    <SummaryCell label="Out" value={fmtPKR(totalDebits)} tone="negative" hint={`${transactions.filter(t => Number(t.debit_amount || 0) > 0).length} withdrawals`} />
+                    <SummaryCell
+                        label="Net"
+                        value={`${netPositive ? '+' : '−'}${fmtPKR(Math.abs(netChange))}`}
+                        tone={netPositive ? 'positive' : 'negative'}
+                        hint={netPositive ? 'Balance grew' : 'Balance shrank'}
+                        emphasis
+                    />
                 </div>
             </div>
 
@@ -369,7 +365,7 @@ export default function BankTransactionsTable({ bankId, transactions = [] }) {
                                                                                     ? 'bg-emerald-600 text-white'
                                                                                     : 'bg-red-500 text-white'
                                                                                 : 'bg-white dark:bg-neutral-900 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-neutral-700'
-                                                                            }`}
+                                                                                }`}
                                                                         >
                                                                             {t}
                                                                         </button>
@@ -440,54 +436,60 @@ export default function BankTransactionsTable({ bankId, transactions = [] }) {
 
             {approvedTxs.length > 0 && (
                 <div>
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
-                        Approved Transactions ({approvedTxs.length})
-                    </h3>
-                    <div className="overflow-x-auto border border-green-200 dark:border-green-800 rounded-lg bg-green-50 dark:bg-green-900/10">
+                    <div className="flex items-center justify-between mb-3">
+                        <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+                            Approved Transactions
+                            <span className="ml-2 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-success-50 dark:bg-success-900/20 text-success-700 dark:text-success-400 text-xs font-medium">
+                                <Check className="w-3 h-3" />
+                                {approvedTxs.length}
+                            </span>
+                        </h3>
+                    </div>
+                    <div className="overflow-x-auto border border-gray-200 dark:border-neutral-800 rounded-xl bg-white dark:bg-neutral-900">
                         <table className="w-full text-sm">
-                            <thead className="bg-green-100 dark:bg-green-900/30 border-b border-green-200 dark:border-green-800">
+                            <thead className="bg-gray-50 dark:bg-neutral-800/50 border-b border-gray-200 dark:border-neutral-800">
                                 <tr>
-                                    <th className="px-4 py-3 text-left font-semibold text-green-900 dark:text-green-100">Date</th>
-                                    <th className="px-4 py-3 text-left font-semibold text-green-900 dark:text-green-100">Type</th>
-                                    <th className="px-4 py-3 text-left font-semibold text-green-900 dark:text-green-100">Description</th>
-                                    <th className="px-4 py-3 text-right font-semibold text-green-900 dark:text-green-100">Withdrawal</th>
-                                    <th className="px-4 py-3 text-right font-semibold text-green-900 dark:text-green-100">Deposit</th>
-                                    <th className="px-4 py-3 text-left font-semibold text-green-900 dark:text-green-100">Category</th>
-                                    <th className="px-4 py-3 text-center font-semibold text-green-900 dark:text-green-100">Actions</th>
+                                    <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">Date</th>
+                                    <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">Type</th>
+                                    <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">Description</th>
+                                    <th className="px-4 py-3 text-right text-[11px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">Withdrawal</th>
+                                    <th className="px-4 py-3 text-right text-[11px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">Deposit</th>
+                                    <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">Category</th>
+                                    <th className="px-4 py-3 text-center text-[11px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {approvedTxs.map((tx) => (
                                     <React.Fragment key={tx.id}>
-                                        <tr className="border-b border-green-200 dark:border-green-800 hover:bg-green-100/50 dark:hover:bg-green-900/20 transition-colors">
-                                            <td className="px-4 py-3 text-gray-900 dark:text-gray-100 whitespace-nowrap">
+                                        <tr className="border-b border-gray-100 dark:border-neutral-800 last:border-0 hover:bg-gray-50/60 dark:hover:bg-neutral-800/40 transition-colors">
+                                            <td className="px-4 py-3 text-[11px] text-gray-900 dark:text-gray-100 whitespace-nowrap">
                                                 {new Date(tx.transaction_date).toLocaleDateString('en-PK')}
                                             </td>
-                                            <td className="px-4 py-3 whitespace-nowrap">
+                                            <td className="px-4 py-3 text-[11px] whitespace-nowrap">
                                                 <TypeBadge tx={tx} />
                                             </td>
-                                            <td className="px-4 py-3 text-gray-900 dark:text-gray-100 max-w-xs">
+                                            <td className="px-4 py-3 text-[11px] text-gray-900 dark:text-gray-100 max-w-xs">
                                                 {tx.description}
                                             </td>
-                                            <td className="px-4 py-3 text-right text-red-600 dark:text-red-400 font-medium whitespace-nowrap">
+                                            <td className="px-4 py-3 text-[11px] text-right text-red-600 dark:text-red-400 font-medium whitespace-nowrap">
                                                 {tx.debit_amount ? fmtPKR(tx.debit_amount) : '-'}
                                             </td>
-                                            <td className="px-4 py-3 text-right text-green-600 dark:text-green-400 font-medium whitespace-nowrap">
+                                            <td className="px-4 py-3 text-[11px] text-right text-green-600 dark:text-green-400 font-medium whitespace-nowrap">
                                                 {tx.credit_amount ? fmtPKR(tx.credit_amount) : '-'}
                                             </td>
-                                            <td className="px-4 py-3">
-                                                <span className="px-2 py-1 bg-green-200 dark:bg-green-800 text-green-900 dark:text-green-100 text-xs rounded">
+                                            <td className="px-4 py-3 ">
+                                                <span className="px-2 py-0.5 bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300 text-[11px] font-medium rounded">
                                                     {tx.approved_category || tx.suggested_category || 'Other'}
                                                 </span>
                                             </td>
-                                            <td className="px-4 py-3 text-center">
+                                            <td className="px-4 py-3 text-[11px] text-center">
                                                 <div className="flex items-center justify-center gap-1">
                                                     <button
                                                         onClick={() => editingApprovedId === tx.id ? setEditingApprovedId(null) : openEditApproved(tx)}
-                                                        className="p-1 hover:bg-green-200 dark:hover:bg-green-800 rounded transition-colors"
+                                                        className="p-1 hover:bg-gray-100 dark:hover:bg-neutral-800 rounded transition-colors"
                                                         title="Fix category"
                                                     >
-                                                        <Pencil className="w-4 h-4 text-green-700 dark:text-green-400" />
+                                                        <Pencil className="w-4 h-4 text-gray-500 dark:text-gray-400 hover:text-primary-600" />
                                                     </button>
                                                     <button
                                                         onClick={() => handleDelete(tx)}
@@ -519,7 +521,7 @@ export default function BankTransactionsTable({ bankId, transactions = [] }) {
                                                                                     ? 'bg-emerald-600 text-white'
                                                                                     : 'bg-red-500 text-white'
                                                                                 : 'bg-white dark:bg-neutral-900 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-neutral-700'
-                                                                            }`}
+                                                                                }`}
                                                                         >
                                                                             {t}
                                                                         </button>

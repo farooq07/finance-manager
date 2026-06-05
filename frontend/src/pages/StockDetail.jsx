@@ -113,26 +113,7 @@ export default function StockDetail() {
 
     return (
         <div className=" mx-auto">
-            {/* Header Actions */}
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-                <Button variant="ghost" className="text-gray-500 hover:text-gray-900 dark:hover:text-gray-100 px-0" onClick={() => navigate('/stocks')}>
-                    <ArrowLeft className="w-4 h-4 mr-2" /> Back to Portfolio
-                </Button>
 
-                <Button
-                    variant="primary"
-                    onClick={handleSync}
-                    disabled={syncLiveStocks.isPending}
-                    className="h-10 px-4 w-full sm:w-auto"
-                >
-                    {syncLiveStocks.isPending ? (
-                        <Loader2 data-icon="inline-start" className="animate-spin" />
-                    ) : (
-                        <RefreshCw data-icon="inline-start" />
-                    )}
-                    Force Live Sync
-                </Button>
-            </div>
 
             {/* Stock Detail Card */}
             <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-sm border border-gray-100 dark:border-neutral-800 p-8 transition-colors">
@@ -165,8 +146,25 @@ export default function StockDetail() {
                                     <span className="px-3 py-1 bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 text-xs font-bold rounded-full uppercase tracking-wider border border-blue-100 dark:border-blue-800">
                                         PSX
                                     </span>
+                                    {/* Header Actions — back to portfolio now lives in the global Header */}
+                                    <div className="flex flex-col sm:flex-row justify-end items-start sm:items-center gap-4 ">
+                                        <Button
+                                            variant="primary"
+                                            onClick={handleSync}
+                                            disabled={syncLiveStocks.isPending}
+                                            className="h-10 px-4 w-full sm:w-auto"
+                                        >
+                                            {syncLiveStocks.isPending ? (
+                                                <Loader2 data-icon="inline-start" className="animate-spin" />
+                                            ) : (
+                                                <RefreshCw data-icon="inline-start" />
+                                            )}
+                                            Force Live Sync
+                                        </Button>
+                                    </div>
                                 </div>
                                 <h2 className="text-lg text-gray-500 dark:text-gray-400 font-medium">{stock.companyName}</h2>
+
                             </div>
 
                             <div className="text-left md:text-right w-full md:w-auto bg-gray-50/50 dark:bg-neutral-800/30 p-4 rounded-2xl">
@@ -325,10 +323,10 @@ export default function StockDetail() {
                                 </div>
                                 <span className="text-xs font-medium text-gray-400 uppercase tracking-widest">TradingView Crawler</span>
                             </div>
-                            
+
                             {loadingNews ? (
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    {[1,2,3,4].map(i => (
+                                    {[1, 2, 3, 4].map(i => (
                                         <div key={i} className="h-28 bg-gray-50 dark:bg-neutral-800/50 rounded-xl animate-pulse" />
                                     ))}
                                 </div>
@@ -339,7 +337,7 @@ export default function StockDetail() {
                             ) : (
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     {news.map((item, idx) => (
-                                        <a 
+                                        <a
                                             key={idx}
                                             href={item.link}
                                             target="_blank"

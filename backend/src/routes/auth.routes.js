@@ -1,5 +1,6 @@
 import express from 'express';
 import { register, login, getMe, verifyOtp, resendOtp, setupPin, verifyPin, changePin, forgotPassword, resetPassword, firstPasswordChange, getAuthConfig, verifyEmail, resendVerification, acceptLegal } from '../controllers/auth.controller.js';
+import { googleAuth, appleAuth } from '../controllers/oauth.controller.js';
 import verifyToken from '../middleware/auth.middleware.js';
 
 const router = express.Router();
@@ -7,6 +8,8 @@ const router = express.Router();
 router.get('/config', getAuthConfig);
 router.post('/register', register);
 router.post('/login', login);
+router.post('/google', googleAuth);
+router.post('/apple', appleAuth);
 router.post('/verify-otp', verifyOtp);
 router.post('/resend-otp', resendOtp);
 router.post('/verify-email', verifyEmail);

@@ -45,6 +45,9 @@ Do NOT add secrets to any file, commit them, or hardcode them in source.
 | `AI_PROVIDER` | `gemini` or `groq` |
 | `AI_CHAT_PROVIDER` | `gemini` or `groq` |
 | `FRONTEND_URL` | Allowed CORS origin (Vercel URL in prod) |
+| `GOOGLE_CLIENT_ID` | OAuth 2.0 client ID from Google Cloud Console. Used by both frontend (returned via `/auth/config`) and backend (token verification). Leave unset to hide the Google sign-in button. |
+| `APPLE_CLIENT_ID` | Apple "Services ID" (e.g. `com.fswealth.web`), configured at developer.apple.com → Identifiers. Used for both Apple's JS SDK on the frontend and identity-token verification on the backend. |
+| `APPLE_REDIRECT_URI` | Optional. The return URL registered with the Services ID. Defaults to `<origin>/login` when unset. |
 
 ## Deploy environments
 

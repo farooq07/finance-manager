@@ -181,24 +181,62 @@ export const uploadStatement = async (req, res) => {
         let pageCount = 1;
         let parsedTxs = [];
         const fileIsCsv = isCsv(req.file);
+        // For CSV uploads: balances extracted directly from the metadata section
+        let csvOpeningBalance = null;
+        let csvClosingBalance = null;
 
         try {
             // Step 1: Check for duplicate file
             logger.log('[STATEMENT] Checking for duplicate file...');
             fileHash = getFileHash(filePath);
             const isDuplicate = await isFilePreviouslyImported(req.user.id, fileHash, bankId);
+            const forceReplace = req.body?.force === 'true' || req.query?.force === 'true';
 
             if (isDuplicate) {
-                fs.unlinkSync(filePath);
-                return res.status(400).json({ message: 'This file was already imported previously' });
+                const existing = await prisma.bankStatement.findFirst({
+                    where: { bank_id: bankId, file_hash: fileHash },
+                    select: { id: true, month: true, year: true, transaction_count: true, upload_date: true, file_path: true },
+                });
+
+                // Auto-clean empty/failed previous imports; force-replace honours the
+                // user's explicit decision after the 409 prompt below.
+                const isEmptyFailedImport = existing && (existing.transaction_count ?? 0) === 0;
+
+                if (isEmptyFailedImport || forceReplace) {
+                    try {
+                        if (existing?.file_path && fs.existsSync(existing.file_path)) {
+                            fs.unlinkSync(existing.file_path);
+                        }
+                        await prisma.bankStatement.delete({ where: { id: existing.id } });
+                        logger.log('[STATEMENT] Replaced previous statement:', existing.id, '(reason:', isEmptyFailedImport ? 'empty-failed' : 'force-replace', ')');
+                    } catch (cleanupErr) {
+                        logger.log('[STATEMENT] Cleanup of previous statement failed:', cleanupErr.message);
+                    }
+                } else {
+                    fs.unlinkSync(filePath);
+                    return res.status(409).json({
+                        message: 'This statement was already imported.',
+                        duplicate: true,
+                        existing: {
+                            id: existing.id,
+                            month: existing.month,
+                            year: existing.year,
+                            transactionCount: existing.transaction_count,
+                            uploadedAt: existing.upload_date,
+                        },
+                    });
+                }
             }
 
             if (fileIsCsv) {
                 // Step 2a: Parse CSV directly
                 logger.log('[STATEMENT] Parsing CSV file...');
                 try {
-                    parsedTxs = parseCsvTransactions(filePath);
-                    logger.log('[STATEMENT] CSV parsed:', parsedTxs.length, 'transactions');
+                    const csvResult = parseCsvTransactions(filePath);
+                    parsedTxs = csvResult.transactions;
+                    csvOpeningBalance = csvResult.openingBalance;
+                    csvClosingBalance = csvResult.closingBalance;
+                    logger.log('[STATEMENT] CSV parsed:', parsedTxs.length, 'transactions, opening:', csvOpeningBalance, 'closing:', csvClosingBalance);
                 } catch (csvError) {
                     fs.unlinkSync(filePath);
                     return res.status(400).json({ message: csvError.message });
@@ -246,20 +284,23 @@ export const uploadStatement = async (req, res) => {
             year = txDate.getFullYear();
         }
 
-        // Extract balances: prefer per-row running balance column, fall back to summary lines
-        let openingBalance = null;
-        let closingBalance = null;
+        // Extract balances — priority order:
+        //  1. CSV metadata section (Opening Balance / Closing Balance rows above the header)
+        //  2. Running balance column in transaction rows (last row = closing)
+        //  3. PDF summary-line text parsing
+        let openingBalance = csvOpeningBalance;
+        let closingBalance = csvClosingBalance;
 
-        if (parsedTxs.length > 0) {
+        if (openingBalance === null || closingBalance === null) {
             const withBalance = parsedTxs.filter(tx => tx.balance != null);
             if (withBalance.length > 0) {
                 const sorted = [...withBalance].sort((a, b) => new Date(a.transaction_date) - new Date(b.transaction_date));
-                openingBalance = sorted[0].balance;
-                closingBalance = sorted[sorted.length - 1].balance;
+                // Closing = last running balance. Opening stays from CSV metadata (more reliable).
+                if (closingBalance === null) closingBalance = sorted[sorted.length - 1].balance;
             }
         }
 
-        // Fall back to summary-line parsing (e.g. "Closing Balance: 1,234.56")
+        // Fall back to summary-line parsing for PDFs (e.g. "Closing Balance: 1,234.56")
         if (closingBalance === null && rawText) {
             const parsed = parseStatementBalances(rawText);
             openingBalance = openingBalance ?? parsed.opening;

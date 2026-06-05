@@ -1,177 +1,194 @@
-# Personal Finance & Investment Manager
+# FSWealth Axis
 
-A full-stack web application to track expenses, mutual fund portfolios, stock investments, dues ledgers, and rental income — with date-wise portfolio snapshots, data visualization, and industry-standard best practices.
-
----
-
-## Features
-
-### 📊 Mutual Funds
-- Upload **CSV / Excel (.xlsx / .xls)** portfolio statements (auto-detects Meezan Fund format)
-- Date-wise **portfolio snapshots** — compare value, gain/loss, and return % across uploads
-- **ECharts** visualizations: bar chart (value vs invested), donut chart (allocation), timeline chart
-- Bulk select & delete with checkboxes
-- Per-fund gain/loss in PKR and percentage
-
-### 💰 Expenses Tracker
-- Add, edit, and delete expenses by category
-- Payment method tracking
-
-### 🏠 Rent Tracker
-- Monthly rent entries with payer, amount, and account source
-- Dropdown selects for predefined payers and bank accounts
-
-### 📒 Dues Ledger
-- Per-person transaction tracking (receivable / payable)
-- CSV upload for bulk transactions
-- Inline editing, bulk type toggle, net balance calculation
-
-### 📈 Stocks
-- Stock portfolio with buy transactions
-- Brokerage fee tracking
-- **Live PSX Data Sync** via Playwright scraper
-
-### 🕋 Zakat & Assets
-- Calculate Zakat automatically
-- Manage physical assets like property and gold
-
-### 🔐 Advanced Authentication
-- Secure JWT-based registration and login
-- OTP email verification step
-- Secure "Forgot Password" flow with OTP
-- Master PIN generation for masking sensitive portfolio values
-
-### 📋 Dashboard & Reports
-- Portfolio summary cards
-- Monthly/category expense reports
+A personal finance manager built for the Pakistani market — tracks spending, bank statements, investments, gold, dues, rent, and more, with an AI assistant that can answer questions about your own data.
 
 ---
 
-## Tech Stack
+## Stack
 
-| Layer | Technology |
-|-------|-----------|
-| **Frontend** | React 19 (Vite) + Tailwind CSS + Lucide Icons |
-| **Charts** | ECharts via `echarts-for-react` |
-| **State Management** | TanStack Query (React Query) for server state caching |
-| **Form Validation** | Zod schemas (frontend + backend) |
-| **Safe Math** | `currency.js` for financial calculations |
-| **Date Utils** | `date-fns` |
-| **Backend** | Node.js + Express 5 |
-| **Database** | PostgreSQL (Supabase) + Prisma ORM |
-| **Auth** | JWT + bcrypt |
-| **Testing** | Vitest + React Testing Library (45 tests) |
+| Layer | Tech |
+|---|---|
+| Frontend | React 19, Vite, Tailwind CSS, TanStack Query v5, React Router v6, ECharts |
+| Backend | Express 5, Prisma ORM, Node.js |
+| Database | Supabase PostgreSQL (pgvector for RAG embeddings) |
+| Auth | JWT (7-day), OTP via email, optional 4-digit app PIN, Google OAuth, Apple OAuth |
+| AI | Gemini 1.5 Flash (categoriser + RAG) · Groq llama-3.3-70b (fallback) |
+| Secrets | Doppler (local dev) · Railway env vars (backend) · Vercel env vars (frontend) |
+| Deploy | Frontend → Vercel · Backend → Railway |
+
+---
+
+## Modules
+
+### Dashboard
+Net worth hero with bank, wallet, investment, asset, and liability totals. Includes daily history chart, asset-allocation donut, and composition breakdown. Clicking any tile deep-links to that module.
+
+### Spending
+Aggregated analytics across bank statement transactions, wallet transactions, and manual expense entries. Period filter (Month / Quarter / Year) with a back/forward navigator. Charts: day-by-day trend, category breakdown, top destinations, weekday rhythm. All data respects the selected date range.
+
+### Accounts
+Bank accounts and e-wallets in one screen. Upload monthly PDF statements; transactions are parsed and AI-categorised. Beneficiaries (saved payees) are a sub-tab with full transaction history per person.
+
+### Ledger
+Unified dues and debts screen with two tabs:
+- **Dues** — interpersonal money (who owes you, who you owe)
+- **Debts** — institutional debt (credit cards, loans, mortgages) with outstanding balance and payment history
+
+### Stocks
+PSX portfolio tracking. Upload CDC/broker snapshots, log buy transactions, track dividends, and view live PSX prices from the daily scraper.
+
+### Personal
+Three sub-tabs in one screen:
+- **Zakat** — annual payment log
+- **Rent** — monthly rental income with payer and account source
+- **Assets** — property, vehicles, and other physical assets
+
+### Gold Vault
+PIN-locked gold jewellery inventory. Features:
+- Add items by weight (grams) and carat; purchase price entered in **PKR/tola** with per-gram auto-calculated inline
+- Photo upload per item (compressed client-side before storage)
+- Daily price scraper keeps market rates current (hamariweb source)
+- Today's value vs purchase value with P&L and % gain per item
+- Portfolio-wide stats: Today's Value · Purchase Value · Gain/Loss · Total Weight
+- Zakat eligibility check against the 85 g (24K-equivalent) nisab threshold
+
+### AI Assistant
+Chat interface backed by Gemini/Groq with full session history. Upload documents (PDF, CSV, text) for RAG-powered Q&A against your own financial data using pgvector embeddings.
+
+### Settings
+Profile, password, app PIN, Gold Vault PIN management, recurring payments / subscriptions, menu visibility controls per role, legal acceptance log.
+
+---
+
+## Local Development
+
+### Prerequisites
+- Node.js 20+
+- [Doppler CLI](https://docs.doppler.com/docs/install-cli) authenticated to the `fs-wealth-axis` project (`doppler login`)
+
+### Install
+
+```bash
+cd frontend && npm install
+cd ../backend  && npm install
+```
+
+### Run
+
+```bash
+# Backend — port 5000 (Doppler injects all secrets)
+cd backend && npm run dev
+
+# Frontend — port 5173 (separate terminal)
+cd frontend && npm run dev
+```
+
+### Tests
+
+```bash
+# Unit tests (Vitest)
+cd frontend && npm run test
+
+# E2E tests (Playwright) — requires both servers running
+cd frontend && npm run test:e2e
+```
+
+---
+
+## Secrets
+
+All local secrets live in **Doppler** (project `fs-wealth-axis`, config `dev`). Never create `.env` files.
+
+| Variable | Purpose |
+|---|---|
+| `DATABASE_URL` | Pooled Supabase URL — used by Prisma for all queries |
+| `DIRECT_URL` | Direct Supabase URL — used by Prisma for migrations only |
+| `JWT_SECRET` | Must be identical across all environments |
+| `GMAIL_USER` / `GMAIL_APP_PASSWORD` | OTP + email sender |
+| `GEMINI_API_KEY` | AI categoriser and RAG engine |
+| `GROQ_API_KEY` | Fallback AI provider |
+| `AI_PROVIDER` / `AI_CHAT_PROVIDER` | `gemini` or `groq` |
+| `FRONTEND_URL` | Allowed CORS origin |
+| `GOOGLE_CLIENT_ID` | Google OAuth — leave unset to hide the Google sign-in button |
+| `APPLE_CLIENT_ID` / `APPLE_REDIRECT_URI` | Apple OAuth — optional |
+
+Railway and Vercel use their own dashboard env vars and do **not** use Doppler.
+
+---
+
+## Database
+
+```bash
+# Always check for drift before touching the schema
+# (use the /prisma-check skill in Claude Code)
+
+# Apply pending migrations locally
+cd backend && npx prisma migrate deploy
+
+# On push to main, Railway auto-runs prisma migrate deploy
+```
+
+> **Never** run `prisma db push` without checking drift first — it can overwrite migrations.
+
+The `menu_visibility` table controls which sidebar items each role can see. Every new route needs a corresponding `INSERT` into that table.
 
 ---
 
 ## Project Structure
 
 ```
-finance-manager/
+Finance-manager/
 ├── backend/
-│   ├── prisma/schema.prisma          # Database models
+│   ├── prisma/
+│   │   ├── schema.prisma          # All Prisma models
+│   │   └── migrations/            # SQL migration history
 │   ├── src/
-│   │   ├── controllers/              # Route handlers
-│   │   ├── middleware/
-│   │   │   ├── auth.middleware.js     # JWT verification
-│   │   │   └── validate.js           # Zod validation middleware
-│   │   ├── routes/                    # Express routes
-│   │   └── utils/prisma.js           # Prisma client
+│   │   ├── controllers/           # Route handlers (one file per domain)
+│   │   ├── routes/                # Express routers
+│   │   ├── services/              # Cron jobs, gold scraper, AI/RAG
+│   │   └── utils/                 # Prisma client, AES crypto, logger
 │   └── server.js
-├── frontend/
-│   ├── src/
-│   │   ├── components/               # Layout, Sidebar, Header
-│   │   ├── context/AuthContext.jsx    # Auth state
-│   │   ├── hooks/useMutualFunds.js   # TanStack Query hooks
-│   │   ├── pages/                    # All page components
-│   │   ├── providers/QueryProvider.jsx
-│   │   ├── services/api.js           # Axios instance
-│   │   └── utils/
-│   │       ├── currency.js           # Safe math & PKR formatting
-│   │       ├── dates.js              # Date formatting
-│   │       ├── schemas.js            # Zod validation schemas
-│   │       └── __tests__/            # Unit tests
-│   └── vitest.config.js
+└── frontend/
+    ├── src/
+    │   ├── components/            # Layout, Sidebar, Header, shared UI
+    │   ├── context/               # AuthContext
+    │   ├── hooks/                 # TanStack Query hooks (one file per domain)
+    │   ├── pages/                 # Route-level page components
+    │   ├── services/              # Axios API client (api.js)
+    │   └── utils/
+    │       ├── currency.js        # fmtPKR() — always use this for PKR amounts
+    │       └── dates.js           # fmtDateLong()
+    └── e2e/                       # Playwright E2E tests
 ```
 
 ---
 
-## Running Locally
+## Currency & Formatting
 
-### 1. Database Setup
-Create a [Supabase](https://supabase.com) project for a free PostgreSQL database. Get the pooler URL and direct URL from the connection settings.
+All amounts are **PKR (Pakistani Rupees)**.
 
-### 2. Backend
-```bash
-cd backend
-npm install
-```
-
-Create a `.env` file:
-```env
-DATABASE_URL=your_supabase_pooler_url
-DIRECT_URL=your_supabase_direct_url
-JWT_SECRET=your_random_secret_string
-```
-
-```bash
-npx prisma db push
-node server.js
-```
-
-### 3. Frontend
-```bash
-cd frontend
-npm install
-```
-
-Create a `.env.local` file:
-```env
-VITE_API_URL=http://localhost:5000/api
-```
-
-```bash
-npm run dev
-```
-
-### 4. Run Tests
-```bash
-cd frontend
-npm test              # Run all 45 tests
-npm run test:watch    # Watch mode
-```
+- Monetary values → `fmtPKR()` from `frontend/src/utils/currency.js`
+- Dates → `fmtDateLong()` from `frontend/src/utils/dates.js`
+- Gold prices → user-facing in **PKR/tola** (1 tola = 11.664 g); stored internally as PKR/gram
 
 ---
 
-## 📱 Mobile App (React Native)
+## Security
 
-The project includes a professional mobile app built with Expo and React Native Paper.
-
-- **Build Guide**: [ANDROID_BUILD_GUIDE.md](file:///d:/Vibe-coding/Finance-manager/ANDROID_BUILD_GUIDE.md)
-- **EAS Workflows**: [EAS_WORKFLOWS_GUIDE.md](file:///d:/Vibe-coding/Finance-manager/EAS_WORKFLOWS_GUIDE.md)
-
-To run a production build:
-```bash
-npx eas-cli@latest workflow:run create-production-builds.yml
-```
+- `user_id` always comes from `req.user.id` (JWT middleware) — never from request body, params, or AI output
+- DB-stored secrets (API keys, tokens) are encrypted with AES-256-GCM via `encryptSecret()` in `backend/src/utils/crypto.js`
+- No raw SQL string interpolation — parameterised Prisma tagged templates only
+- Rate limiting applied to all auth (`/api/auth/*`) and AI (`/api/chat/*/message`) endpoints
 
 ---
 
-## Best Practices Implemented
+## Deployment
 
-- **Safe Math** — `currency.js` prevents floating point errors (`0.1 + 0.2 = 0.3`, not `0.30000...04`)
-- **Zod Validation** — Schema validation on both frontend forms and backend API routes
-- **TanStack Query** — Server state caching with auto-refetch and background sync
-- **Centralized Utilities** — Single source of truth for PKR formatting, date formatting, gain/loss helpers
-- **Unit Testing** — 45 Vitest tests covering financial math, validation schemas, and date utilities
-- **Backend Validation Middleware** — Rejects invalid data before it reaches the database
+| Service | Platform | Deploy trigger |
+|---|---|---|
+| Frontend | Vercel | Push to `main` |
+| Backend | Railway | Push to `main` (also auto-runs `prisma migrate deploy`) |
 
----
+Backend URL: `https://finance-manager-production-73ad.up.railway.app`
 
-## Currency
-
-All values are displayed in **PKR (Pakistani Rupee)**.
-
----
-
-*Built with ❤️ as a premium Personal Finance Dashboard.*
+`VITE_` env vars are baked in at Vercel build time — set them in the Vercel dashboard before deploying.

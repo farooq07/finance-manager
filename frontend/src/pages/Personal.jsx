@@ -1,18 +1,23 @@
 import { useSearchParams } from 'react-router-dom';
-import { HeartHandshake, Building, Box } from 'lucide-react';
+import { HeartHandshake, Building, Box, Gem } from 'lucide-react';
 import Zakat from './Zakat';
 import RentTracker from './RentTracker';
 import Assets from './Assets';
+import Gold from './Gold';
 
 const TABS = [
     { key: 'zakat',  label: 'Zakat',   icon: HeartHandshake },
     { key: 'rent',   label: 'Rent',    icon: Building },
     { key: 'assets', label: 'Assets',  icon: Box },
+    { key: 'gold',   label: 'Gold',    icon: Gem },
 ];
+
+const VALID_TABS = TABS.map((t) => t.key);
 
 export default function Personal() {
     const [searchParams, setSearchParams] = useSearchParams();
-    const active = searchParams.get('tab') || 'zakat';
+    const requested = searchParams.get('tab');
+    const active = VALID_TABS.includes(requested) ? requested : 'zakat';
 
     const setTab = (key) => setSearchParams({ tab: key }, { replace: true });
 
@@ -21,7 +26,7 @@ export default function Personal() {
             {/* Page header */}
             <div>
                 <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Personal</h1>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Manage your Zakat, rent income, and physical assets</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Zakat, rent income, physical assets, and your gold vault</p>
             </div>
 
             {/* Tab bar */}
@@ -47,6 +52,7 @@ export default function Personal() {
                 {active === 'zakat'  && <Zakat />}
                 {active === 'rent'   && <RentTracker />}
                 {active === 'assets' && <Assets />}
+                {active === 'gold'   && <Gold />}
             </div>
         </div>
     );

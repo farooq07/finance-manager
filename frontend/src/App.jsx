@@ -25,20 +25,18 @@ import Reports from './pages/Reports';
 import DesignSystem from './pages/DesignSystem';
 import Personal from './pages/Personal';
 import RolesManagement from './pages/RolesManagement';
-import Beneficiaries from './pages/Beneficiaries';
 import BeneficiaryDetail from './pages/BeneficiaryDetail';
 import ChangeFirstPassword from './pages/ChangeFirstPassword';
 import AiAssistant from './pages/AiAssistant';
+import Help from './pages/Help';
 import Privacy from './pages/Privacy';
 import Terms from './pages/Terms';
 // Insights and Expenses are now the same merged Spending page.
 import Insights from './pages/Expenses';
 // Net Worth is now folded into the merged Dashboard page.
 import NetWorth from './pages/Dashboard';
-import Bills from './pages/Bills';
-import Debts from './pages/Debts';
 import DebtDetail from './pages/DebtDetail';
-import Gold from './pages/Gold';
+import Ledger from './pages/Ledger';
 
 
 const ProtectedRoute = ({ children }) => {
@@ -85,7 +83,10 @@ function App() {
               <Route path="mutual-funds" element={<MutualFunds />} />
               <Route path="stocks" element={<Stocks />} />
               <Route path="stocks/:id" element={<StockDetail />} />
-              <Route path="dues" element={<DuesLedger />} />
+              <Route path="ledger" element={<Ledger />} />
+              {/* Legacy redirects — Dues & Debts merged into Ledger */}
+              <Route path="dues" element={<Navigate to="/ledger?tab=people" replace />} />
+              <Route path="debts" element={<Navigate to="/ledger?tab=loans" replace />} />
               <Route path="personal" element={<Personal />} />
               {/* Legacy redirects */}
               <Route path="rents" element={<Navigate to="/personal?tab=rent" replace />} />
@@ -102,14 +103,15 @@ function App() {
               <Route path="reports" element={<Reports />} />
               <Route path="insights" element={<Insights />} />
               <Route path="net-worth" element={<NetWorth />} />
-              <Route path="bills" element={<Bills />} />
-              <Route path="debts" element={<Debts />} />
+              {/* Bills page removed — overlap with Expenses. Backend /api/recurring kept intact. */}
+              <Route path="bills" element={<Navigate to="/expenses" replace />} />
               <Route path="debts/:id" element={<DebtDetail />} />
-              <Route path="gold" element={<Gold />} />
+              <Route path="gold" element={<Navigate to="/personal?tab=gold" replace />} />
               <Route path="design-system" element={<DesignSystem />} />
-              <Route path="beneficiaries" element={<Beneficiaries />} />
+              <Route path="beneficiaries" element={<Navigate to="/accounts?tab=beneficiaries" replace />} />
               <Route path="beneficiaries/:id" element={<BeneficiaryDetail />} />
               <Route path="assistant" element={<AiAssistant />} />
+              <Route path="help" element={<Help />} />
             </Route>
           </Routes>
         </Router>

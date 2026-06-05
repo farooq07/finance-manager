@@ -97,14 +97,8 @@ export default function BeneficiaryDetail() {
 
     return (
         <div className="space-y-6 max-w-3xl">
-            {/* Back link + header */}
+            {/* Header — back navigation lives in the global Header now */}
             <div className="flex items-start gap-3">
-                <Link
-                    to="/beneficiaries"
-                    className="p-2 -ml-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors mt-0.5"
-                >
-                    <ArrowLeft className="w-5 h-5" />
-                </Link>
                 <div className="flex-1 flex items-center gap-3">
                     <div className="w-12 h-12 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center shrink-0">
                         <span className="text-emerald-600 dark:text-emerald-400 font-bold text-lg">

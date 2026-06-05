@@ -76,6 +76,14 @@ router.post('/:bankId/statements/upload', (req, res, next) => {
 router.get('/:bankId/transactions', getAllTransactions);
 router.get('/:bankId/category-summary', getCategorySummary);
 router.get('/:bankId/statements/:statementId/transactions', getStatementTransactions);
+
+// Statement-independent transaction ops — look up by txId + bankId, so callers
+// rendering the combined all-transactions list don't need a statementId.
+router.post('/:bankId/transactions/:txId/approve', approveTransaction);
+router.put('/:bankId/transactions/:txId', updateTransactionCategory);
+router.delete('/:bankId/transactions/:txId', deleteTransaction);
+
+// Legacy statement-scoped variants (kept for backward compatibility)
 router.post('/:bankId/statements/:statementId/transactions/:txId/approve', approveTransaction);
 router.put('/:bankId/statements/:statementId/transactions/:txId', updateTransactionCategory);
 router.delete('/:bankId/statements/:statementId/transactions/:txId', deleteTransaction);

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, Edit2, Wallet as WalletIcon, Building2, MoreHorizontal, ArrowRight, Eye, EyeOff } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Plus, Trash2, Edit2, Wallet as WalletIcon, Building2, MoreHorizontal, ArrowRight, Eye, EyeOff, Users } from 'lucide-react';
+import { Link, useSearchParams } from 'react-router-dom';
+import Beneficiaries from './Beneficiaries';
 import { useWallets, useCreateWallet, useUpdateWalletBalance, useDeleteWallet } from '../hooks/useWallets';
 import { useBanks, useCreateBank, useUpdateBankBalance, useDeleteBank } from '../hooks/useBanks';
 import { useInstitutions } from '../hooks/useInstitutions';
@@ -24,7 +25,340 @@ const CARD_THEMES = {
     amber: 'from-[#ff5018] to-[#ff5018]'
 };
 
+/* ─── Brand-aware card colour pickers (Pakistan banks + local wallets) ─── */
+function bankCardColor(bank) {
+    const key = `${bank.name || ''} ${bank.institution || ''}`.toLowerCase();
+    if (key.includes('standard chartered') || key.includes('scbl')) return '#0c77b9';
+    if (key.includes('habib metro')) return '#0a6f47';
+    if (key.includes('habib bank') || key === 'hbl' || key.startsWith('hbl ')) return '#1a8556';
+    if (key.includes('meezan')) return '#005c4a';
+    if (key.includes('mcb')) return '#003e7e';
+    if (key.includes('alfalah')) return '#5c3697';
+    if (key.includes('askari')) return '#0b6b3a';
+    if (key.includes('ubl') || key.includes('united bank')) return '#063a8e';
+    if (key.includes('faysal')) return '#0e7c3f';
+    if (key.includes('al baraka')) return '#1d4ed8';
+    if (key.includes('soneri')) return '#b91c1c';
+    return '#1F4842'; // primary-700 fallback
+}
+
+const WALLET_THEME_COLOR = {
+    blue: '#1d4ed8',
+    slate: '#1f2937',
+    emerald: '#0a6f47',
+    rose: '#b8005c',
+    purple: '#5c3697',
+    amber: '#ff5018',
+};
+
+function walletCardColor(wallet) {
+    const key = `${wallet.name || ''} ${wallet.institution || ''}`.toLowerCase();
+    if (key.includes('naya')) return '#ff5018';
+    if (key.includes('jazz')) return '#b8005c';
+    if (key.includes('easy')) return '#0a6f47';
+    if (key.includes('upaisa')) return '#5c3697';
+    if (key.includes('sadapay')) return '#0c0c0c';
+    if (wallet.color_theme && WALLET_THEME_COLOR[wallet.color_theme]) {
+        return WALLET_THEME_COLOR[wallet.color_theme];
+    }
+    return '#1F4842';
+}
+
+function monogram(name = '') {
+    const cleaned = name.replace(/[^A-Za-z\s]/g, '').trim();
+    const parts = cleaned.split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return 'A';
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+}
+
+function lastFour(s = '') {
+    const digits = (s || '').replace(/\D/g, '');
+    return digits.slice(-4) || 'XXXX';
+}
+
+/* Tiny sparkline used inside the bank card's coloured right pane.
+   No real history — synthesizes a believable trend so the card has visual life. */
+function CardSparkline({ seed = 0 }) {
+    // Deterministic-ish wobble around an upward trend
+    const points = Array.from({ length: 14 }, (_, i) => {
+        const base = 38 - i * 1.6;
+        const wobble = Math.sin((i + seed) * 1.3) * 4;
+        return Math.max(4, Math.min(40, base + wobble));
+    });
+    const d = points.map((y, i) => `${i === 0 ? 'M' : 'L'}${(i / (points.length - 1)) * 180},${y}`).join(' ');
+    return (
+        <svg viewBox="0 0 180 48" className="w-full h-12" preserveAspectRatio="none">
+            <path d={d} fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+    );
+}
+
+/* ─── Bank card — two-pane: white identity left, coloured balance + sparkline right ─── */
+function BankCard({ bank, onEditBalance, onDelete, isEditing, balanceInput, setBalanceInput, onSaveBalance, onCancelEdit }) {
+    const color = bankCardColor(bank);
+    const seed = (bank.name?.charCodeAt(0) || 0) + (bank.account_no?.length || 0);
+
+    return (
+        <div className="group relative grid grid-cols-1 sm:grid-cols-[1fr,1fr] rounded-2xl border border-gray-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 overflow-hidden">
+            {/* Hover actions (top-right of whole card) */}
+            <div className="absolute top-2 right-2 z-10 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); onEditBalance(); }}
+                    className="h-7 w-7 bg-white/90 dark:bg-neutral-800/90 text-gray-500 hover:text-primary-600 backdrop-blur-sm"
+                    title="Edit balance"
+                >
+                    <Edit2 className="w-3.5 h-3.5" />
+                </Button>
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={onDelete}
+                    className="h-7 w-7 bg-white/90 dark:bg-neutral-800/90 text-gray-500 hover:text-error-600 backdrop-blur-sm"
+                    title="Delete bank"
+                >
+                    <Trash2 className="w-3.5 h-3.5" />
+                </Button>
+            </div>
+
+            {/* LEFT — identity */}
+            <div className="p-5 flex flex-col">
+
+                <div className="mt-3 flex items-center gap-3">
+                    <span
+                        className="w-10 h-10 rounded-xl flex items-center justify-center text-white text-[12px] font-semibold shrink-0"
+                        style={{ background: color }}
+                    >
+                        {monogram(bank.name)}
+                    </span>
+                    <div className="min-w-0">
+                        <h3 className="text-[15px] font-semibold text-gray-900 dark:text-gray-100 leading-tight truncate">{bank.name}</h3>
+                        <p className="text-[11.5px] font-mono text-gray-500 dark:text-gray-400 mt-0.5 truncate">{bank.account_no}</p>
+                    </div>
+                </div>
+
+                {bank.iban_no && (
+                    <div className="mt-4 pt-4 border-t border-gray-100 dark:border-neutral-800">
+                        <p className="text-[10px] font-semibold tracking-[0.16em] uppercase text-gray-400 dark:text-gray-500">IBAN</p>
+                        <p className="mt-1 text-[11.5px] font-mono text-gray-700 dark:text-gray-300 break-all">{bank.iban_no}</p>
+                    </div>
+                )}
+
+                <div className="mt-auto pt-4">
+                    <Link
+                        to={`/banks/${bank.id}`}
+                        className="inline-flex items-center gap-1 text-[12.5px] font-semibold text-gray-700 dark:text-gray-200 hover:text-primary-600 dark:hover:text-primary-300 transition-colors"
+                    >
+                        View statements <ArrowRight className="w-3.5 h-3.5" />
+                    </Link>
+                </div>
+            </div>
+
+            {/* RIGHT — coloured balance pane */}
+            <div
+                className="p-5 text-white flex flex-col justify-between relative overflow-hidden min-h-[180px]"
+                style={{ background: `linear-gradient(140deg, ${color} 0%, ${shade(color, -0.25)} 100%)` }}
+            >
+                {/* Decorative concentric rings */}
+                <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full border border-white/10 pointer-events-none" />
+                <div className="absolute -top-4 -right-4 w-28 h-28 rounded-full border border-white/10 pointer-events-none" />
+
+                <div className="relative z-10 flex items-start justify-between">
+                    <span className="text-[10px] font-semibold tracking-[0.18em] uppercase text-white/70">Current balance</span>
+                </div>
+
+                {isEditing ? (
+                    <div className="relative z-10 flex items-center gap-2">
+                        <input
+                            autoFocus
+                            type="number"
+                            className="bg-white/15 border border-white/30 rounded-lg px-3 py-1.5 text-white placeholder-white/50 w-full outline-none focus:ring-2 focus:ring-white/40 text-base font-semibold"
+                            value={balanceInput}
+                            onChange={(e) => setBalanceInput(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') onSaveBalance(e);
+                                if (e.key === 'Escape') onCancelEdit();
+                            }}
+                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                        />
+                        <Button size="sm" onClick={onSaveBalance} className="bg-white text-gray-900 hover:bg-gray-100 h-8 px-3 font-semibold">
+                            Save
+                        </Button>
+                    </div>
+                ) : (
+                    <div className="relative z-10">
+                        <div className="flex items-baseline gap-2">
+                            <span className="text-[11px] font-medium text-white/70">{bank.currency || 'PKR'}</span>
+                            <MaskedBalance
+                                value={bank.current_balance}
+                                className="text-xl font-semibold tracking-tight"
+                                iconClassName="text-white/80 hover:text-white bg-white/15 hover:bg-white/25 p-1 ml-1"
+                                showSymbol={false}
+                            />
+                        </div>
+                        <div className="mt-3 opacity-70">
+                            <CardSparkline seed={seed} />
+                        </div>
+                    </div>
+                )}
+
+                <div className="relative z-10 flex items-end justify-between">
+                    <p className="font-mono text-[12.5px] tracking-[0.18em] text-white/85">
+                        •••• •••• •••• {lastFour(bank.account_no)}
+                    </p>
+                    <span className="text-[10px] font-semibold tracking-[0.18em] uppercase text-white/60">Bank</span>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+/* ─── Wallet card — full-bleed coloured credit-card style ─── */
+function WalletCard({ wallet, holderName, isEditing, balanceInput, setBalanceInput, onEditBalance, onSaveBalance, onCancelEdit, onDelete }) {
+    const color = walletCardColor(wallet);
+
+    return (
+        <div className="group relative">
+            <div
+                className="h-48 rounded-2xl p-5 flex flex-col justify-between text-white relative overflow-hidden"
+                style={{ background: `linear-gradient(140deg, ${color} 0%, ${shade(color, -0.25)} 100%)` }}
+            >
+                {/* Decorative rings */}
+                <div className="absolute -top-12 -right-12 w-44 h-44 rounded-full border border-white/10 pointer-events-none" />
+                <div className="absolute -bottom-10 -left-10 w-32 h-32 rounded-full border border-white/10 pointer-events-none" />
+
+                {/* Top — wallet type + name */}
+                <div className="relative z-10">
+                    <p className="text-[10px] font-semibold tracking-[0.18em] uppercase text-white/65">Mobile wallet</p>
+                    <h3 className="text-lg font-semibold mt-0.5 leading-tight">{wallet.institution || wallet.name}</h3>
+                </div>
+
+                {/* Mid — chip + balance */}
+                <div className="relative z-10 flex items-center gap-3">
+                    {/* Chip */}
+                    <div className="w-9 h-7 rounded-md bg-gradient-to-br from-yellow-200 via-yellow-400 to-yellow-600 shadow-inner relative overflow-hidden shrink-0">
+                        <div className="absolute inset-0 flex items-center justify-center">
+                            <div className="w-6 h-4 rounded-sm border border-yellow-700/40 grid grid-cols-3 grid-rows-2 gap-px p-0.5">
+                                {Array.from({ length: 6 }).map((_, i) => (
+                                    <div key={i} className="bg-yellow-700/30" />
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                    {isEditing ? (
+                        <div className="flex items-center gap-2 flex-1">
+                            <input
+                                autoFocus
+                                type="number"
+                                className="bg-white/15 border border-white/30 rounded-lg px-3 py-1.5 text-white placeholder-white/50 w-full outline-none focus:ring-2 focus:ring-white/40 text-base font-semibold"
+                                value={balanceInput}
+                                onChange={(e) => setBalanceInput(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') onSaveBalance();
+                                    if (e.key === 'Escape') onCancelEdit();
+                                }}
+                            />
+                            <Button size="sm" onClick={onSaveBalance} className="bg-white text-gray-900 hover:bg-gray-100 h-8 px-3 font-semibold shrink-0">
+                                Save
+                            </Button>
+                        </div>
+                    ) : (
+                        <div>
+                            <p className="text-[10px] font-semibold tracking-[0.18em] uppercase text-white/65">Balance</p>
+                            <div className="flex items-baseline gap-1.5">
+                                <span className="text-[11px] font-medium text-white/70">{wallet.currency || 'PKR'}</span>
+                                <MaskedBalance
+                                    value={wallet.balance}
+                                    className="text-lg font-semibold tracking-tight"
+                                    iconClassName="text-white/80 hover:text-white bg-white/15 hover:bg-white/25 p-1 ml-1"
+                                    showSymbol={false}
+                                />
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Bottom — masked number + holder */}
+                <div className="relative z-10 flex items-end justify-between">
+                    <p className="font-mono text-[13px] tracking-[0.22em] text-white/90">
+                        •••• •••• •••• {lastFour(wallet.account_num)}
+                    </p>
+                    <div className="text-right">
+                        <p className="text-[9px] font-semibold tracking-[0.2em] uppercase text-white/55">Holder</p>
+                        <p className="text-[12px] font-medium text-white/95 leading-tight mt-0.5">{holderName || '—'}</p>
+                    </div>
+                </div>
+            </div>
+
+            {/* Hover actions (top-right, overlaying the card) */}
+            <div className="absolute top-2 right-2 z-20 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <Link to={`/wallets/${wallet.id}`}>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white" title="Open">
+                        <ArrowRight className="w-3.5 h-3.5" />
+                    </Button>
+                </Link>
+                <Button variant="ghost" size="icon" onClick={onEditBalance} className="h-7 w-7 bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white" title="Edit balance">
+                    <Edit2 className="w-3.5 h-3.5" />
+                </Button>
+                <Button variant="ghost" size="icon" onClick={onDelete} className="h-7 w-7 bg-error-500/85 hover:bg-error-500 backdrop-blur-sm text-white" title="Delete">
+                    <Trash2 className="w-3.5 h-3.5" />
+                </Button>
+            </div>
+        </div>
+    );
+}
+
+/* Tiny colour-shade helper — darkens a hex by `pct` (−1..1) for our gradient ends. */
+function shade(hex, pct) {
+    const h = hex.replace('#', '');
+    const num = parseInt(h.length === 3 ? h.split('').map(c => c + c).join('') : h, 16);
+    const r = (num >> 16) & 0xff;
+    const g = (num >> 8) & 0xff;
+    const b = num & 0xff;
+    const adj = (c) => Math.max(0, Math.min(255, Math.round(c + 255 * pct)));
+    return `#${[adj(r), adj(g), adj(b)].map(v => v.toString(16).padStart(2, '0')).join('')}`;
+}
+
+/* ─── Tab shell ─ My Accounts (banks + wallets) | Beneficiaries ───────── */
+const ACCOUNT_TABS = [
+    { key: 'accounts', label: 'My Accounts', icon: WalletIcon },
+    { key: 'beneficiaries', label: 'Beneficiaries', icon: Users },
+];
+const VALID_ACCOUNT_TABS = ACCOUNT_TABS.map((t) => t.key);
+
 export default function Accounts() {
+    const [searchParams, setSearchParams] = useSearchParams();
+    const requested = searchParams.get('tab');
+    const active = VALID_ACCOUNT_TABS.includes(requested) ? requested : 'accounts';
+    const setTab = (key) => setSearchParams(key === 'accounts' ? {} : { tab: key }, { replace: true });
+
+    return (
+        <div className="space-y-6">
+            <div className="flex gap-1 bg-gray-100 dark:bg-neutral-800/60 p-1 rounded-xl w-fit">
+                {ACCOUNT_TABS.map(({ key, label, icon: Icon }) => (
+                    <button
+                        key={key}
+                        onClick={() => setTab(key)}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-150
+                            ${active === key
+                                ? 'bg-white dark:bg-neutral-900 text-gray-900 dark:text-gray-100 shadow-sm'
+                                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                            }`}
+                    >
+                        <Icon className="w-4 h-4" />
+                        {label}
+                    </button>
+                ))}
+            </div>
+
+            {active === 'beneficiaries' ? <Beneficiaries /> : <AccountsList />}
+        </div>
+    );
+}
+
+function AccountsList() {
     const { data: wallets = [], isLoading: loadingWallets } = useWallets();
     const { data: banks = [], isLoading: loadingBanks } = useBanks();
     const { data: institutions = [] } = useInstitutions();
@@ -202,107 +536,29 @@ export default function Accounts() {
                     </Button>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
                     {banks.length === 0 ? (
                         <div className="col-span-full py-8 text-center bg-gray-50 dark:bg-neutral-800/50 rounded-xl border border-gray-200 dark:border-neutral-700 border-dashed">
                             <Building2 className="mx-auto h-8 w-8 text-gray-300 dark:text-gray-600 mb-2" />
                             <p className="text-sm text-gray-500 dark:text-gray-400">No bank accounts linked yet.</p>
                         </div>
                     ) : (
-                        banks.map((bank) => {
-                            const isEditingBank = editBankId === bank.id;
-
-                            return (
-                                <div
-                                    key={bank.id}
-                                    className="bg-white dark:bg-neutral-900 rounded-xl shadow-sm border border-gray-200 dark:border-neutral-800 p-6 hover:shadow-md hover:border-blue-200 dark:hover:border-blue-500/50 transition-all group flex flex-col relative"
-                                >
-                                    <div className="flex justify-between items-start mb-4">
-                                        <Link to={`/banks/${bank.id}`} className="block">
-                                            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                                                {bank.name}
-                                            </h3>
-                                            <p className="text-sm text-gray-500 dark:text-gray-400 font-mono mt-1">{bank.account_no}</p>
-                                        </Link>
-                                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                onClick={(e) => {
-                                                    e.preventDefault();
-                                                    e.stopPropagation();
-                                                    setEditBankId(bank.id);
-                                                    setBankBalanceInput(bank.current_balance.toString());
-                                                }}
-                                                className="text-gray-400 hover:text-blue-500 p-1 h-8 w-8"
-                                            >
-                                                <Edit2 className="w-4 h-4" />
-                                            </Button>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                onClick={(e) => handleBankDelete(e, bank.id)}
-                                                className="text-gray-400 hover:text-red-500 p-1 h-8 w-8"
-                                            >
-                                                <Trash2 className="w-4 h-4" />
-                                            </Button>
-                                        </div>
-                                    </div>
-                                    <div className="mt-auto space-y-4">
-                                        <div>
-                                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">IBAN</p>
-                                            <p className="text-sm font-mono text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-neutral-800 px-2 py-1 rounded inline-block">
-                                                {bank.iban_no}
-                                            </p>
-                                        </div>
-                                        <div className="flex items-end justify-between pt-4 border-t border-gray-100 dark:border-neutral-800">
-                                            <div className="w-full">
-                                                <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Current Balance</p>
-                                                {isEditingBank ? (
-                                                    <div className="flex items-center gap-2 mt-1">
-                                                        <input
-                                                            autoFocus
-                                                            type="number"
-                                                            className="bg-gray-50 dark:bg-neutral-800 border border-gray-300 dark:border-neutral-700 rounded px-2 py-1 text-gray-900 dark:text-gray-100 w-full outline-none focus:ring-2 focus:ring-blue-500 text-lg font-bold"
-                                                            value={bankBalanceInput}
-                                                            onChange={e => setBankBalanceInput(e.target.value)}
-                                                            onKeyDown={e => {
-                                                                if (e.key === 'Enter') handleUpdateBankBalance(e, bank.id);
-                                                                if (e.key === 'Escape') setEditBankId(null);
-                                                            }}
-                                                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                                                        />
-                                                        <Button
-                                                            size="sm"
-                                                            color="blue"
-                                                            onClick={(e) => handleUpdateBankBalance(e, bank.id)}
-                                                            className="px-3 py-1.5 font-bold h-8"
-                                                        >
-                                                            Save
-                                                        </Button>
-                                                    </div>
-                                                ) : (
-                                                    <div className="flex flex-col">
-                                                        <div className="flex items-baseline gap-1">
-                                                            <span className="text-gray-500 font-semibold">{bank.currency || 'PKR'}</span>
-                                                            <MaskedBalance value={bank.current_balance} className="text-xl font-bold tracking-tight text-gray-900 dark:text-gray-100" showSymbol={false} />
-                                                        </div>
-                                                        {bank.currency && bank.currency !== 'PKR' && (
-                                                            <span className="text-xs text-gray-400">≈ {fmtPKR(bank.current_balance * (bank.exchange_rate || 1))}</span>
-                                                        )}
-                                                    </div>
-                                                )}
-                                            </div>
-                                            {!isEditingBank && (
-                                                <Link to={`/banks/${bank.id}`}>
-                                                    <ArrowRight className="w-5 h-5 text-gray-300 group-hover:text-blue-500 transition-colors" />
-                                                </Link>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                            );
-                        })
+                        banks.map((bank) => (
+                            <BankCard
+                                key={bank.id}
+                                bank={bank}
+                                isEditing={editBankId === bank.id}
+                                balanceInput={bankBalanceInput}
+                                setBalanceInput={setBankBalanceInput}
+                                onEditBalance={() => {
+                                    setEditBankId(bank.id);
+                                    setBankBalanceInput(bank.current_balance?.toString() ?? '');
+                                }}
+                                onSaveBalance={(e) => handleUpdateBankBalance(e, bank.id)}
+                                onCancelEdit={() => { setEditBankId(null); setBankBalanceInput(''); }}
+                                onDelete={(e) => handleBankDelete(e, bank.id)}
+                            />
+                        ))
                     )}
                 </div>
             </section>

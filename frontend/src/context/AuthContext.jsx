@@ -68,13 +68,30 @@ export const AuthProvider = ({ children }) => {
         return data;
     };
 
+    // OAuth — Google returns an id_token (credential); we forward it to the
+    // backend which verifies it and returns our session JWT. No OTP step.
+    const googleLogin = async (credential) => {
+        const { data } = await api.post('/auth/google', { credential });
+        localStorage.setItem('token', data.token);
+        setUser(data.user);
+        return data;
+    };
+
+    // Apple returns identityToken + (first sign-in only) the user's name.
+    const appleLogin = async ({ identityToken, user: appleUser }) => {
+        const { data } = await api.post('/auth/apple', { identityToken, user: appleUser });
+        localStorage.setItem('token', data.token);
+        setUser(data.user);
+        return data;
+    };
+
     const logout = () => {
         localStorage.removeItem('token');
         setUser(null);
     };
 
     return (
-        <AuthContext.Provider value={{ user, loading, login, verifyOtp, register, verifyEmail, resendVerification, forgotPassword, resetPassword, logout, refreshUser }}>
+        <AuthContext.Provider value={{ user, loading, login, verifyOtp, register, verifyEmail, resendVerification, forgotPassword, resetPassword, googleLogin, appleLogin, logout, refreshUser }}>
             {!loading && children}
         </AuthContext.Provider>
     );
