@@ -3,11 +3,29 @@ import logger from '../utils/logger.js';
 import { encryptSecret, decryptSecret } from '../utils/crypto.js';
 import { extractPdfText, getFileHash } from '../services/pdfParser.service.js';
 import { parseTransactions, validateBalance, parseStatementBalances } from '../services/transactionParser.service.js';
-import { parseCsvTransactions } from '../services/csvParser.service.js';
+import { parseCsvTransactions, inspectCsv, parseCsvWithMapping } from '../services/csvParser.service.js';
+import { reconcile } from '../services/reconcile.service.js';
 import { categorizeTransactionBatch, recordUserCategory } from '../services/categorizer.service.js';
 import { findDuplicates, isFilePreviouslyImported, markAsDuplicate } from '../services/duplicateDetector.service.js';
 import { linkTransactionsToBeneficiaries } from './beneficiary.controller.js';
 import fs from 'fs';
+import path from 'path';
+
+const STATEMENTS_DIR = 'uploads/statements';
+
+// Resolve an uploadId (multer filename) to a safe absolute path inside the
+// statements upload dir. Guards against path traversal (../, absolute paths).
+function resolveUploadPath(uploadId) {
+    const base = path.basename(String(uploadId || ''));
+    if (!base || base !== uploadId) return null;       // reject anything with a path separator
+    const full = path.join(STATEMENTS_DIR, base);
+    if (!fs.existsSync(full)) return null;
+    return full;
+}
+
+function isCsvName(name = '') {
+    return name.toLowerCase().endsWith('.csv');
+}
 
 function isCsv(file) {
     return file.mimetype === 'text/csv'
@@ -420,6 +438,263 @@ export const uploadStatement = async (req, res) => {
             error: error.message,
             details: error.meta?.cause || error.code
         });
+    }
+};
+
+/**
+ * Shared finaliser — creates the BankStatement, dedups, categorises, writes
+ * transaction logs, links beneficiaries, and syncs the bank balance.
+ * Used by the mapping-based commit flow (preview → map → commit).
+ *
+ * Returns { statement, transactionLogs, duplicateCount }.
+ */
+async function finalizeImport({ userId, bankId, parsedTxs, openingBalance, closingBalance, filePath, fileHash, password }) {
+    // Derive month/year from the earliest transaction
+    let month = new Date().toLocaleString('en-US', { month: 'long' });
+    let year = new Date().getFullYear();
+    if (parsedTxs.length > 0) {
+        const sorted = [...parsedTxs].sort((a, b) => new Date(a.transaction_date) - new Date(b.transaction_date));
+        const d = new Date(sorted[0].transaction_date);
+        month = d.toLocaleString('en-US', { month: 'long' });
+        year = d.getFullYear();
+    }
+
+    const statement = await prisma.bankStatement.create({
+        data: {
+            bank_id: bankId,
+            month,
+            year,
+            file_path: filePath,
+            file_hash: fileHash,
+            password_encrypted: encryptSecret(password || ''),
+            transaction_count: parsedTxs.length,
+            processing_status: 'pending',
+            opening_balance: openingBalance !== null && openingBalance !== undefined ? openingBalance : undefined,
+            closing_balance: closingBalance !== null && closingBalance !== undefined ? closingBalance : undefined,
+        },
+    });
+
+    if (closingBalance !== null && closingBalance !== undefined) {
+        await prisma.bank.update({ where: { id: bankId }, data: { current_balance: closingBalance } });
+    }
+
+    let duplicateMap = new Map();
+    const transactionLogs = [];
+
+    if (parsedTxs.length > 0) {
+        try {
+            duplicateMap = await findDuplicates(userId, statement.id, parsedTxs);
+        } catch (e) {
+            console.error('[COMMIT] Duplicate detection error:', e.message);
+        }
+
+        let categorizations = [];
+        try {
+            categorizations = await categorizeTransactionBatch(userId, parsedTxs);
+        } catch (e) {
+            console.error('[COMMIT] Categorization error:', e.message);
+            categorizations = parsedTxs.map(() => ({ category: 'Other', confidence: 0 }));
+        }
+
+        for (let i = 0; i < parsedTxs.length; i++) {
+            try {
+                const tx = parsedTxs[i];
+                const isDupTx = duplicateMap.has(i);
+                const cat = categorizations[i] || { category: 'Other', confidence: 0 };
+                const txLog = await prisma.bankTransactionLog.create({
+                    data: {
+                        bank_statement_id: statement.id,
+                        transaction_date: tx.transaction_date,
+                        description: tx.description,
+                        debit_amount: tx.debit_amount || null,
+                        credit_amount: tx.credit_amount || null,
+                        net_amount: tx.net_amount,
+                        suggested_category: cat.category,
+                        category_confidence: cat.confidence,
+                        is_duplicate: isDupTx,
+                        duplicate_of_id: isDupTx ? duplicateMap.get(i).duplicateOfId : null,
+                        processing_status: isDupTx ? 'rejected' : 'pending',
+                    },
+                });
+                transactionLogs.push(txLog);
+            } catch (e) {
+                console.error('[COMMIT] Error creating transaction log:', e.message);
+            }
+        }
+    }
+
+    await linkTransactionsToBeneficiaries(userId, transactionLogs);
+
+    return { statement, transactionLogs, duplicateCount: duplicateMap.size };
+}
+
+/**
+ * Step 1 of the mapping flow — inspect an uploaded file and return a preview.
+ * CSV → headers, sample rows, auto-detected column mapping, metadata balances.
+ * PDF → best-effort parsed transactions + reconciliation for review.
+ * The file is kept on disk; `uploadId` is used by the commit step.
+ *
+ * POST /api/banks/:bankId/statements/preview
+ */
+export const previewStatement = async (req, res) => {
+    let filePath = null;
+    try {
+        const { bankId } = req.params;
+        const { password } = req.body;
+
+        const bank = await prisma.bank.findUnique({ where: { id: bankId, user_id: req.user.id } });
+        if (!bank) return res.status(404).json({ message: 'Bank not found' });
+        if (!req.file) return res.status(400).json({ message: 'No file provided' });
+
+        filePath = req.file.path;
+        const uploadId = path.basename(filePath);
+        const fileHash = getFileHash(filePath);
+        const alreadyImported = await isFilePreviouslyImported(req.user.id, fileHash, bankId);
+
+        if (isCsvName(req.file.originalname) || isCsv(req.file)) {
+            const preview = inspectCsv(filePath);
+            return res.json({ type: 'csv', uploadId, alreadyImported, ...preview });
+        }
+
+        // PDF — parse best-effort and reconcile so the user can review/edit
+        let rawText = '';
+        try {
+            const pdf = await extractPdfText(filePath, password);
+            rawText = pdf.rawText || '';
+        } catch (e) {
+            logger.log('[PREVIEW] PDF extract failed:', e.message);
+        }
+
+        const transactions = rawText ? parseTransactions(rawText) : [];
+        const balances = rawText ? parseStatementBalances(rawText) : { opening: null, closing: null };
+        const recon = reconcile(transactions, balances.opening, balances.closing);
+
+        return res.json({
+            type: 'pdf',
+            uploadId,
+            alreadyImported,
+            transactions,
+            opening: balances.opening,
+            closing: balances.closing,
+            reconciliation: recon,
+        });
+    } catch (error) {
+        if (filePath && fs.existsSync(filePath)) {
+            try { fs.unlinkSync(filePath); } catch { /* ignore */ }
+        }
+        console.error('[PREVIEW] failed:', error);
+        return res.status(400).json({ message: error.message || 'Failed to preview statement' });
+    }
+};
+
+/**
+ * Step 2 of the mapping flow — parse with the confirmed mapping (CSV) or the
+ * user-reviewed rows (PDF), reconcile, and import.
+ *
+ * POST /api/banks/:bankId/statements/commit
+ * body: { uploadId, type:'csv'|'pdf', mapping?, transactions?, opening?, closing?, password?, force? }
+ */
+export const commitStatement = async (req, res) => {
+    try {
+        const { bankId } = req.params;
+        const { uploadId, type, mapping, transactions: reviewedTxs, opening, closing, password, force } = req.body;
+
+        const bank = await prisma.bank.findUnique({ where: { id: bankId, user_id: req.user.id } });
+        if (!bank) return res.status(404).json({ message: 'Bank not found' });
+
+        const filePath = resolveUploadPath(uploadId);
+        if (!filePath) return res.status(400).json({ message: 'Upload not found or expired. Please re-upload the file.' });
+
+        // Duplicate handling (mirror uploadStatement semantics)
+        const fileHash = getFileHash(filePath);
+        const isDuplicate = await isFilePreviouslyImported(req.user.id, fileHash, bankId);
+        if (isDuplicate) {
+            const existing = await prisma.bankStatement.findFirst({
+                where: { bank_id: bankId, file_hash: fileHash },
+                select: { id: true, month: true, year: true, transaction_count: true, upload_date: true, file_path: true },
+            });
+            const isEmptyFailed = existing && (existing.transaction_count ?? 0) === 0;
+            if (isEmptyFailed || force === true || force === 'true') {
+                try {
+                    if (existing?.file_path && existing.file_path !== filePath && fs.existsSync(existing.file_path)) {
+                        fs.unlinkSync(existing.file_path);
+                    }
+                    if (existing) await prisma.bankStatement.delete({ where: { id: existing.id } });
+                } catch (e) { logger.log('[COMMIT] cleanup failed:', e.message); }
+            } else {
+                return res.status(409).json({
+                    message: 'This statement was already imported.',
+                    duplicate: true,
+                    existing: existing ? {
+                        id: existing.id, month: existing.month, year: existing.year,
+                        transactionCount: existing.transaction_count, uploadedAt: existing.upload_date,
+                    } : null,
+                });
+            }
+        }
+
+        // Parse according to type
+        let parsedTxs = [];
+        let openingBalance = null;
+        let closingBalance = null;
+
+        if (type === 'csv') {
+            const result = parseCsvWithMapping(filePath, mapping || {});
+            parsedTxs = result.transactions;
+            openingBalance = result.openingBalance;
+            closingBalance = result.closingBalance;
+        } else {
+            // PDF — trust the user-reviewed rows from the body
+            parsedTxs = (Array.isArray(reviewedTxs) ? reviewedTxs : [])
+                .map((t) => {
+                    const debit = Number(t.debit_amount) || 0;
+                    const credit = Number(t.credit_amount) || 0;
+                    const net = t.net_amount != null ? Number(t.net_amount) : (credit - debit);
+                    return {
+                        transaction_date: new Date(t.transaction_date),
+                        description: String(t.description || '').slice(0, 255),
+                        debit_amount: debit > 0 ? debit : null,
+                        credit_amount: credit > 0 ? credit : null,
+                        net_amount: net,
+                        balance: t.balance != null ? Number(t.balance) : null,
+                    };
+                })
+                .filter((t) => t.transaction_date && !isNaN(t.transaction_date) && t.net_amount !== 0);
+            openingBalance = opening != null ? Number(opening) : null;
+            closingBalance = closing != null ? Number(closing) : null;
+        }
+
+        if (parsedTxs.length === 0) {
+            return res.status(400).json({ message: 'No valid transactions to import after parsing.' });
+        }
+
+        const reconciliation = reconcile(parsedTxs, openingBalance, closingBalance);
+
+        const { statement, transactionLogs, duplicateCount } = await finalizeImport({
+            userId: req.user.id,
+            bankId,
+            parsedTxs,
+            openingBalance,
+            closingBalance,
+            filePath,
+            fileHash,
+            password,
+        });
+
+        return res.status(201).json({
+            message: 'Statement imported',
+            statementId: statement.id,
+            reconciliation,
+            summary: {
+                totalParsed: parsedTxs.length,
+                duplicates: duplicateCount,
+                unique: parsedTxs.length - duplicateCount,
+            },
+            transactions: transactionLogs,
+        });
+    } catch (error) {
+        console.error('[COMMIT] failed:', error);
+        return res.status(500).json({ message: error.message || 'Failed to import statement' });
     }
 };
 

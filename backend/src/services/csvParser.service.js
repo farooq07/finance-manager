@@ -303,3 +303,214 @@ export function parseCsvTransactions(filePath) {
 
     return { transactions, openingBalance, closingBalance };
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Mapping-based parsing — powers the "Map Columns" UI.
+//
+//  inspectCsv() returns everything the frontend modal needs to render a mapping
+//  screen: headers, a few sample rows, an auto-detected mapping, and the
+//  opening/closing balance found in the metadata section.
+//
+//  parseCsvWithMapping() takes a user-confirmed mapping (explicit column indices)
+//  and parses deterministically — no guessing. This is what makes CSV import
+//  reliable for ANY bank: the human resolves the columns once.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const OUR_FIELDS = ['date', 'description', 'amount', 'debit', 'credit', 'balance', 'type'];
+const FIELD_ALIASES = {
+    date:        DATE_ALIASES,
+    description: DESC_ALIASES,
+    amount:      AMOUNT_ALIASES,
+    debit:       DEBIT_ALIASES,
+    credit:      CREDIT_ALIASES,
+    balance:     BALANCE_ALIASES,
+    type:        TYPE_ALIASES,
+};
+
+function readRows(filePath) {
+    const content = fs.readFileSync(filePath, 'utf-8');
+    return content.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+}
+
+// Locate the header row: first row (within the first 25) that has at least 2
+// non-empty cells AND contains a date-like or description-like column name.
+// Falls back to the first row with the most columns if no names are recognised.
+function detectHeaderRow(rawLines) {
+    let best = -1;
+    let bestCols = 0;
+    for (let i = 0; i < Math.min(rawLines.length, 25); i++) {
+        const cols = splitCsvLine(rawLines[i]).map(h => h.replace(/^﻿/, '').trim());
+        const nonEmpty = cols.filter(Boolean).length;
+        if (nonEmpty < 2) continue;
+        const hasDate = findCol(cols, DATE_ALIASES) !== -1;
+        const hasDesc = findCol(cols, DESC_ALIASES) !== -1;
+        if (hasDate && hasDesc) return i;            // confident match
+        if (nonEmpty > bestCols) { best = i; bestCols = nonEmpty; }
+    }
+    return best; // best-effort fallback so the user can still map manually
+}
+
+export function inspectCsv(filePath) {
+    const rawLines = readRows(filePath);
+    if (rawLines.length < 2) {
+        throw new Error('CSV appears to be empty or has no data rows.');
+    }
+
+    const headerRowIndex = detectHeaderRow(rawLines);
+    if (headerRowIndex === -1) {
+        throw new Error('Could not find a header row in this CSV.');
+    }
+
+    const headers = splitCsvLine(rawLines[headerRowIndex]).map(h => h.replace(/^﻿/, '').trim());
+
+    // Auto-detect a mapping (our field → column index, -1 if not found)
+    const autoMap = {};
+    for (const field of OUR_FIELDS) {
+        autoMap[field] = findCol(headers, FIELD_ALIASES[field]);
+    }
+
+    // Sample data rows (first 3 non-empty rows after the header)
+    const sampleRows = [];
+    for (let i = headerRowIndex + 1; i < rawLines.length && sampleRows.length < 3; i++) {
+        const cells = splitCsvLine(rawLines[i]);
+        if (cells.filter(Boolean).length >= 2) sampleRows.push(cells);
+    }
+
+    const rowCount = rawLines.length - headerRowIndex - 1;
+    const metaRows = rawLines.slice(0, headerRowIndex);
+    const { openingBalance, closingBalance } = extractMetaBalances(metaRows);
+
+    return {
+        headers,
+        headerRowIndex,
+        sampleRows,
+        rowCount,
+        autoMap,
+        meta: { opening: openingBalance, closing: closingBalance },
+    };
+}
+
+// Build one transaction from a row of cells given an explicit column mapping.
+// Returns null if the row can't be parsed (skipped).
+function buildRowFromMapping(cells, map) {
+    const at = (idx) => (idx != null && idx >= 0 && idx < cells.length ? cells[idx] : undefined);
+
+    const dateStr = at(map.date);
+    if (!dateStr) return null;
+    const txDate = parseDate(dateStr);
+    if (!txDate || isNaN(txDate)) return null;
+
+    const description = (at(map.description) || '').replace(/\s+/g, ' ').trim();
+
+    let debit = map.debit != null && map.debit >= 0 ? parseAmount(at(map.debit)) : null;
+    let credit = map.credit != null && map.credit >= 0 ? parseAmount(at(map.credit)) : null;
+    let netAmount;
+
+    if (debit === null && credit === null && map.amount != null && map.amount >= 0) {
+        // Single signed amount column. Sign is source of truth; TYPE disambiguates
+        // an unsigned positive value.
+        const rawCell = at(map.amount) ?? '';
+        const rawAmount = parseAmount(rawCell);
+        if (rawAmount === null) return null;
+        const hasMinus = /-/.test(String(rawCell));
+
+        if (rawAmount < 0 || hasMinus) {
+            debit = Math.abs(rawAmount);
+        } else if (rawAmount > 0) {
+            const typeVal = map.type != null && map.type >= 0 ? normalise(at(map.type) || '') : '';
+            const looksDebit = typeVal.includes('debit')
+                || typeVal === 'dr'
+                || typeVal.includes('withdrawal')
+                || typeVal.includes('outgoing')
+                || typeVal.includes('out)')
+                || typeVal.includes('paid');
+            if (looksDebit) debit = rawAmount;
+            else            credit = rawAmount;
+        } else {
+            return null; // zero
+        }
+        netAmount = credit !== null ? credit : -(debit ?? 0);
+    } else {
+        debit = debit ?? 0;
+        credit = credit ?? 0;
+        netAmount = credit - debit;
+    }
+
+    if ((debit ?? 0) === 0 && (credit ?? 0) === 0) return null;
+
+    const balance = map.balance != null && map.balance >= 0 ? parseAmount(at(map.balance)) : null;
+
+    return {
+        transaction_date: txDate,
+        description,
+        debit_amount:  debit  > 0 ? debit  : null,
+        credit_amount: credit > 0 ? credit : null,
+        net_amount:    netAmount,
+        balance,
+    };
+}
+
+/**
+ * Parse a CSV using an explicit, user-confirmed column mapping.
+ *
+ * mapping = {
+ *   headerRowIndex: number,
+ *   date, description, amount, debit, credit, balance, type   // column index or -1/null
+ *   opening, closing                                          // optional confirmed balances
+ * }
+ *
+ * Returns { transactions, openingBalance, closingBalance } in file order.
+ */
+export function parseCsvWithMapping(filePath, mapping) {
+    const rawLines = readRows(filePath);
+    const headerRowIndex = Number.isInteger(mapping.headerRowIndex) ? mapping.headerRowIndex : 0;
+
+    const map = {
+        date:        normIdx(mapping.date),
+        description: normIdx(mapping.description),
+        amount:      normIdx(mapping.amount),
+        debit:       normIdx(mapping.debit),
+        credit:      normIdx(mapping.credit),
+        balance:     normIdx(mapping.balance),
+        type:        normIdx(mapping.type),
+    };
+
+    if (map.date < 0) throw new Error('A Date column must be mapped.');
+    if (map.amount < 0 && map.debit < 0 && map.credit < 0) {
+        throw new Error('Map an Amount column, or Debit/Credit columns.');
+    }
+
+    const transactions = [];
+    for (let i = headerRowIndex + 1; i < rawLines.length; i++) {
+        const cells = splitCsvLine(rawLines[i]);
+        if (cells.filter(Boolean).length < 2) continue;
+        const tx = buildRowFromMapping(cells, map);
+        if (tx) transactions.push(tx);
+    }
+
+    // Balances: prefer the user-confirmed values, then metadata, then last running balance.
+    const metaRows = rawLines.slice(0, headerRowIndex);
+    const meta = extractMetaBalances(metaRows);
+
+    let openingBalance = numOrNull(mapping.opening) ?? meta.openingBalance;
+    let closingBalance = numOrNull(mapping.closing) ?? meta.closingBalance;
+
+    if (closingBalance === null && transactions.length > 0) {
+        const withBal = transactions.filter(t => t.balance !== null);
+        if (withBal.length > 0) closingBalance = withBal[withBal.length - 1].balance;
+    }
+
+    logger.log(`[CSV_PARSER] mapping parse → ${transactions.length} txns, opening=${openingBalance}, closing=${closingBalance}`);
+    return { transactions, openingBalance, closingBalance };
+}
+
+function normIdx(v) {
+    if (v === null || v === undefined || v === '') return -1;
+    const n = Number(v);
+    return Number.isInteger(n) ? n : -1;
+}
+function numOrNull(v) {
+    if (v === null || v === undefined || v === '') return null;
+    const n = Number(String(v).replace(/[,\s]/g, ''));
+    return isNaN(n) ? null : n;
+}

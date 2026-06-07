@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import React, { useMemo, useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useBank, useBankCategorySummary } from '../hooks/useBanks';
 import { useBankAllTransactions } from '../hooks/useStatementTransactions';
 import { fmtPKR } from '../utils/currency';
@@ -17,6 +17,8 @@ import Modal from '../components/Modal';
 import StatementTransactionsModal from '../components/StatementTransactionsModal';
 import BankTransactionsTable from '../components/BankTransactionsTable';
 import StatementFileUpload from '../components/StatementFileUpload';
+import CsvMappingModal from '../components/CsvMappingModal';
+import StatementReviewModal from '../components/StatementReviewModal';
 
 /* ─── PKR shorthand: 6.82 L (lakh), 12.4 K, etc. ──────────────── */
 function fmtPKRShort(n) {
@@ -39,7 +41,17 @@ function monogram(name = '') {
 
 export default function BankDetail() {
     const { id } = useParams();
-    const { data: bank, isLoading } = useBank(id);
+    const navigate = useNavigate();
+    const { data: bank, isLoading, isError, error } = useBank(id);
+    const notFound = isError && error?.response?.status === 404;
+
+    // A deleted/missing bank: bounce back to Accounts so we never show stale data.
+    useEffect(() => {
+        if (notFound) {
+            toast.error('This account no longer exists.');
+            navigate('/accounts', { replace: true });
+        }
+    }, [notFound, navigate]);
     const { data: allTransactions = [], isLoading: txLoading } = useBankAllTransactions(id);
     const { data: categorySummaryData } = useBankCategorySummary(id);
     const queryClient = useQueryClient();
@@ -50,6 +62,10 @@ export default function BankDetail() {
     const [selectedStatement, setSelectedStatement] = useState(null);
     const [duplicate, setDuplicate] = useState(null);
     const [replacing, setReplacing] = useState(false);
+    // Two-step import: preview holds the inspected file; commit finalises it.
+    const [preview, setPreview] = useState(null);          // { type, uploadId, ... }
+    const [committing, setCommitting] = useState(false);
+    const [pendingCommit, setPendingCommit] = useState(null); // payload awaiting force-replace
 
     const deleteStatementMutation = useMutation({
         mutationFn: async (statementId) => {
@@ -82,16 +98,10 @@ export default function BankDetail() {
         },
     });
 
-    const doUpload = async ({ force = false } = {}) => {
-        if (!uploadFile) throw new Error('Please select a PDF file');
-        const formData = new FormData();
-        formData.append('file', uploadFile);
-        if (pdfPassword) formData.append('password', pdfPassword);
-        if (force) formData.append('force', 'true');
-        const { data } = await api.post(`/banks/${id}/statements/upload`, formData, {
-            headers: { 'Content-Type': 'multipart/form-data' },
-        });
-        return data;
+    const invalidateAll = () => {
+        queryClient.invalidateQueries({ queryKey: ['banks', id] });
+        queryClient.invalidateQueries({ queryKey: ['banks'] });
+        queryClient.invalidateQueries({ queryKey: ['banks', id, 'all-transactions'] });
     };
 
     const resetUploadModal = () => {
@@ -101,32 +111,82 @@ export default function BankDetail() {
         setFileName('');
     };
 
-    const uploadStatementMutation = useMutation({
-        mutationFn: () => doUpload(),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['banks', id] });
-            queryClient.invalidateQueries({ queryKey: ['banks'] });
-            resetUploadModal();
-            toast.success('Statement uploaded — processing transactions…');
+    // Step 1 — upload file for inspection (no transactions saved yet).
+    const previewMutation = useMutation({
+        mutationFn: async () => {
+            if (!uploadFile) throw new Error('Please select a file');
+            const formData = new FormData();
+            formData.append('file', uploadFile);
+            if (pdfPassword) formData.append('password', pdfPassword);
+            const { data } = await api.post(`/banks/${id}/statements/preview`, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' },
+            });
+            return data;
+        },
+        onSuccess: (data) => {
+            setIsUploadModalOpen(false);
+            setPreview(data); // opens mapping (csv) or review (pdf) modal
         },
         onError: (error) => {
-            if (error.response?.status === 409 && error.response.data?.duplicate) {
-                setDuplicate(error.response.data.existing || {});
-                return;
-            }
-            toast.error(error.response?.data?.message || 'Failed to upload statement');
+            toast.error(error.response?.data?.message || 'Failed to read file');
         },
     });
+
+    // Step 2 — commit with the user's mapping (CSV) or reviewed rows (PDF).
+    const doCommit = async (payload, { force = false } = {}) => {
+        const body = {
+            uploadId: preview.uploadId,
+            type: preview.type,
+            password: pdfPassword || undefined,
+            force,
+            ...payload,
+        };
+        const { data } = await api.post(`/banks/${id}/statements/commit`, body);
+        return data;
+    };
+
+    const announceResult = (data) => {
+        const r = data.reconciliation;
+        const n = data.summary?.unique ?? data.summary?.totalParsed ?? 0;
+        if (r && !r.ok) {
+            toast.warning(`Imported ${n} transactions — but ${r.message}`, { duration: 7000 });
+        } else if (r && r.hasBalances) {
+            toast.success(`Imported ${n} transactions — balances reconciled ✓`);
+        } else {
+            toast.success(`Imported ${n} transactions`);
+        }
+    };
+
+    const handleCommit = async (payload) => {
+        setCommitting(true);
+        try {
+            const data = await doCommit(payload);
+            invalidateAll();
+            setPreview(null);
+            resetUploadModal();
+            announceResult(data);
+        } catch (error) {
+            if (error.response?.status === 409 && error.response.data?.duplicate) {
+                setDuplicate(error.response.data.existing || {});
+                setPendingCommit(payload); // retry with force after confirm
+                return;
+            }
+            toast.error(error.response?.data?.message || 'Failed to import statement');
+        } finally {
+            setCommitting(false);
+        }
+    };
 
     const handleConfirmReplace = async () => {
         setReplacing(true);
         try {
-            await doUpload({ force: true });
-            queryClient.invalidateQueries({ queryKey: ['banks', id] });
-            queryClient.invalidateQueries({ queryKey: ['banks'] });
+            const data = await doCommit(pendingCommit || {}, { force: true });
+            invalidateAll();
             setDuplicate(null);
+            setPendingCommit(null);
+            setPreview(null);
             resetUploadModal();
-            toast.success('Statement replaced — processing transactions…');
+            announceResult(data);
         } catch (retryErr) {
             toast.error(retryErr.response?.data?.message || 'Failed to replace statement');
         } finally {
@@ -168,8 +228,8 @@ export default function BankDetail() {
 
     const handleUpload = async (e) => {
         e.preventDefault();
-        if (!uploadFile) { toast.error('Please select a PDF file'); return; }
-        await uploadStatementMutation.mutateAsync();
+        if (!uploadFile) { toast.error('Please select a file'); return; }
+        await previewMutation.mutateAsync();
     };
 
     if (isLoading) {
@@ -180,6 +240,7 @@ export default function BankDetail() {
             </div>
         );
     }
+    if (notFound) return null; // redirecting to /accounts
     if (!bank) return <div className="p-8 text-error-500">Bank not found.</div>;
 
     const hasOpening = bank.statements?.some(s => s.opening_balance != null);
@@ -320,15 +381,37 @@ export default function BankDetail() {
                         </Button>
                         <Button
                             type="submit"
-                            disabled={uploadStatementMutation.isPending || !uploadFile}
+                            disabled={previewMutation.isPending || !uploadFile}
                             className="flex items-center gap-2"
                         >
-                            {uploadStatementMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-                            Upload &amp; Process
+                            {previewMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+                            Continue
                         </Button>
                     </div>
                 </form>
             </Modal>
+
+            {/* Step 2a — CSV column mapping */}
+            {preview?.type === 'csv' && (
+                <CsvMappingModal
+                    preview={preview}
+                    fileName={fileName}
+                    committing={committing}
+                    onConfirm={(mapping) => handleCommit(mapping)}
+                    onCancel={() => { setPreview(null); resetUploadModal(); }}
+                />
+            )}
+
+            {/* Step 2b — PDF review & edit */}
+            {preview?.type === 'pdf' && (
+                <StatementReviewModal
+                    preview={preview}
+                    fileName={fileName}
+                    committing={committing}
+                    onConfirm={(payload) => handleCommit(payload)}
+                    onCancel={() => { setPreview(null); resetUploadModal(); }}
+                />
+            )}
 
             {/* Duplicate-detected confirm — styled, not native window.confirm */}
             <Modal

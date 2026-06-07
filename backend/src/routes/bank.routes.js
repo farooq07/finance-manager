@@ -12,6 +12,8 @@ import {
     updateBankBalance,
     deleteBank,
     uploadStatement,
+    previewStatement,
+    commitStatement,
     syncStatementBalance,
     getAllTransactions,
     getStatementTransactions,
@@ -73,6 +75,11 @@ router.post('/:bankId/statements/upload', (req, res, next) => {
     });
     next();
 }, uploadStatement);
+
+// Two-step mapping flow: preview (inspect columns) → commit (parse with mapping)
+router.post('/:bankId/statements/preview', upload.single('file'), previewStatement);
+router.post('/:bankId/statements/commit', commitStatement);
+
 router.get('/:bankId/transactions', getAllTransactions);
 router.get('/:bankId/category-summary', getCategorySummary);
 router.get('/:bankId/statements/:statementId/transactions', getStatementTransactions);

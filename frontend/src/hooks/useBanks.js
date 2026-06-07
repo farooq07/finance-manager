@@ -20,6 +20,9 @@ export const useBank = (id) => {
             return data;
         },
         enabled: !!id,
+        // A deleted bank returns 404 — don't keep retrying or serving stale cache.
+        retry: (failureCount, error) => error?.response?.status !== 404 && failureCount < 2,
+        staleTime: 0,
     });
 };
 

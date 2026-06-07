@@ -13,6 +13,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import BankTransactionsTable from '../components/BankTransactionsTable';
 import StatementTransactionsModal from '../components/StatementTransactionsModal';
 import StatementFileUpload from '../components/StatementFileUpload';
+import CsvMappingModal from '../components/CsvMappingModal';
+import StatementReviewModal from '../components/StatementReviewModal';
 
 export default function WalletDetail() {
     const { id } = useParams();
@@ -24,6 +26,9 @@ export default function WalletDetail() {
     const [selectedStatement, setSelectedStatement] = useState(null);
     const [duplicate, setDuplicate] = useState(null); // { month, year, transactionCount, uploadedAt } | null
     const [replacing, setReplacing] = useState(false);
+    const [preview, setPreview] = useState(null);          // { type, uploadId, ... }
+    const [committing, setCommitting] = useState(false);
+    const [pendingCommit, setPendingCommit] = useState(null);
 
     const { data: allWallets = [], isLoading } = useWallets();
     const wallet = allWallets.find(w => w.id === id);
@@ -86,52 +91,88 @@ export default function WalletDetail() {
         deleteStatementMutation.mutate(statementId);
     };
 
-    /* Single-place upload helper so the duplicate-replace retry can reuse it. */
-    const doUpload = async ({ force = false } = {}) => {
-        if (!uploadFile) throw new Error('Please select a PDF file');
-        const formData = new FormData();
-        formData.append('file', uploadFile);
-        if (pdfPassword) formData.append('password', pdfPassword);
-        if (force) formData.append('force', 'true');
-        const { data } = await api.post(`/wallets/${id}/statements/upload`, formData, {
-            headers: { 'Content-Type': 'multipart/form-data' },
-        });
+    const invalidateAll = () => {
+        queryClient.invalidateQueries({ queryKey: ['wallets', id] });
+        queryClient.invalidateQueries({ queryKey: ['wallets'] });
+        queryClient.invalidateQueries({ queryKey: ['wallets', id, 'all-transactions'] });
+    };
+
+    const resetUploadModal = () => {
+        setIsUploadModalOpen(false);
+        setUploadFile(null);
+        setPdfPassword('');
+        setFileName('');
+    };
+
+    // Step 1 — inspect the file (no transactions saved yet).
+    const previewMutation = useMutation({
+        mutationFn: async () => {
+            if (!uploadFile) throw new Error('Please select a file');
+            const formData = new FormData();
+            formData.append('file', uploadFile);
+            if (pdfPassword) formData.append('password', pdfPassword);
+            const { data } = await api.post(`/wallets/${id}/statements/preview`, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' },
+            });
+            return data;
+        },
+        onSuccess: (data) => {
+            setIsUploadModalOpen(false);
+            setPreview(data);
+        },
+        onError: (error) => {
+            toast.error(error.response?.data?.message || 'Failed to read file');
+        },
+    });
+
+    const doCommit = async (payload, { force = false } = {}) => {
+        const body = { uploadId: preview.uploadId, type: preview.type, password: pdfPassword || undefined, force, ...payload };
+        const { data } = await api.post(`/wallets/${id}/statements/commit`, body);
         return data;
     };
 
-    const uploadStatementMutation = useMutation({
-        mutationFn: () => doUpload(),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['wallets', id] });
-            queryClient.invalidateQueries({ queryKey: ['wallets'] });
-            setIsUploadModalOpen(false);
-            setUploadFile(null);
-            setPdfPassword('');
-            setFileName('');
-            toast.success('Statement uploaded — processing transactions…');
-        },
-        onError: (error) => {
-            // 409 → existing statement with data. Surface the styled confirm modal.
+    const announceResult = (data) => {
+        const r = data.reconciliation;
+        const n = data.summary?.unique ?? data.summary?.totalParsed ?? 0;
+        if (r && !r.ok) {
+            toast.warning(`Imported ${n} transactions — but ${r.message}`, { duration: 7000 });
+        } else if (r && r.hasBalances) {
+            toast.success(`Imported ${n} transactions — balances reconciled ✓`);
+        } else {
+            toast.success(`Imported ${n} transactions`);
+        }
+    };
+
+    const handleCommit = async (payload) => {
+        setCommitting(true);
+        try {
+            const data = await doCommit(payload);
+            invalidateAll();
+            setPreview(null);
+            resetUploadModal();
+            announceResult(data);
+        } catch (error) {
             if (error.response?.status === 409 && error.response.data?.duplicate) {
                 setDuplicate(error.response.data.existing || {});
+                setPendingCommit(payload);
                 return;
             }
-            toast.error(error.response?.data?.message || 'Failed to upload statement');
+            toast.error(error.response?.data?.message || 'Failed to import statement');
+        } finally {
+            setCommitting(false);
         }
-    });
+    };
 
     const handleConfirmReplace = async () => {
         setReplacing(true);
         try {
-            await doUpload({ force: true });
-            queryClient.invalidateQueries({ queryKey: ['wallets', id] });
-            queryClient.invalidateQueries({ queryKey: ['wallets'] });
+            const data = await doCommit(pendingCommit || {}, { force: true });
+            invalidateAll();
             setDuplicate(null);
-            setIsUploadModalOpen(false);
-            setUploadFile(null);
-            setPdfPassword('');
-            setFileName('');
-            toast.success('Statement replaced — processing transactions…');
+            setPendingCommit(null);
+            setPreview(null);
+            resetUploadModal();
+            announceResult(data);
         } catch (retryErr) {
             toast.error(retryErr.response?.data?.message || 'Failed to replace statement');
         } finally {
@@ -160,10 +201,10 @@ export default function WalletDetail() {
     const handleUpload = async (e) => {
         e.preventDefault();
         if (!uploadFile) {
-            toast.error('Please select a PDF file');
+            toast.error('Please select a file');
             return;
         }
-        await uploadStatementMutation.mutateAsync();
+        await previewMutation.mutateAsync();
     };
 
     if (isLoading) {
@@ -325,15 +366,37 @@ export default function WalletDetail() {
                         </Button>
                         <Button
                             type="submit"
-                            disabled={uploadStatementMutation.isPending || !uploadFile}
+                            disabled={previewMutation.isPending || !uploadFile}
                             className="flex items-center gap-2"
                         >
-                            {uploadStatementMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-                            Upload & Process
+                            {previewMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+                            Continue
                         </Button>
                     </div>
                 </form>
             </Modal>
+
+            {/* Step 2a — CSV column mapping */}
+            {preview?.type === 'csv' && (
+                <CsvMappingModal
+                    preview={preview}
+                    fileName={fileName}
+                    committing={committing}
+                    onConfirm={(mapping) => handleCommit(mapping)}
+                    onCancel={() => { setPreview(null); resetUploadModal(); }}
+                />
+            )}
+
+            {/* Step 2b — PDF review & edit */}
+            {preview?.type === 'pdf' && (
+                <StatementReviewModal
+                    preview={preview}
+                    fileName={fileName}
+                    committing={committing}
+                    onConfirm={(payload) => handleCommit(payload)}
+                    onCancel={() => { setPreview(null); resetUploadModal(); }}
+                />
+            )}
 
             {/* Duplicate-detected confirm — styled, not native window.confirm */}
             <Modal

@@ -2,7 +2,7 @@ import express from 'express';
 import multer from 'multer';
 import path from 'path';
 import logger from '../utils/logger.js';
-import { getWallets, createWallet, updateWalletBalance, deleteWallet, uploadStatement, syncStatementBalance, getStatementTransactions, approveTransaction, deleteStatement, getAllTransactions, updateTransactionCategory, deleteTransaction, bulkApproveTransactions } from '../controllers/wallet.controller.js';
+import { getWallets, createWallet, updateWalletBalance, deleteWallet, uploadStatement, previewStatement, commitStatement, syncStatementBalance, getStatementTransactions, approveTransaction, deleteStatement, getAllTransactions, updateTransactionCategory, deleteTransaction, bulkApproveTransactions } from '../controllers/wallet.controller.js';
 import verifyToken from '../middleware/auth.middleware.js';
 import validate, { walletSchema } from '../middleware/validate.js';
 
@@ -52,6 +52,11 @@ router.post('/:walletId/statements/upload', (req, res, next) => {
     });
     next();
 }, uploadStatement);
+
+// Two-step mapping flow: preview (inspect) → commit (parse with mapping/review)
+router.post('/:walletId/statements/preview', upload.single('file'), previewStatement);
+router.post('/:walletId/statements/commit', commitStatement);
+
 router.get('/:walletId/transactions', getAllTransactions);
 router.get('/:walletId/statements/:statementId/transactions', getStatementTransactions);
 router.post('/:walletId/statements/:statementId/transactions/:txId/approve', approveTransaction);

@@ -165,7 +165,7 @@ function isFooterOrHeaderLine(line) {
     ];
     const nayaPayHeaderPatterns = [
         /^time\s+type\s+description/,           // NayaPay table header row
-        /service\s+charges\s+rs\.?\s*0/,         // NayaPay service charges (zero amount)
+        /^service\s+charges\s+rs\.?\s*0\s*$/,    // NayaPay service charges line (standalone only)
         /^transaction\s+id\s+[a-z0-9]{10,}/i,   // NayaPay transaction ID lines
         /^[a-z0-9]{15,}$/i,                      // Lone transaction ID (long alphanumeric only)
         /^nayapay\s+id/i,
@@ -177,6 +177,16 @@ function isFooterOrHeaderLine(line) {
         /^\d{1,2}:\d{2}\s*(am|pm)$/i,            // Time-only lines ("06:13 PM")
         /^current\s+address/i,
         /^account\s+statement/i,
+        // NayaPay footer disclaimer (often wraps across several lines)
+        /in case there is any discrepancy/i,
+        /please inform nayapay/i,
+        /statement will be considered accurate/i,
+        /in-?app dispute center/i,
+        /dispute center or reach/i,
+        /www\.nayapay\.com/i,
+        /support@nayapay\.com/i,
+        /^\(021\)\s*111/i,                       // NayaPay support phone line
+        /carried forward/i,
     ];
     if (footerPatterns.some(p => p.test(lower))) return true;
     if (nayaPayHeaderPatterns.some(p => p.test(lower))) return true;
@@ -235,9 +245,41 @@ function extractAmountsFromText(text) {
  * Returns 'credit', 'debit', or null
  */
 function detectSignedRsAmount(text) {
-    if (/\+\s*Rs\.?\s*[\d,]+/i.test(text)) return 'credit';
-    if (/-\s*Rs\.?\s*[\d,]+/i.test(text)) return 'debit';
+    if (/[+]\s*Rs\.?\s*[\d,]+/i.test(text)) return 'credit';
+    if (/[-−]\s*Rs\.?\s*[\d,]+/i.test(text)) return 'debit';
     return null;
+}
+
+/**
+ * Extract the explicit signed amount VALUE from NayaPay text, e.g.
+ *   "-Rs. 541"      → { sign: '-', value: 541 }
+ *   "+Rs. 40,000"   → { sign: '+', value: 40000 }
+ *   "-Rs. 294.76"   → { sign: '-', value: 294.76 }
+ *
+ * This is far more reliable than guessing the amount by position among the
+ * numbers in the block — NayaPay marks the transaction amount unambiguously
+ * with a sign and "Rs.", while the running balance is unsigned. We deliberately
+ * skip "Rs. 0" (service charges / fees noise).
+ */
+function extractSignedRsValue(text) {
+    if (!text) return null;
+    const re = /([+\-−])\s*Rs\.?\s*([\d,]+(?:\.\d{1,2})?)/gi;
+    let m;
+    while ((m = re.exec(text)) !== null) {
+        const value = parseFloat(m[2].replace(/,/g, ''));
+        if (isNaN(value) || value <= 0) continue; // skip "Rs. 0"
+        return { sign: m[1] === '+' ? '+' : '-', value };
+    }
+    return null;
+}
+
+// The running balance is the last money-formatted number in the block (NayaPay
+// prints AMOUNT then BALANCE). Returns null if the only number is the amount.
+function pickBalance(amounts, amountValue) {
+    if (!amounts || amounts.length === 0) return null;
+    const last = amounts[amounts.length - 1];
+    if (amounts.length === 1 && Math.abs(last - amountValue) < 0.001) return null;
+    return last;
 }
 
 /**
@@ -256,10 +298,17 @@ function determineDirection(description, amounts, rawBlockText = '') {
 
     const lowerDesc = description.toLowerCase();
 
-    // ── 1. NayaPay: signed ±Rs. amount ──────────────────────────────────────
-    const signedDirection = detectSignedRsAmount(rawBlockText || description);
-    if (signedDirection === 'credit') return buildCreditResult(amounts, null);
-    if (signedDirection === 'debit')  return buildDebitResult(amounts);
+    // ── 1. NayaPay: explicit signed ±Rs. amount — use the VALUE directly ─────
+    // The amount is marked unambiguously (e.g. "-Rs. 541"); the balance is the
+    // last unsigned money number. This avoids the amount/balance confusion that
+    // positional heuristics fall into when descriptions contain stray numbers.
+    const signed = extractSignedRsValue(rawBlockText || description);
+    if (signed) {
+        const balance = pickBalance(amounts, signed.value);
+        return signed.sign === '+'
+            ? { debit: null, credit: signed.value, balance }
+            : { debit: signed.value, credit: null, balance };
+    }
 
     // ── 2. Habib Metro: "Sender (" appears ONLY in inbound EFT transactions ─
     // Debit transactions (ATM, RAAST out, etc.) never contain "Sender (".

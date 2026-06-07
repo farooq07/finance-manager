@@ -3,10 +3,26 @@ import logger from '../utils/logger.js';
 import { encryptSecret, decryptSecret } from '../utils/crypto.js';
 import { extractPdfText, getFileHash } from '../services/pdfParser.service.js';
 import { parseTransactions, validateBalance, parseStatementBalances } from '../services/transactionParser.service.js';
-import { parseCsvTransactions } from '../services/csvParser.service.js';
+import { parseCsvTransactions, inspectCsv, parseCsvWithMapping } from '../services/csvParser.service.js';
+import { reconcile } from '../services/reconcile.service.js';
 import { categorizeTransactionBatch, recordUserCategory } from '../services/categorizer.service.js';
 import { findWalletDuplicates, isWalletFilePreviouslyImported, markAsDuplicate } from '../services/duplicateDetector.service.js';
 import fs from 'fs';
+import path from 'path';
+
+const WALLET_STATEMENTS_DIR = 'uploads/wallet-statements';
+
+function resolveWalletUploadPath(uploadId) {
+    const base = path.basename(String(uploadId || ''));
+    if (!base || base !== uploadId) return null;
+    const full = path.join(WALLET_STATEMENTS_DIR, base);
+    if (!fs.existsSync(full)) return null;
+    return full;
+}
+
+function isCsvName(name = '') {
+    return name.toLowerCase().endsWith('.csv');
+}
 
 // ─── Wallet transaction management ────────────────────────────────────────────
 
@@ -309,7 +325,8 @@ export const uploadStatement = async (req, res) => {
             if (fileIsCsv) {
                 logger.log('[WALLET_STATEMENT] Parsing CSV...');
                 try {
-                    parsedTxs = parseCsvTransactions(filePath);
+                    const csvResult = parseCsvTransactions(filePath);
+                    parsedTxs = csvResult.transactions;
                     logger.log('[WALLET_STATEMENT] CSV parsed:', parsedTxs.length, 'transactions');
                 } catch (csvError) {
                     fs.unlinkSync(filePath);
@@ -472,6 +489,214 @@ export const uploadStatement = async (req, res) => {
             error: error.message,
             details: error.meta?.cause || error.code
         });
+    }
+};
+
+/**
+ * Shared finaliser for the wallet mapping/commit flow.
+ */
+async function finalizeWalletImport({ userId, walletId, parsedTxs, openingBalance, closingBalance, filePath, fileHash, password }) {
+    let month = new Date().toLocaleString('en-US', { month: 'long' });
+    let year = new Date().getFullYear();
+    if (parsedTxs.length > 0) {
+        const sorted = [...parsedTxs].sort((a, b) => new Date(a.transaction_date) - new Date(b.transaction_date));
+        const d = new Date(sorted[0].transaction_date);
+        month = d.toLocaleString('en-US', { month: 'long' });
+        year = d.getFullYear();
+    }
+
+    const statement = await prisma.walletStatement.create({
+        data: {
+            wallet_id: walletId,
+            month,
+            year,
+            file_path: filePath,
+            file_hash: fileHash,
+            password_encrypted: encryptSecret(password || ''),
+            transaction_count: parsedTxs.length,
+            processing_status: 'pending',
+            opening_balance: openingBalance !== null && openingBalance !== undefined ? openingBalance : undefined,
+            closing_balance: closingBalance !== null && closingBalance !== undefined ? closingBalance : undefined,
+        },
+    });
+
+    if (closingBalance !== null && closingBalance !== undefined) {
+        await prisma.wallet.update({ where: { id: walletId }, data: { balance: closingBalance } });
+    }
+
+    let duplicateMap = new Map();
+    const transactionLogs = [];
+
+    if (parsedTxs.length > 0) {
+        try {
+            duplicateMap = await findWalletDuplicates(userId, statement.id, parsedTxs);
+        } catch (e) { console.error('[WALLET_COMMIT] dup error:', e.message); }
+
+        let categorizations = [];
+        try {
+            categorizations = await categorizeTransactionBatch(userId, parsedTxs);
+        } catch (e) {
+            categorizations = parsedTxs.map(() => ({ category: 'Other', confidence: 0 }));
+        }
+
+        for (let i = 0; i < parsedTxs.length; i++) {
+            try {
+                const tx = parsedTxs[i];
+                const isDupTx = duplicateMap.has(i);
+                const cat = categorizations[i] || { category: 'Other', confidence: 0 };
+                const txLog = await prisma.walletTransactionLog.create({
+                    data: {
+                        wallet_statement_id: statement.id,
+                        transaction_date: tx.transaction_date,
+                        description: tx.description,
+                        debit_amount: tx.debit_amount || null,
+                        credit_amount: tx.credit_amount || null,
+                        net_amount: tx.net_amount,
+                        suggested_category: cat.category,
+                        category_confidence: cat.confidence,
+                        is_duplicate: isDupTx,
+                        duplicate_of_id: isDupTx ? duplicateMap.get(i).duplicateOfId : null,
+                        processing_status: isDupTx ? 'rejected' : 'pending',
+                    },
+                });
+                transactionLogs.push(txLog);
+            } catch (e) { console.error('[WALLET_COMMIT] log error:', e.message); }
+        }
+    }
+
+    return { statement, transactionLogs, duplicateCount: duplicateMap.size };
+}
+
+/**
+ * Step 1 — inspect an uploaded wallet statement (CSV columns / PDF rows).
+ * POST /api/wallets/:walletId/statements/preview
+ */
+export const previewStatement = async (req, res) => {
+    let filePath = null;
+    try {
+        const { walletId } = req.params;
+        const { password } = req.body;
+
+        const wallet = await prisma.wallet.findUnique({ where: { id: walletId, user_id: req.user.id } });
+        if (!wallet) return res.status(404).json({ message: 'Wallet not found' });
+        if (!req.file) return res.status(400).json({ message: 'No file provided' });
+
+        filePath = req.file.path;
+        const uploadId = path.basename(filePath);
+        const fileHash = getFileHash(filePath);
+        const alreadyImported = await isWalletFilePreviouslyImported(req.user.id, fileHash, walletId);
+
+        if (isCsvName(req.file.originalname) || isCsv(req.file)) {
+            const preview = inspectCsv(filePath);
+            return res.json({ type: 'csv', uploadId, alreadyImported, ...preview });
+        }
+
+        let rawText = '';
+        try {
+            const pdf = await extractPdfText(filePath, password);
+            rawText = pdf.rawText || '';
+        } catch (e) { logger.log('[WALLET_PREVIEW] PDF extract failed:', e.message); }
+
+        const transactions = rawText ? parseTransactions(rawText) : [];
+        const balances = rawText ? parseStatementBalances(rawText) : { opening: null, closing: null };
+        const recon = reconcile(transactions, balances.opening, balances.closing);
+
+        return res.json({
+            type: 'pdf', uploadId, alreadyImported,
+            transactions, opening: balances.opening, closing: balances.closing, reconciliation: recon,
+        });
+    } catch (error) {
+        if (filePath && fs.existsSync(filePath)) { try { fs.unlinkSync(filePath); } catch { /* ignore */ } }
+        console.error('[WALLET_PREVIEW] failed:', error);
+        return res.status(400).json({ message: error.message || 'Failed to preview statement' });
+    }
+};
+
+/**
+ * Step 2 — commit with the confirmed mapping (CSV) or reviewed rows (PDF).
+ * POST /api/wallets/:walletId/statements/commit
+ */
+export const commitStatement = async (req, res) => {
+    try {
+        const { walletId } = req.params;
+        const { uploadId, type, mapping, transactions: reviewedTxs, opening, closing, password, force } = req.body;
+
+        const wallet = await prisma.wallet.findUnique({ where: { id: walletId, user_id: req.user.id } });
+        if (!wallet) return res.status(404).json({ message: 'Wallet not found' });
+
+        const filePath = resolveWalletUploadPath(uploadId);
+        if (!filePath) return res.status(400).json({ message: 'Upload not found or expired. Please re-upload the file.' });
+
+        const fileHash = getFileHash(filePath);
+        const isDuplicate = await isWalletFilePreviouslyImported(req.user.id, fileHash, walletId);
+        if (isDuplicate) {
+            const existing = await prisma.walletStatement.findFirst({
+                where: { wallet_id: walletId, file_hash: fileHash },
+                select: { id: true, month: true, year: true, transaction_count: true, upload_date: true, file_path: true },
+            });
+            const isEmptyFailed = existing && (existing.transaction_count ?? 0) === 0;
+            if (isEmptyFailed || force === true || force === 'true') {
+                try {
+                    if (existing?.file_path && existing.file_path !== filePath && fs.existsSync(existing.file_path)) fs.unlinkSync(existing.file_path);
+                    if (existing) await prisma.walletStatement.delete({ where: { id: existing.id } });
+                } catch (e) { logger.log('[WALLET_COMMIT] cleanup failed:', e.message); }
+            } else {
+                return res.status(409).json({
+                    message: 'This statement was already imported.',
+                    duplicate: true,
+                    existing: existing ? { id: existing.id, month: existing.month, year: existing.year, transactionCount: existing.transaction_count, uploadedAt: existing.upload_date } : null,
+                });
+            }
+        }
+
+        let parsedTxs = [];
+        let openingBalance = null;
+        let closingBalance = null;
+
+        if (type === 'csv') {
+            const result = parseCsvWithMapping(filePath, mapping || {});
+            parsedTxs = result.transactions;
+            openingBalance = result.openingBalance;
+            closingBalance = result.closingBalance;
+        } else {
+            parsedTxs = (Array.isArray(reviewedTxs) ? reviewedTxs : [])
+                .map((t) => {
+                    const debit = Number(t.debit_amount) || 0;
+                    const credit = Number(t.credit_amount) || 0;
+                    const net = t.net_amount != null ? Number(t.net_amount) : (credit - debit);
+                    return {
+                        transaction_date: new Date(t.transaction_date),
+                        description: String(t.description || '').slice(0, 255),
+                        debit_amount: debit > 0 ? debit : null,
+                        credit_amount: credit > 0 ? credit : null,
+                        net_amount: net,
+                        balance: t.balance != null ? Number(t.balance) : null,
+                    };
+                })
+                .filter((t) => t.transaction_date && !isNaN(t.transaction_date) && t.net_amount !== 0);
+            openingBalance = opening != null ? Number(opening) : null;
+            closingBalance = closing != null ? Number(closing) : null;
+        }
+
+        if (parsedTxs.length === 0) {
+            return res.status(400).json({ message: 'No valid transactions to import after parsing.' });
+        }
+
+        const reconciliation = reconcile(parsedTxs, openingBalance, closingBalance);
+        const { statement, transactionLogs, duplicateCount } = await finalizeWalletImport({
+            userId: req.user.id, walletId, parsedTxs, openingBalance, closingBalance, filePath, fileHash, password,
+        });
+
+        return res.status(201).json({
+            message: 'Statement imported',
+            statementId: statement.id,
+            reconciliation,
+            summary: { totalParsed: parsedTxs.length, duplicates: duplicateCount, unique: parsedTxs.length - duplicateCount },
+            transactions: transactionLogs,
+        });
+    } catch (error) {
+        console.error('[WALLET_COMMIT] failed:', error);
+        return res.status(500).json({ message: error.message || 'Failed to import statement' });
     }
 };
 
@@ -644,7 +869,7 @@ export const syncStatementBalance = async (req, res) => {
 
         if (isCsvFile) {
             const { parseCsvTransactions } = await import('../services/csvParser.service.js');
-            const parsedTxs = parseCsvTransactions(statement.file_path);
+            const { transactions: parsedTxs } = parseCsvTransactions(statement.file_path);
             const withBalance = parsedTxs.filter(tx => tx.balance != null);
             if (withBalance.length > 0) {
                 const sorted = [...withBalance].sort((a, b) => new Date(a.transaction_date) - new Date(b.transaction_date));
