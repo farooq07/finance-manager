@@ -4,7 +4,8 @@
       "Bash(git checkout *)",
       "Bash(mkdir -p backend/prisma/migrations/20260520120000_add_legal_acceptance)",
       "PowerShell(.\\\\node_modules\\\\.bin\\\\eslint.cmd src -f compact 2>&1 | Select-String \"no-unused-vars\" | ForEach-Object { $_.Line })",
-      "PowerShell(& .\\\\node_modules\\\\.bin\\\\eslint.cmd src 2>&1 | Out-File -FilePath eslint-report.txt -Encoding utf8; \\(Get-Content eslint-report.txt | Measure-Object -Line\\).Lines)"
+      "PowerShell(& .\\\\node_modules\\\\.bin\\\\eslint.cmd src 2>&1 | Out-File -FilePath eslint-report.txt -Encoding utf8; \\(Get-Content eslint-report.txt | Measure-Object -Line\\).Lines)",
+      "mcp__claude_ai_Supabase__execute_sql"
     ],
     "additionalDirectories": [
       "D:\\Vibe-coding\\Finance-manager\\backend\\prisma\\migrations"

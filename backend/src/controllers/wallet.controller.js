@@ -45,8 +45,7 @@ export const getAllTransactions = async (req, res) => {
 export const updateTransactionCategory = async (req, res) => {
     try {
         const { walletId, txId } = req.params;
-        const { approvedCategory, notes } = req.body;
-        if (!approvedCategory) return res.status(400).json({ message: 'approvedCategory is required' });
+        const { approvedCategory, notes, transaction_type, amount } = req.body;
 
         const wallet = await prisma.wallet.findUnique({ where: { id: walletId, user_id: req.user.id } });
         if (!wallet) return res.status(404).json({ message: 'Wallet not found' });
@@ -56,21 +55,69 @@ export const updateTransactionCategory = async (req, res) => {
         });
         if (!txLog) return res.status(404).json({ message: 'Transaction not found' });
 
-        await prisma.walletTransactionLog.update({
-            where: { id: txId },
-            data: { approved_category: approvedCategory, notes: notes ?? txLog.notes }
-        });
+        const updateData = {};
 
-        if (txLog.created_expense_id) {
-            await prisma.expense.update({
-                where: { id: txLog.created_expense_id },
-                data: { category: approvedCategory, notes: notes ?? txLog.notes }
-            });
+        // Apply category/notes if provided
+        if (approvedCategory) {
+            updateData.approved_category = approvedCategory;
+            updateData.suggested_category = approvedCategory;
+        }
+        if (notes !== undefined) updateData.notes = notes;
+
+        // Apply amount correction if provided
+        if (amount != null) {
+            const correctedAbs = Math.abs(Number(amount));
+            const isCredit = transaction_type
+                ? transaction_type === 'credit'
+                : Number(txLog.net_amount) > 0;
+            updateData.net_amount = isCredit ? correctedAbs : -correctedAbs;
+            updateData.debit_amount = isCredit ? null : correctedAbs;
+            updateData.credit_amount = isCredit ? correctedAbs : null;
         }
 
-        await recordUserCategory(req.user.id, txLog.description, approvedCategory);
+        // Apply type correction if requested (without amount — flips sign of existing amount)
+        if (transaction_type && amount == null) {
+            const currentIsCredit = Number(txLog.net_amount) > 0;
+            const wantsCredit = transaction_type === 'credit';
+
+            if (currentIsCredit !== wantsCredit) {
+                const absAmount = Math.abs(Number(txLog.net_amount));
+                updateData.net_amount = wantsCredit ? absAmount : -absAmount;
+                updateData.debit_amount = wantsCredit ? null : absAmount;
+                updateData.credit_amount = wantsCredit ? absAmount : null;
+
+                if (txLog.created_expense_id && wantsCredit) {
+                    await prisma.expense.deleteMany({
+                        where: { id: txLog.created_expense_id, user_id: req.user.id }
+                    });
+                    updateData.created_expense_id = null;
+                }
+            }
+        }
+
+        await prisma.walletTransactionLog.update({ where: { id: txId }, data: updateData });
+
+        // Sync linked expense category / notes / amount
+        if (txLog.created_expense_id) {
+            const expenseUpdate = {};
+            if (approvedCategory) expenseUpdate.category = approvedCategory;
+            if (notes !== undefined) expenseUpdate.notes = notes;
+            if (amount != null) expenseUpdate.amount = Math.abs(Number(amount));
+            if (Object.keys(expenseUpdate).length > 0) {
+                await prisma.expense.update({
+                    where: { id: txLog.created_expense_id },
+                    data: expenseUpdate
+                });
+            }
+        }
+
+        if (approvedCategory) {
+            await recordUserCategory(req.user.id, txLog.description, approvedCategory);
+        }
+
         res.json({ message: 'Transaction updated' });
-    } catch (err) {
+    } catch (error) {
+        console.error('Error updating wallet transaction:', error);
         res.status(500).json({ message: 'Failed to update transaction' });
     }
 };
@@ -114,34 +161,43 @@ export const bulkApproveTransactions = async (req, res) => {
         const txMap = new Map(txLogs.map(t => [t.id, t]));
 
         let successCount = 0;
+        const errors = [];
+
         await Promise.all(items.map(async ({ txId, approvedCategory }) => {
             const txLog = txMap.get(txId);
             if (!txLog || txLog.processing_status === 'approved') return;
+
             const category = approvedCategory || txLog.suggested_category || 'Other';
             const isCredit = Number(txLog.net_amount) > 0;
-            let expenseId = null;
-            if (!isCredit) {
-                const expense = await prisma.expense.create({
-                    data: {
-                        user_id: req.user.id,
-                        amount: Math.abs(Number(txLog.net_amount)),
-                        category,
-                        expense_date: txLog.transaction_date,
-                        payment_method: 'Wallet',
-                        notes: txLog.description
-                    }
+            try {
+                let expenseId = null;
+                if (!isCredit) {
+                    const expense = await prisma.expense.create({
+                        data: {
+                            user_id: req.user.id,
+                            amount: Math.abs(Number(txLog.net_amount)),
+                            category,
+                            expense_date: txLog.transaction_date,
+                            payment_method: 'Wallet',
+                            notes: txLog.description
+                        }
+                    });
+                    expenseId = expense.id;
+                }
+                await prisma.walletTransactionLog.update({
+                    where: { id: txId },
+                    data: { user_approved: true, approved_category: category, created_expense_id: expenseId, processing_status: 'approved' }
                 });
-                expenseId = expense.id;
+                await recordUserCategory(req.user.id, txLog.description, category);
+                successCount++;
+            } catch (err) {
+                errors.push(txId);
             }
-            await prisma.walletTransactionLog.update({
-                where: { id: txId },
-                data: { user_approved: true, approved_category: category, created_expense_id: expenseId, processing_status: 'approved' }
-            });
-            successCount++;
         }));
 
-        res.json({ approved: successCount });
+        res.json({ message: `Approved ${successCount} transactions`, successCount, errors });
     } catch (err) {
+        console.error('Error bulk approving wallet transactions:', err);
         res.status(500).json({ message: 'Failed to bulk approve' });
     }
 };
@@ -735,7 +791,7 @@ export const getStatementTransactions = async (req, res) => {
  */
 export const approveTransaction = async (req, res) => {
     try {
-        const { walletId, statementId, txId } = req.params;
+        const { walletId, txId } = req.params;
         const { approvedCategory, notes } = req.body;
 
         const wallet = await prisma.wallet.findUnique({
@@ -746,41 +802,49 @@ export const approveTransaction = async (req, res) => {
             return res.status(404).json({ message: 'Wallet not found' });
         }
 
-        const txLog = await prisma.walletTransactionLog.findUnique({
-            where: { id: txId }
+        const txLog = await prisma.walletTransactionLog.findFirst({
+            where: { id: txId, wallet_statement: { wallet_id: walletId } }
         });
 
         if (!txLog) {
             return res.status(404).json({ message: 'Transaction not found' });
         }
 
+        // Learn from user's choice
         if (approvedCategory) {
             await recordUserCategory(req.user.id, txLog.description, approvedCategory);
         }
 
-        const expense = await prisma.expense.create({
-            data: {
-                user_id: req.user.id,
-                amount: Math.abs(txLog.net_amount),
-                category: approvedCategory || txLog.suggested_category || 'Other',
-                expense_date: txLog.transaction_date,
-                payment_method: 'Wallet',
-                notes: notes || txLog.description
-            }
-        });
+        const isCredit = Number(txLog.net_amount) > 0;
+
+        // Only create an Expense for debit (outgoing) transactions
+        let expenseId = null;
+        if (!isCredit) {
+            const expense = await prisma.expense.create({
+                data: {
+                    user_id: req.user.id,
+                    amount: Math.abs(txLog.net_amount),
+                    category: approvedCategory || txLog.suggested_category || 'Other',
+                    expense_date: txLog.transaction_date,
+                    payment_method: 'Wallet',
+                    notes: notes || txLog.description
+                }
+            });
+            expenseId = expense.id;
+        }
 
         await prisma.walletTransactionLog.update({
             where: { id: txId },
             data: {
                 user_approved: true,
                 approved_category: approvedCategory,
-                created_expense_id: expense.id,
+                created_expense_id: expenseId,
                 processing_status: 'approved',
                 notes
             }
         });
 
-        res.json({ message: 'Transaction approved', expenseId: expense.id });
+        res.json({ message: 'Transaction approved', expenseId, isCredit });
     } catch (error) {
         console.error('Error approving transaction:', error);
         res.status(500).json({ message: 'Failed to approve transaction' });

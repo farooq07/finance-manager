@@ -3,6 +3,7 @@ import { ChevronDown, ChevronUp, Check, CheckCheck, Loader2, Pencil, Trash2, Arr
 import { Checkbox } from './ui/checkbox';
 import { fmtPKR } from '../utils/currency';
 import { useApproveTransaction, useBulkApproveTransactions, useUpdateTransactionCategory, useDeleteTransaction } from '../hooks/useStatementTransactions';
+import { useStaleResourceHandler } from '../hooks/useStaleResource';
 import { toast } from 'sonner';
 
 const EXPENSE_CATEGORIES = [
@@ -27,11 +28,12 @@ function SummaryCell({ label, value, hint, tone, emphasis }) {
     );
 }
 
-export default function BankTransactionsTable({ bankId, transactions = [] }) {
+export default function BankTransactionsTable({ bankId, transactions = [], resource = 'banks' }) {
     const approveMutation = useApproveTransaction();
     const bulkApproveMutation = useBulkApproveTransactions();
     const updateMutation = useUpdateTransactionCategory();
     const deleteMutation = useDeleteTransaction();
+    const handleStaleResource = useStaleResourceHandler();
     const [expandedTxId, setExpandedTxId] = useState(null);
     const [categoryOverrides, setCategoryOverrides] = useState({});
     const [notesOverrides, setNotesOverrides] = useState({});
@@ -82,6 +84,7 @@ export default function BankTransactionsTable({ bankId, transactions = [] }) {
 
             if (typeChanged || amountChanged) {
                 await updateMutation.mutateAsync({
+                    resource,
                     bankId,
                     statementId: tx.bank_statement_id,
                     txId,
@@ -90,6 +93,7 @@ export default function BankTransactionsTable({ bankId, transactions = [] }) {
                 });
             }
             await approveMutation.mutateAsync({
+                resource,
                 bankId,
                 statementId: tx.bank_statement_id,
                 txId,
@@ -103,6 +107,7 @@ export default function BankTransactionsTable({ bankId, transactions = [] }) {
             setExpandedTxId(null);
             toast.success('Transaction approved');
         } catch (error) {
+            if (handleStaleResource(error)) return;
             toast.error(error.response?.data?.message || 'Failed to approve transaction');
         }
     };
@@ -120,11 +125,12 @@ export default function BankTransactionsTable({ bankId, transactions = [] }) {
         }));
 
         try {
-            const result = await bulkApproveMutation.mutateAsync({ bankId, transactions: payload });
+            const result = await bulkApproveMutation.mutateAsync({ resource, bankId, transactions: payload });
             setSelectedIds(new Set());
             setBulkCategory('');
             toast.success(`Approved ${result.successCount} transaction${result.successCount !== 1 ? 's' : ''}`);
         } catch (error) {
+            if (handleStaleResource(error)) return;
             toast.error(error.response?.data?.message || 'Failed to approve transactions');
         }
     };
@@ -133,12 +139,14 @@ export default function BankTransactionsTable({ bankId, transactions = [] }) {
         if (!window.confirm(`Delete this transaction? "${tx.description.substring(0, 60)}"${tx.description.length > 60 ? '...' : ''}`)) return;
         try {
             await deleteMutation.mutateAsync({
+                resource,
                 bankId,
                 statementId: tx.bank_statement_id,
                 txId: tx.id
             });
             toast.success('Transaction deleted');
         } catch (error) {
+            if (handleStaleResource(error)) return;
             toast.error(error.response?.data?.message || 'Failed to delete transaction');
         }
     };
@@ -157,6 +165,7 @@ export default function BankTransactionsTable({ bankId, transactions = [] }) {
             const currentAbs = Math.abs(Number(tx.net_amount));
             const newAbs = parseFloat(editAmount);
             await updateMutation.mutateAsync({
+                resource,
                 bankId,
                 statementId: tx.bank_statement_id,
                 txId: tx.id,
@@ -168,6 +177,7 @@ export default function BankTransactionsTable({ bankId, transactions = [] }) {
             setEditingApprovedId(null);
             toast.success('Category updated');
         } catch (error) {
+            if (handleStaleResource(error)) return;
             toast.error(error.response?.data?.message || 'Failed to update');
         }
     };
@@ -187,7 +197,6 @@ export default function BankTransactionsTable({ bankId, transactions = [] }) {
 
     const isLoading = bulkApproveMutation.isPending;
     const selectedCount = selectedIds.size;
-    const actionCount = selectedCount > 0 ? selectedCount : pendingTxs.length;
 
     const netChange = totalCredits - totalDebits;
     const netPositive = netChange >= 0;

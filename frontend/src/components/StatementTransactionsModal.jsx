@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { useStatementTransactions, useApproveTransaction } from '../hooks/useStatementTransactions';
+import { useStaleResourceHandler } from '../hooks/useStaleResource';
+import { toast } from 'sonner';
 import { fmtPKR } from '../utils/currency';
 import Modal from './Modal';
 import Button from './Button';
@@ -22,9 +24,10 @@ const EXPENSE_CATEGORIES = [
     'Other'
 ];
 
-export default function StatementTransactionsModal({ isOpen, onClose, bankId, statementId, statementTitle }) {
-    const { data: transactions = [], isLoading } = useStatementTransactions(bankId, statementId);
+export default function StatementTransactionsModal({ isOpen, onClose, bankId, statementId, statementTitle, resource = 'banks' }) {
+    const { data: transactions = [], isLoading } = useStatementTransactions(bankId, statementId, resource);
     const approveMutation = useApproveTransaction();
+    const handleStaleResource = useStaleResourceHandler();
     const [expandedTxId, setExpandedTxId] = useState(null);
     const [categoryOverrides, setCategoryOverrides] = useState({});
     const [notesOverrides, setNotesOverrides] = useState({});
@@ -32,6 +35,7 @@ export default function StatementTransactionsModal({ isOpen, onClose, bankId, st
     const handleApprove = async (txId) => {
         try {
             await approveMutation.mutateAsync({
+                resource,
                 bankId,
                 statementId,
                 txId,
@@ -42,7 +46,8 @@ export default function StatementTransactionsModal({ isOpen, onClose, bankId, st
             setCategoryOverrides(prev => ({ ...prev, [txId]: undefined }));
             setNotesOverrides(prev => ({ ...prev, [txId]: undefined }));
         } catch (error) {
-            console.error('Error approving transaction:', error);
+            if (handleStaleResource(error)) { onClose?.(); return; }
+            toast.error(error.response?.data?.message || 'Failed to approve transaction');
         }
     };
 

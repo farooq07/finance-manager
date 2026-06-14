@@ -316,6 +316,7 @@ export default function WalletDetail() {
                     <BankTransactionsTable
                         bankId={id}
                         transactions={allTransactions}
+                        resource="wallets"
                     />
                 </div>
             )}
@@ -328,6 +329,7 @@ export default function WalletDetail() {
                     bankId={id}
                     statementId={selectedStatement.id}
                     statementTitle={selectedStatement.title}
+                    resource="wallets"
                 />
             )}
 

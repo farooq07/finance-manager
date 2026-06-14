@@ -59,6 +59,15 @@ router.post('/:walletId/statements/commit', commitStatement);
 
 router.get('/:walletId/transactions', getAllTransactions);
 router.get('/:walletId/statements/:statementId/transactions', getStatementTransactions);
+
+// Statement-independent transaction ops — look up by txId + walletId, so callers
+// rendering the combined all-transactions list don't need a statementId.
+// (Mirrors the bank routes; the controllers already resolve by txId.)
+router.post('/:walletId/transactions/:txId/approve', approveTransaction);
+router.put('/:walletId/transactions/:txId', updateTransactionCategory);
+router.delete('/:walletId/transactions/:txId', deleteTransaction);
+
+// Legacy statement-scoped variants (kept for backward compatibility)
 router.post('/:walletId/statements/:statementId/transactions/:txId/approve', approveTransaction);
 router.put('/:walletId/statements/:statementId/transactions/:txId', updateTransactionCategory);
 router.delete('/:walletId/statements/:statementId/transactions/:txId', deleteTransaction);
