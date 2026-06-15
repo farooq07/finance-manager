@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from './components/ui/sonner';
+import { ConfirmDialogProvider } from './components/ui/confirm-dialog';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { PinProvider } from './context/PinContext';
 import PinGate from './components/PinGate';
@@ -63,6 +64,7 @@ function App() {
   return (
     <AuthProvider>
       <PinProvider>
+        <ConfirmDialogProvider>
         <Router>
           <Toaster position="bottom-center" richColors theme="system" />
           <PinGate />
@@ -115,6 +117,7 @@ function App() {
             </Route>
           </Routes>
         </Router>
+        </ConfirmDialogProvider>
       </PinProvider>
     </AuthProvider>
   );

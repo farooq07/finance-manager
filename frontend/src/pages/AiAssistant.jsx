@@ -3,11 +3,14 @@ import { MessageSquare, Plus, Trash2, Loader2, Sparkles, FileText, Upload, Chevr
 import { useSessions, useCreateSession, useDeleteSession, useDocuments, useUploadDocument, useDeleteDocument } from '../hooks/useChat';
 import ChatWindow from '../components/ChatWindow';
 import { toast } from 'sonner';
+import { useConfirm } from '../components/ui/confirm-dialog';
 
 function SessionItem({ session, isActive, onClick, onDelete }) {
-  const handleDelete = (e) => {
+  const confirm = useConfirm();
+  const handleDelete = async (e) => {
     e.stopPropagation();
-    if (confirm('Delete this conversation?')) onDelete(session.id);
+    const ok = await confirm({ title: 'Delete conversation', description: 'Delete this conversation?', confirmText: 'Delete' });
+    if (ok) onDelete(session.id);
   };
 
   const title = session.title || 'New conversation';
@@ -153,6 +156,7 @@ export default function AiAssistant() {
 }
 
 function DocumentsPanel() {
+  const confirm = useConfirm();
   const [open, setOpen] = useState(false);
   const fileInputRef = useRef(null);
 
@@ -170,8 +174,13 @@ function DocumentsPanel() {
     e.target.value = '';
   };
 
-  const handleDelete = (doc) => {
-    if (!confirm(`Remove "${doc.filename}" from AI context?`)) return;
+  const handleDelete = async (doc) => {
+    const ok = await confirm({
+      title: 'Remove document',
+      description: `Remove "${doc.filename}" from AI context?`,
+      confirmText: 'Remove',
+    });
+    if (!ok) return;
     remove(doc.id, {
       onSuccess: () => toast.success('Document removed'),
       onError: () => toast.error('Failed to remove document')

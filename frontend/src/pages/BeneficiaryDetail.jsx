@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ArrowLeft, Plus, Trash2, Pencil, CreditCard, TrendingUp, TrendingDown, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import clsx from 'clsx';
 
 export default function BeneficiaryDetail() {
@@ -24,6 +25,7 @@ export default function BeneficiaryDetail() {
     const addAccount = useAddBeneficiaryAccount();
     const deleteAccount = useDeleteBeneficiaryAccount();
     const rescan = useRescanBeneficiary();
+    const confirm = useConfirm();
 
     const [editModal, setEditModal] = useState(false);
     const [editForm, setEditForm] = useState({});
@@ -86,7 +88,12 @@ export default function BeneficiaryDetail() {
     };
 
     const handleDeleteAccount = async (accountId) => {
-        if (!window.confirm('Remove this account number?')) return;
+        const ok = await confirm({
+            title: 'Remove account number',
+            description: 'Remove this account number?',
+            confirmText: 'Remove',
+        });
+        if (!ok) return;
         try {
             await deleteAccount.mutateAsync({ beneficiaryId: id, accountId });
             toast.success('Account removed');

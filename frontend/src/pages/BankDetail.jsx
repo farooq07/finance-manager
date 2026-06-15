@@ -19,6 +19,7 @@ import BankTransactionsTable from '../components/BankTransactionsTable';
 import StatementFileUpload from '../components/StatementFileUpload';
 import CsvMappingModal from '../components/CsvMappingModal';
 import StatementReviewModal from '../components/StatementReviewModal';
+import { useConfirm } from '../components/ui/confirm-dialog';
 
 /* ─── PKR shorthand: 6.82 L (lakh), 12.4 K, etc. ──────────────── */
 function fmtPKRShort(n) {
@@ -55,6 +56,7 @@ export default function BankDetail() {
     const { data: allTransactions = [], isLoading: txLoading } = useBankAllTransactions(id);
     const { data: categorySummaryData } = useBankCategorySummary(id);
     const queryClient = useQueryClient();
+    const confirm = useConfirm();
     const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
     const [uploadFile, setUploadFile] = useState(null);
     const [pdfPassword, setPdfPassword] = useState('');
@@ -290,10 +292,13 @@ export default function BankDetail() {
                         onUpload={() => setIsUploadModalOpen(true)}
                         onSelect={(s) => setSelectedStatement({ id: s.id, title: `${s.month} ${s.year}` })}
                         onSync={(id) => syncBalanceMutation.mutate(id)}
-                        onDelete={(s) => {
-                            if (window.confirm(`Delete the statement "${s.month} ${s.year}"? Its transactions and approved expenses will be removed.`)) {
-                                deleteStatementMutation.mutate(s.id);
-                            }
+                        onDelete={async (s) => {
+                            const ok = await confirm({
+                                title: 'Delete statement',
+                                description: `Delete the statement "${s.month} ${s.year}"? Its transactions and approved expenses will be removed.`,
+                                confirmText: 'Delete',
+                            });
+                            if (ok) deleteStatementMutation.mutate(s.id);
                         }}
                         syncing={syncBalanceMutation.isPending ? syncBalanceMutation.variables : null}
                     />
@@ -531,18 +536,19 @@ function Sparkline({ positive }) {
    5-stat horizontal strip
    ────────────────────────────────────────────────────────────── */
 function StatStrip({ stats }) {
-    const items = [
+    // Primary — the money story (plain wording, prominent).
+    const primary = [
         {
-            label: 'Inflow',
+            label: 'Money in',
             value: fmtPKRShort(stats.inflow),
             sub: `${stats.deposits} ${stats.deposits === 1 ? 'deposit' : 'deposits'}`,
             icon: ArrowDownLeft,
             tone: 'success',
         },
         {
-            label: 'Outflow',
+            label: 'Money out',
             value: fmtPKRShort(stats.outflow),
-            sub: `${stats.withdrawals} ${stats.withdrawals === 1 ? 'withdrawal' : 'withdrawals'}`,
+            sub: `${stats.withdrawals} ${stats.withdrawals === 1 ? 'payment' : 'payments'}`,
             icon: ArrowUpRight,
             tone: 'error',
         },
@@ -553,37 +559,59 @@ function StatStrip({ stats }) {
             icon: Activity,
             tone: stats.net >= 0 ? 'success' : 'error',
         },
+    ];
+    // Secondary — workflow status (de-emphasised, count-led).
+    const secondary = [
         {
             label: 'To review',
             value: stats.pending,
             sub: stats.pending > 0 ? 'awaiting approval' : 'all caught up',
             icon: Mail,
-            tone: stats.pending > 0 ? 'warning' : 'neutral',
         },
         {
             label: 'Statements',
             value: stats.statementsCount,
             sub: `${stats.statementsCount === 1 ? 'month' : 'months'} synced`,
             icon: FileText,
-            tone: 'neutral',
         },
     ];
     return (
         <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-gray-200 dark:border-neutral-800 overflow-hidden">
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 divide-y sm:divide-y-0 sm:divide-x divide-gray-200 dark:divide-neutral-800">
-                {items.map((it) => <StatCell key={it.label} {...it} />)}
+            <div className="flex flex-col lg:flex-row lg:items-stretch divide-y lg:divide-y-0 lg:divide-x divide-gray-200 dark:divide-neutral-800">
+                {/* Primary group */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-gray-200 dark:divide-neutral-800 lg:flex-[3]">
+                    {primary.map((it) => <StatCell key={it.label} {...it} />)}
+                </div>
+                {/* Secondary group — visually recessed */}
+                <div className="grid grid-cols-2 divide-x divide-gray-200 dark:divide-neutral-800 bg-gray-50/60 dark:bg-neutral-800/30 lg:flex-[1]">
+                    {secondary.map((it) => <StatCell key={it.label} {...it} secondary />)}
+                </div>
             </div>
         </div>
     );
 }
 
-function StatCell({ label, value, sub, icon: Icon, tone }) {
+function StatCell({ label, value, sub, icon: Icon, tone, secondary = false }) {
     const tints = {
         success: { box: 'bg-success-50 text-success-700 dark:bg-success-900/20 dark:text-success-400', val: 'text-success-700 dark:text-success-400' },
         error:   { box: 'bg-error-50 text-error-600 dark:bg-error-900/20 dark:text-error-400',         val: 'text-error-600 dark:text-error-400' },
-        warning: { box: 'bg-warning-50 text-warning-700 dark:bg-warning-900/20 dark:text-warning-400', val: 'text-gray-900 dark:text-gray-100' },
         neutral: { box: 'bg-gray-100 text-gray-600 dark:bg-neutral-800 dark:text-gray-300',            val: 'text-gray-900 dark:text-gray-100' },
-    }[tone] || { box: 'bg-gray-100 text-gray-600', val: 'text-gray-900' };
+    }[tone] || { box: 'bg-gray-100 text-gray-600 dark:bg-neutral-800 dark:text-gray-300', val: 'text-gray-900 dark:text-gray-100' };
+
+    if (secondary) {
+        return (
+            <div className="px-4 py-4 flex items-center gap-2.5">
+                <Icon className="w-3.5 h-3.5 text-gray-400 dark:text-neutral-500 shrink-0" />
+                <div className="min-w-0">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-neutral-500">{label}</p>
+                    <p className="mt-0.5 flex items-baseline gap-1.5">
+                        <span className="text-base font-semibold tabular-nums leading-none text-gray-700 dark:text-gray-300">{value}</span>
+                        <span className="text-[10px] text-gray-400 dark:text-neutral-500 truncate">{sub}</span>
+                    </p>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="p-4 flex items-start gap-3">
@@ -645,46 +673,40 @@ function StatementsList({ statements, onUpload, onSelect, onSync, onDelete, sync
                         const isSyncing = syncing === s.id;
 
                         return (
-                            <li key={s.id} className="group flex items-center gap-0 hover:bg-gray-50/80 dark:hover:bg-neutral-800/30 transition-colors">
-                                {/* Clickable row area */}
+                            <li key={s.id} className="group relative flex items-center hover:bg-gray-50/80 dark:hover:bg-neutral-800/30 transition-colors">
+                                {/* Clickable row area — two aligned blocks: label left, numbers right */}
                                 <button
                                     onClick={() => onSelect(s)}
-                                    className="flex-1 min-w-0 flex items-center gap-3 px-4 py-2.5 text-left"
+                                    className="flex-1 min-w-0 flex items-center justify-between gap-3 px-4 py-3 text-left"
                                 >
-                                    {/* Month/year pill */}
-                                    <span className="shrink-0 text-[11px] font-bold tabular-nums text-gray-800 dark:text-gray-200 w-[72px]">
-                                        {s.month.slice(0, 3)} <span className="text-gray-400 dark:text-neutral-500 font-normal">{s.year}</span>
-                                    </span>
-
-                                    {/* Meta — txn count + upload date */}
-                                    <span className="flex-1 min-w-0 flex items-center gap-2">
-                                        <span className="text-[10px] font-medium text-gray-500 dark:text-neutral-400 tabular-nums whitespace-nowrap">
-                                            {s.transaction_count ?? 0} txn{s.transaction_count !== 1 ? 's' : ''}
+                                    {/* Left — month/year + meta beneath */}
+                                    <span className="min-w-0">
+                                        <span className="block text-[12px] font-semibold tabular-nums text-gray-800 dark:text-gray-200 leading-tight">
+                                            {s.month.slice(0, 3)} <span className="text-gray-400 dark:text-neutral-500 font-normal">{s.year}</span>
                                         </span>
-                                        {s.upload_date && (
-                                            <span className="text-[10px] text-gray-300 dark:text-neutral-600 hidden sm:inline whitespace-nowrap">
-                                                {new Date(s.upload_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
-                                            </span>
-                                        )}
+                                        <span className="mt-0.5 block text-[10px] text-gray-400 dark:text-neutral-500 tabular-nums">
+                                            {s.transaction_count ?? 0} txn{s.transaction_count !== 1 ? 's' : ''}
+                                            {s.upload_date && ` · ${new Date(s.upload_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}`}
+                                        </span>
                                     </span>
 
-                                    {/* Balance + delta */}
-                                    <span className="shrink-0 text-right">
+                                    {/* Right — closing balance + delta, right-aligned */}
+                                    <span className="shrink-0 text-right pr-12 group-hover:pr-0 transition-all">
                                         {s.closing_balance != null && (
-                                            <span className="block text-[11px] font-semibold tabular-nums text-gray-800 dark:text-gray-200">
+                                            <span className="block text-[12px] font-semibold tabular-nums text-gray-800 dark:text-gray-200 leading-tight">
                                                 {fmtPKRShort(s.closing_balance)}
                                             </span>
                                         )}
                                         {delta !== null && (
-                                            <span className={`block text-[9.5px] tabular-nums font-medium ${delta >= 0 ? 'text-success-600 dark:text-success-400' : 'text-error-500 dark:text-error-400'}`}>
+                                            <span className={`mt-0.5 block text-[10px] tabular-nums font-medium ${delta >= 0 ? 'text-success-600 dark:text-success-400' : 'text-error-500 dark:text-error-400'}`}>
                                                 {delta >= 0 ? '+' : '−'}{fmtPKRShort(Math.abs(delta))}
                                             </span>
                                         )}
                                     </span>
                                 </button>
 
-                                {/* Icon actions — always visible on hover */}
-                                <div className="flex items-center gap-0.5 px-2 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                                {/* Icon actions — overlaid on the right, revealed on hover */}
+                                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 bg-gray-50/95 dark:bg-neutral-800/95 rounded-lg pl-1">
                                     <button
                                         onClick={(e) => { e.stopPropagation(); onSync(s.id); }}
                                         disabled={isSyncing}
@@ -711,25 +733,9 @@ function StatementsList({ statements, onUpload, onSelect, onSync, onDelete, sync
 }
 
 /* ──────────────────────────────────────────────────────────────
-   Category mini-breakdown (left sidebar) — top 6 by amount
+   Category mini-breakdown (left sidebar) — top 6 by amount.
+   Ranked list, neutral styling (no per-category colour coding).
    ────────────────────────────────────────────────────────────── */
-const CATEGORY_DOT = {
-    'ATM Withdrawal':   'bg-error-500',
-    'Salary':           'bg-success-500',
-    'Profit/Dividend':  'bg-success-600',
-    'Transfer':         'bg-primary-500',
-    'Bank Charges':     'bg-warning-500',
-    'Food & Dining':    'bg-warning-400',
-    'Groceries':        'bg-warning-500',
-    'Utilities':        'bg-warning-600',
-    'Transportation':   'bg-indigo-500',
-    'Shopping':         'bg-gray-500',
-    'Entertainment':    'bg-indigo-400',
-    'Healthcare':       'bg-success-400',
-    'Investment':       'bg-indigo-600',
-    'Other':            'bg-gray-400',
-};
-
 function CategoryMiniBreakdown({ data }) {
     const { summary = [] } = data;
     const sorted = useMemo(() => {
@@ -746,35 +752,35 @@ function CategoryMiniBreakdown({ data }) {
             <div className="px-4 py-3 flex items-center justify-between border-b border-gray-100 dark:border-neutral-800">
                 <div className="flex items-center gap-2">
                     <BarChart3 className="w-4 h-4 text-gray-500 dark:text-gray-400" />
-                    <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">By category</h3>
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Top categories</h3>
                 </div>
                 <span className="text-[11px] text-gray-400 dark:text-gray-500">
-                    top {sorted.length} of {total}
+                    of {total}
                 </span>
             </div>
 
-            <ul className="px-4 py-3 space-y-3">
-                {sorted.map((row) => {
-                    const dot = CATEGORY_DOT[row.category] || 'bg-gray-400';
+            <ul className="p-2">
+                {sorted.map((row, i) => {
                     const widthPct = (row._abs / max) * 100;
                     return (
-                        <li key={row.category}>
-                            <div className="flex items-baseline justify-between gap-2 mb-1.5">
-                                <div className="flex items-center gap-2 min-w-0">
-                                    <span className={`w-2 h-2 rounded-full ${dot} shrink-0`} />
-                                    <span className="text-[12px] font-medium text-gray-700 dark:text-gray-200 truncate">{row.category}</span>
-                                    <span className="text-[10px] text-gray-400 dark:text-gray-500">{row.count}×</span>
-                                </div>
-                                <span className={`text-[12px] font-semibold tabular-nums shrink-0 ${row._isCredit ? 'text-success-700 dark:text-success-400' : 'text-error-600 dark:text-error-400'}`}>
-                                    {row._isCredit ? '+' : '−'}{fmtPKRShort(row._abs)}
-                                </span>
+                        <li
+                            key={row.category}
+                            className="relative flex items-center justify-between gap-2 px-2 py-2.5 rounded-lg overflow-hidden"
+                        >
+                            {/* Neutral magnitude track — proportion without rainbow colours */}
+                            <span
+                                className="absolute inset-y-1 left-1 rounded-md bg-gray-100 dark:bg-neutral-800/70"
+                                style={{ width: `calc(${widthPct}% - 0.5rem)` }}
+                                aria-hidden="true"
+                            />
+                            <div className="relative flex items-center gap-2 min-w-0">
+                                <span className="text-[10px] font-semibold tabular-nums text-gray-400 dark:text-neutral-500 w-3 shrink-0">{i + 1}</span>
+                                <span className="text-[12px] font-medium text-gray-800 dark:text-gray-100 truncate">{row.category}</span>
+                                <span className="text-[10px] text-gray-400 dark:text-neutral-500 shrink-0">{row.count}×</span>
                             </div>
-                            <div className="h-1 rounded-full bg-gray-100 dark:bg-neutral-800 overflow-hidden">
-                                <div
-                                    className={`h-full rounded-full ${row._isCredit ? 'bg-success-500' : 'bg-error-500/70'}`}
-                                    style={{ width: `${widthPct}%` }}
-                                />
-                            </div>
+                            <span className={`relative text-[12px] font-semibold tabular-nums shrink-0 ${row._isCredit ? 'text-success-700 dark:text-success-400' : 'text-gray-700 dark:text-gray-200'}`}>
+                                {row._isCredit ? '+' : '−'}{fmtPKRShort(row._abs)}
+                            </span>
                         </li>
                     );
                 })}

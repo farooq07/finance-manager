@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { Plus, CreditCard, Car, Home, Wallet, Banknote, X, ArrowRight, Trash2 } from 'lucide-react';
 import api from '../services/api';
 import { fmtPKR } from '../utils/currency';
+import { useConfirm } from '../components/ui/confirm-dialog';
 
 const DEBT_TYPES = [
     { value: 'credit_card',   label: 'Credit card',   icon: CreditCard },
@@ -24,6 +25,7 @@ const EMPTY_FORM = {
 
 export default function Debts() {
     const qc = useQueryClient();
+    const confirm = useConfirm();
     const [modalOpen, setModalOpen] = useState(false);
     const [form, setForm] = useState(EMPTY_FORM);
 
@@ -106,8 +108,13 @@ export default function Debts() {
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {debts.map((d) => (
-                        <DebtCard key={d.id} debt={d} onDelete={() => {
-                            if (confirm(`Delete "${d.name}"? Its payment history will also be removed.`)) deleteMutation.mutate(d.id);
+                        <DebtCard key={d.id} debt={d} onDelete={async () => {
+                            const ok = await confirm({
+                                title: 'Delete debt',
+                                description: `Delete "${d.name}"? Its payment history will also be removed.`,
+                                confirmText: 'Delete',
+                            });
+                            if (ok) deleteMutation.mutate(d.id);
                         }} />
                     ))}
                 </div>

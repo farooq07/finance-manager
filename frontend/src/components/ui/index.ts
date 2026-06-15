@@ -6,3 +6,4 @@ export * from "./data-table";
 export * from "./navigation-layout";
 export * from "./modal";
 export * from "./toast";
+export * from "./confirm-dialog";

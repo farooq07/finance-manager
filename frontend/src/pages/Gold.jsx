@@ -12,6 +12,7 @@ import {
 } from '../hooks/useGold';
 import { fmtPKR } from '../utils/currency';
 import { fmtDateLong } from '../utils/dates';
+import { useConfirm } from '../components/ui/confirm-dialog';
 
 const GOLD_AMBER = '#D4AF37';
 
@@ -33,6 +34,7 @@ function GoldVault() {
     const zakat = useGoldZakatSummary();
     const sync = useSyncGoldPrice();
     const remove = useDeleteGoldItem();
+    const confirm = useConfirm();
 
     const lastSyncedLabel = useMemo(() => {
         const dt = latest.data?.row?.date;
@@ -49,8 +51,13 @@ function GoldVault() {
         });
     }
 
-    function handleDelete(item) {
-        if (!confirm(`Delete "${item.name}"?`)) return;
+    async function handleDelete(item) {
+        const ok = await confirm({
+            title: 'Delete gold item',
+            description: `Delete "${item.name}"? This cannot be undone.`,
+            confirmText: 'Delete',
+        });
+        if (!ok) return;
         remove.mutate(item.id, {
             onSuccess: () => toast.success('Item removed'),
             onError: () => toast.error('Could not delete'),

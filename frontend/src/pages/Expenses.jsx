@@ -11,6 +11,7 @@ import { useBanks } from '../hooks/useBanks';
 import { useWallets } from '../hooks/useWallets';
 import { fmtPKR } from '../utils/currency';
 import { fmtDate } from '../utils/dates';
+import { useConfirm } from '../components/ui/confirm-dialog';
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Period helpers — client computes the anchor date for the insights call so
@@ -578,6 +579,7 @@ function Transactions({ entries, loading, periodLabel }) {
     const [editing, setEditing] = useState(null);
     const [editOpen, setEditOpen] = useState(false);
     const qc = useQueryClient();
+    const confirm = useConfirm();
 
     const removeMutation = useMutation({
         mutationFn: (id) => api.delete(`/expenses/${String(id).replace('manual:', '')}`),
@@ -616,7 +618,10 @@ function Transactions({ entries, loading, periodLabel }) {
                 <EntryList
                     entries={entries}
                     onEdit={(e) => { setEditing(e); setEditOpen(true); }}
-                    onDelete={(id) => { if (confirm('Delete this entry?')) removeMutation.mutate(id); }}
+                    onDelete={async (id) => {
+                        const ok = await confirm({ title: 'Delete entry', description: 'Delete this entry?', confirmText: 'Delete' });
+                        if (ok) removeMutation.mutate(id);
+                    }}
                 />
             ) : null}
 

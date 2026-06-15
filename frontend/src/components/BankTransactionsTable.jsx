@@ -4,6 +4,7 @@ import { Checkbox } from './ui/checkbox';
 import { fmtPKR } from '../utils/currency';
 import { useApproveTransaction, useBulkApproveTransactions, useUpdateTransactionCategory, useDeleteTransaction } from '../hooks/useStatementTransactions';
 import { useStaleResourceHandler } from '../hooks/useStaleResource';
+import { useConfirm } from './ui/confirm-dialog';
 import { toast } from 'sonner';
 
 const EXPENSE_CATEGORIES = [
@@ -13,27 +14,13 @@ const EXPENSE_CATEGORIES = [
     'Subscription', 'Insurance', 'Savings', 'Investment', 'Other'
 ];
 
-/* Compact summary cell — used by the single-row stat strip at the top */
-function SummaryCell({ label, value, hint, tone, emphasis }) {
-    const valueClass = {
-        positive: 'text-success-700 dark:text-success-400',
-        negative: 'text-error-600 dark:text-error-400',
-    }[tone] || 'text-gray-900 dark:text-gray-100';
-    return (
-        <div className={`px-4 py-3.5 ${emphasis ? 'bg-primary-50/40 dark:bg-primary-900/10' : ''}`}>
-            <p className="text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">{label}</p>
-            <p className={`mt-1 text-lg font-semibold tabular-nums ${valueClass}`}>{value}</p>
-            {hint && <p className="mt-0.5 text-[11px] text-gray-500 dark:text-gray-400">{hint}</p>}
-        </div>
-    );
-}
-
 export default function BankTransactionsTable({ bankId, transactions = [], resource = 'banks' }) {
     const approveMutation = useApproveTransaction();
     const bulkApproveMutation = useBulkApproveTransactions();
     const updateMutation = useUpdateTransactionCategory();
     const deleteMutation = useDeleteTransaction();
     const handleStaleResource = useStaleResourceHandler();
+    const confirm = useConfirm();
     const [expandedTxId, setExpandedTxId] = useState(null);
     const [categoryOverrides, setCategoryOverrides] = useState({});
     const [notesOverrides, setNotesOverrides] = useState({});
@@ -66,8 +53,6 @@ export default function BankTransactionsTable({ bankId, transactions = [], resou
         return <div className="text-center py-8 text-gray-500 dark:text-gray-400">No transactions to display</div>;
     }
 
-    const totalDebits = transactions.reduce((sum, tx) => sum + Number(tx.debit_amount || 0), 0);
-    const totalCredits = transactions.reduce((sum, tx) => sum + Number(tx.credit_amount || 0), 0);
     const pendingTxs = transactions.filter(t => t.processing_status !== 'approved');
     const approvedTxs = transactions.filter(t => t.processing_status === 'approved');
 
@@ -136,7 +121,12 @@ export default function BankTransactionsTable({ bankId, transactions = [], resou
     };
 
     const handleDelete = async (tx) => {
-        if (!window.confirm(`Delete this transaction? "${tx.description.substring(0, 60)}"${tx.description.length > 60 ? '...' : ''}`)) return;
+        const ok = await confirm({
+            title: 'Delete transaction',
+            description: `Delete this transaction? "${tx.description.substring(0, 60)}"${tx.description.length > 60 ? '...' : ''}`,
+            confirmText: 'Delete',
+        });
+        if (!ok) return;
         try {
             await deleteMutation.mutateAsync({
                 resource,
@@ -198,28 +188,28 @@ export default function BankTransactionsTable({ bankId, transactions = [], resou
     const isLoading = bulkApproveMutation.isPending;
     const selectedCount = selectedIds.size;
 
-    const netChange = totalCredits - totalDebits;
-    const netPositive = netChange >= 0;
-
     return (
         <div className="space-y-6">
-            {/* Compact summary strip — one row, all you need to know at a glance */}
-            <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-gray-200 dark:border-neutral-800 overflow-hidden">
-                <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-gray-200 dark:divide-neutral-800">
-                    <SummaryCell label="Transactions" value={transactions.length} hint={
-                        pendingTxs.length > 0
-                            ? `${pendingTxs.length} pending · ${approvedTxs.length} approved`
-                            : 'All approved'
-                    } />
-                    <SummaryCell label="In" value={fmtPKR(totalCredits)} tone="positive" hint={`${transactions.filter(t => Number(t.credit_amount || 0) > 0).length} deposits`} />
-                    <SummaryCell label="Out" value={fmtPKR(totalDebits)} tone="negative" hint={`${transactions.filter(t => Number(t.debit_amount || 0) > 0).length} withdrawals`} />
-                    <SummaryCell
-                        label="Net"
-                        value={`${netPositive ? '+' : '−'}${fmtPKR(Math.abs(netChange))}`}
-                        tone={netPositive ? 'positive' : 'negative'}
-                        hint={netPositive ? 'Balance grew' : 'Balance shrank'}
-                        emphasis
-                    />
+            {/* Section heading — explains what this list is; totals live in the stat strip above */}
+            <div className="flex flex-wrap items-end justify-between gap-3">
+                <div>
+                    <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">Transactions</h2>
+                    <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400 max-w-md">
+                        Pulled from your uploaded statements and auto-categorised — review pending items, then approve.
+                    </p>
+                </div>
+                <div className="flex items-center gap-2 text-[11px] font-medium tabular-nums">
+                    <span className="px-2 py-1 rounded-lg bg-gray-100 dark:bg-neutral-800 text-gray-600 dark:text-gray-300">
+                        {transactions.length} total
+                    </span>
+                    {pendingTxs.length > 0 && (
+                        <span className="px-2 py-1 rounded-lg bg-warning-50 dark:bg-warning-900/20 text-warning-700 dark:text-warning-400">
+                            {pendingTxs.length} to review
+                        </span>
+                    )}
+                    <span className="px-2 py-1 rounded-lg bg-success-50 dark:bg-success-900/20 text-success-700 dark:text-success-400">
+                        {approvedTxs.length} approved
+                    </span>
                 </div>
             </div>
 

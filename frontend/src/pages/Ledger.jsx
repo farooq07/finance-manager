@@ -12,6 +12,7 @@ import { fmtPKR } from '../utils/currency';
 import { fmtDateLong } from '../utils/dates';
 import DatePickerInput from '../components/DatePickerInput';
 import Modal from '../components/Modal';
+import { useConfirm } from '../components/ui/confirm-dialog';
 
 /* ─── Debt-type metadata ───────────────────────────────────── */
 const DEBT_TYPES = [
@@ -463,6 +464,7 @@ function PeopleView({ people, refetch }) {
 }
 
 function PersonCard({ person, open, onToggle, onChanged }) {
+    const confirm = useConfirm();
     const balance = Number(person.netBalance);
     const isPositive = balance > 0;
     const isZero = balance === 0;
@@ -537,10 +539,13 @@ function PersonCard({ person, open, onToggle, onChanged }) {
                         )}
                         <CsvUploadButton personId={person.id} onUploaded={onChanged} />
                         <button
-                            onClick={() => {
-                                if (confirm(`Remove ${person.name} and their entire ledger history? This cannot be undone.`)) {
-                                    deletePerson.mutate();
-                                }
+                            onClick={async () => {
+                                const ok = await confirm({
+                                    title: 'Remove person',
+                                    description: `Remove ${person.name} and their entire ledger history? This cannot be undone.`,
+                                    confirmText: 'Remove',
+                                });
+                                if (ok) deletePerson.mutate();
                             }}
                             className="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-error-600 dark:text-error-400 text-xs font-medium hover:bg-error-50 dark:hover:bg-error-900/20 transition-colors"
                         >
@@ -602,6 +607,7 @@ function PersonCard({ person, open, onToggle, onChanged }) {
 
 function PersonTransactions({ person, onChanged }) {
     const qc = useQueryClient();
+    const confirm = useConfirm();
     const [editingId, setEditingId] = useState(null);
     const [editTx, setEditTx] = useState({});
 
@@ -717,7 +723,7 @@ function PersonTransactions({ person, onChanged }) {
                                         <button onClick={() => startEdit(tx)} className="p-1.5 rounded-lg text-gray-400 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20" title="Edit">
                                             <Pencil className="w-3.5 h-3.5" />
                                         </button>
-                                        <button onClick={() => { if (confirm('Delete this entry?')) remove.mutate(tx.id); }} className="p-1.5 rounded-lg text-gray-400 hover:text-error-600 hover:bg-error-50 dark:hover:bg-error-900/20" title="Delete">
+                                        <button onClick={async () => { const ok = await confirm({ title: 'Delete entry', description: 'Delete this entry?', confirmText: 'Delete' }); if (ok) remove.mutate(tx.id); }} className="p-1.5 rounded-lg text-gray-400 hover:text-error-600 hover:bg-error-50 dark:hover:bg-error-900/20" title="Delete">
                                             <Trash2 className="w-3.5 h-3.5" />
                                         </button>
                                     </div>
@@ -766,6 +772,7 @@ function CsvUploadButton({ personId, onUploaded }) {
 /* ─── LOANS view ───────────────────────────────────────────── */
 function LoansView({ debts, refetch, onAdd }) {
     const qc = useQueryClient();
+    const confirm = useConfirm();
     const deleteDebt = useMutation({
         mutationFn: (id) => api.delete(`/debts/${id}`),
         onSuccess: () => { qc.invalidateQueries({ queryKey: ['debts'] }); refetch?.(); toast.success('Removed'); },
@@ -796,8 +803,13 @@ function LoansView({ debts, refetch, onAdd }) {
                 <DebtCard
                     key={d.id}
                     debt={d}
-                    onDelete={() => {
-                        if (confirm(`Delete "${d.name}"? Its payment history will also be removed.`)) deleteDebt.mutate(d.id);
+                    onDelete={async () => {
+                        const ok = await confirm({
+                            title: 'Delete loan',
+                            description: `Delete "${d.name}"? Its payment history will also be removed.`,
+                            confirmText: 'Delete',
+                        });
+                        if (ok) deleteDebt.mutate(d.id);
                     }}
                 />
             ))}

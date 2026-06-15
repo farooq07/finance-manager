@@ -15,10 +15,12 @@ import StatementTransactionsModal from '../components/StatementTransactionsModal
 import StatementFileUpload from '../components/StatementFileUpload';
 import CsvMappingModal from '../components/CsvMappingModal';
 import StatementReviewModal from '../components/StatementReviewModal';
+import { useConfirm } from '../components/ui/confirm-dialog';
 
 export default function WalletDetail() {
     const { id } = useParams();
     const queryClient = useQueryClient();
+    const confirm = useConfirm();
     const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
     const [uploadFile, setUploadFile] = useState(null);
     const [pdfPassword, setPdfPassword] = useState('');
@@ -84,10 +86,13 @@ export default function WalletDetail() {
         }
     });
 
-    const handleDeleteStatement = (statementId, statementTitle) => {
-        if (!window.confirm(`Delete the statement "${statementTitle}"? This will remove all its transactions and any approved expenses created from them.`)) {
-            return;
-        }
+    const handleDeleteStatement = async (statementId, statementTitle) => {
+        const ok = await confirm({
+            title: 'Delete statement',
+            description: `Delete the statement "${statementTitle}"? This will remove all its transactions and any approved expenses created from them.`,
+            confirmText: 'Delete',
+        });
+        if (!ok) return;
         deleteStatementMutation.mutate(statementId);
     };
 
