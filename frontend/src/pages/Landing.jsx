@@ -1,10 +1,12 @@
 import { Link } from 'react-router-dom';
 import { useEffect, useRef, useState, createContext, useContext } from 'react';
 import { animate, stagger, createTimeline } from 'animejs';
+import { ReactLenis, useLenis } from 'lenis/react';
+import 'lenis/dist/lenis.css';
 import {
   ArrowUpRight, ArrowRight, MoveRight, TrendingUp, Sparkles,
   ShieldCheck, FileText, MessageSquareText, Lock, Fingerprint,
-  ArrowDownRight, Circle, Moon, Sun,
+  ArrowDownRight, ArrowDown, Circle, Moon, Sun,
 } from 'lucide-react';
 import logosm from '../assets/logosm.svg';
 import { useTheme } from '../context/ThemeContext';
@@ -164,13 +166,30 @@ function RotatingWord({ words, interval = 2800 }) {
   );
 }
 
+/* ── Lenis smooth-scroll options — Lenis's reference easing (exponential
+   ease-out). `anchors` lets the Nav's in-page links (#tracked, #pillars,
+   #trust) glide instead of jumping. Scoped to the landing page only, so the
+   authenticated app keeps native scrolling. ── */
+const lenisOptions = {
+  duration: 1.2,
+  easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+  smoothWheel: true,
+  // `offset` leaves room for the sticky CTA bar so anchored sections
+  // (#tracked, #pillars, #trust) aren't tucked behind it.
+  anchors: { offset: -72 },
+};
+
+const prefersReducedMotion =
+  typeof window !== 'undefined' &&
+  window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
 /* ── Root ── */
 export default function Landing() {
   const { theme, toggleTheme } = useTheme();
   const isDark = theme === 'dark';
   const p = isDark ? darkPalette : lightPalette;
 
-  return (
+  const content = (
     <PaletteCtx.Provider value={p}>
       <div
         style={{
@@ -181,6 +200,7 @@ export default function Landing() {
           transition: 'background-color 0.35s ease, color 0.25s ease',
         }}
       >
+        <StickyCallToAction />
         <Nav />
         <Hero />
         <Marquee />
@@ -192,6 +212,15 @@ export default function Landing() {
         <Footer />
       </div>
     </PaletteCtx.Provider>
+  );
+
+  // Honour reduced-motion — fall back to the browser's native scrolling.
+  if (prefersReducedMotion) return content;
+
+  return (
+    <ReactLenis root options={lenisOptions}>
+      {content}
+    </ReactLenis>
   );
 }
 
@@ -244,6 +273,98 @@ function Nav() {
         </div>
       </div>
     </header>
+  );
+}
+
+/* ─── StickyCallToAction ───
+   A slim bar that slides in once the reader scrolls past the hero, so a
+   primary action ("Start free") and a route back to the top stay reachable
+   anywhere down the long editorial page — not just at the very top/bottom. ── */
+function StickyCallToAction() {
+  const p = useContext(PaletteCtx);
+  const { theme, toggleTheme } = useTheme();
+  const lenis = useLenis();
+  const [shown, setShown] = useState(false);
+
+  useEffect(() => {
+    let raf = 0;
+    const onScroll = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        // Reveal once the hero is mostly out of view.
+        setShown(window.scrollY > window.innerHeight * 0.7);
+      });
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+    return () => { window.removeEventListener('scroll', onScroll); cancelAnimationFrame(raf); };
+  }, []);
+
+  const toTop = (e) => {
+    e.preventDefault();
+    if (lenis) lenis.scrollTo(0, { duration: 1.1 });
+    else window.scrollTo({ top: 0, behavior: prefersReducedMotion ? 'auto' : 'smooth' });
+  };
+
+  return (
+    <div
+      className="fixed inset-x-0 top-0 z-50"
+      style={{
+        transform: shown ? 'translateY(0)' : 'translateY(-100%)',
+        opacity: shown ? 1 : 0,
+        transition: prefersReducedMotion
+          ? 'opacity 0.2s ease'
+          : 'transform 0.45s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.3s ease',
+        pointerEvents: shown ? 'auto' : 'none',
+      }}
+      aria-hidden={!shown}
+    >
+      <div
+        className="border-b backdrop-blur-md"
+        style={{ background: `${p.paper}d9`, borderColor: p.divider }}
+      >
+        <div className="max-w-[1280px] mx-auto px-6 lg:px-12 h-[60px] flex items-center justify-between gap-4">
+          <a
+            href="#top"
+            onClick={toTop}
+            className="flex items-center gap-2.5 rounded-full focus-visible:outline-none focus-visible:ring-2"
+            style={{ color: p.ink }}
+            aria-label="Back to top"
+          >
+            <img src={logosm} alt="" className="h-6 w-6" />
+            <span style={{ fontFamily: fontDisplay, fontWeight: 500 }} className="text-base tracking-tight hidden sm:inline">
+              FSWealth <span style={{ fontStyle: 'italic', color: p.brand }}>Axis</span>
+            </span>
+          </a>
+
+          <div className="flex items-center gap-2.5">
+            <button
+              onClick={toggleTheme}
+              aria-label="Toggle dark mode"
+              className="w-9 h-9 flex items-center justify-center rounded-full transition-transform hover:scale-110 cursor-pointer focus-visible:outline-none focus-visible:ring-2"
+              style={{ color: p.mute, background: 'transparent', border: `1px solid ${p.divider}` }}
+            >
+              {theme === 'dark' ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
+            </button>
+            <Link
+              to="/login"
+              className="hidden sm:inline text-sm hover:underline cursor-pointer"
+              style={{ color: p.inkSoft }}
+            >
+              Sign in
+            </Link>
+            <Link
+              to="/register"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium transition-transform hover:scale-[1.03] active:scale-[0.98] cursor-pointer focus-visible:outline-none focus-visible:ring-2"
+              style={{ background: p.brand, color: '#fff', minHeight: 38 }}
+            >
+              Start free
+              <MoveRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -343,6 +464,25 @@ function Hero() {
             <HeroVisual />
           </div>
         </div>
+
+        {/* Interactive scroll cue — smooth-scrolls to the index via Lenis */}
+        <a
+          href="#tracked"
+          className="group mt-16 lg:mt-20 inline-flex items-center gap-3 cursor-pointer focus-visible:outline-none"
+          style={{ color: p.mute }}
+          aria-label="Scroll to what's tracked"
+        >
+          <span className="block w-12 h-px transition-all group-hover:w-16" style={{ background: p.mute }} />
+          <span className="text-[10px] uppercase tracking-[0.28em]" style={{ fontFamily: fontMono }}>
+            Begin reading
+          </span>
+          <span
+            className="w-9 h-9 rounded-full flex items-center justify-center transition-colors"
+            style={{ border: `1px solid ${p.divider}`, color: p.inkSoft }}
+          >
+            <ArrowDown className="w-3.5 h-3.5 scroll-cue-arrow" />
+          </span>
+        </a>
       </div>
 
       <div
@@ -356,6 +496,14 @@ function Hero() {
         @keyframes pulseDot {
           0%, 100% { transform: scale(1); opacity: 1; }
           50% { transform: scale(1.6); opacity: 0.4; }
+        }
+        @keyframes scrollCueBob {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(3px); }
+        }
+        .scroll-cue-arrow { animation: scrollCueBob 1.8s ease-in-out infinite; }
+        @media (prefers-reduced-motion: reduce) {
+          .scroll-cue-arrow { animation: none; }
         }
       `}</style>
     </section>

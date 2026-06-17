@@ -22,6 +22,7 @@ export default function MutualFunds() {
     const fileInputRef = useRef(null);
 
     const [showForm, setShowForm] = useState(false);
+    const [isSavingManual, setIsSavingManual] = useState(false);
     const [formData, setFormData] = useState({
         fund_name: '', fund_symbol: '', units: '', current_nav: '', invested_amount: ''
     });
@@ -62,6 +63,14 @@ export default function MutualFunds() {
 
     useEffect(() => { fetchFunds(); fetchSnapshots(); }, []);
 
+    // Close the manual-entry modal on Escape
+    useEffect(() => {
+        if (!showForm) return;
+        const onKey = (e) => { if (e.key === 'Escape' && !isSavingManual) resetManualForm(); };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [showForm, isSavingManual]);
+
     const handleFileUpload = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -85,15 +94,28 @@ export default function MutualFunds() {
         }
     };
 
+    const resetManualForm = () => {
+        setShowForm(false);
+        setFormData({ fund_name: '', fund_symbol: '', units: '', current_nav: '', invested_amount: '' });
+    };
+
     const handleCreateManually = async (e) => {
         e.preventDefault();
+        if (isSavingManual) return;
+        setIsSavingManual(true);
         try {
             await api.post('/mutual-funds', formData);
-            setShowForm(false);
-            setFormData({ fund_name: '', fund_symbol: '', units: '', current_nav: '', invested_amount: '' });
+            toast.success(`${formData.fund_name?.trim() || 'Fund'} added to your portfolio`);
+            resetManualForm();
             fetchFunds();
         } catch (error) {
             console.error('Error adding fund', error);
+            const msg = error.response?.data?.errors?.[0]?.message
+                || error.response?.data?.message
+                || 'Failed to add fund. Check the values and try again.';
+            toast.error(msg);
+        } finally {
+            setIsSavingManual(false);
         }
     };
 
@@ -274,6 +296,16 @@ export default function MutualFunds() {
     const fmtDate = (d) => new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
     const pctChange = (curr, prev) => prev === 0 ? 0 : (((curr - prev) / Math.abs(prev)) * 100).toFixed(2);
 
+    // Live preview for the manual-entry modal
+    const mUnits = parseFloat(formData.units) || 0;
+    const mNav = parseFloat(formData.current_nav) || 0;
+    const mInvested = parseFloat(formData.invested_amount) || 0;
+    const mValue = mUnits * mNav;
+    const mGain = mValue - mInvested;
+    const showManualPreview = mUnits > 0 && mNav > 0;
+    const manualInputClass = "w-full px-3 py-2 border border-gray-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-900 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c2889] transition-colors";
+    const manualLabelClass = "block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5";
+
     const barOption = {
         tooltip: { trigger: 'axis', formatter: (p) => p.map(s => `${s.marker} ${s.seriesName}: PKR ${Number(s.value).toLocaleString()}`).join('<br/>') },
         grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
@@ -362,7 +394,7 @@ export default function MutualFunds() {
                     >
                         <Plus data-icon="inline-start" /> Paste HTML
                     </Button>
-                    <Button variant="default" onClick={() => setShowForm(!showForm)}>
+                    <Button variant="default" onClick={() => setShowForm(true)}>
                         <Plus data-icon="inline-start" /> Add Manual
                     </Button>
                 </div>
@@ -422,20 +454,77 @@ export default function MutualFunds() {
             )}
 
             {showForm && (
-                <form onSubmit={handleCreateManually} className="bg-blue-50/70 dark:bg-neutral-800/50 p-5 rounded-xl border border-blue-200 dark:border-neutral-700 transition-colors mb-6">
-                    <h3 className="font-semibold text-blue-800 dark:text-blue-400 mb-4 text-sm">Manual Portfolio Entry</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 items-end">
-                        <input required placeholder="Fund Name" type="text" value={formData.fund_name} onChange={e => setFormData({ ...formData, fund_name: e.target.value })} className="w-full px-3 py-2 border border-gray-200 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-900 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors" />
-                        <input required placeholder="Symbol" type="text" value={formData.fund_symbol} onChange={e => setFormData({ ...formData, fund_symbol: e.target.value })} className="w-full px-3 py-2 border border-gray-200 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-900 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors" />
-                        <input required placeholder="Units" type="number" step="0.0001" value={formData.units} onChange={e => setFormData({ ...formData, units: e.target.value })} className="w-full px-3 py-2 border border-gray-200 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-900 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors" />
-                        <input required placeholder="NAV (PKR)" type="number" step="0.0001" value={formData.current_nav} onChange={e => setFormData({ ...formData, current_nav: e.target.value })} className="w-full px-3 py-2 border border-gray-200 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-900 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors" />
-                        <input required placeholder="Invested (PKR)" type="number" step="0.01" value={formData.invested_amount} onChange={e => setFormData({ ...formData, invested_amount: e.target.value })} className="w-full px-3 py-2 border border-gray-200 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-900 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors" />
-                    </div>
-                    <div className="flex gap-2 mt-4">
-                        <Button variant="outline" type="button" onClick={() => setShowForm(false)}>Cancel</Button>
-                        <Button type="submit">Save Record</Button>
-                    </div>
-                </form>
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+                    onClick={resetManualForm}
+                >
+                    <Card
+                        className="w-full max-w-lg shadow-2xl overflow-hidden animate-in zoom-in duration-200"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <CardHeader className="border-b border-gray-100 dark:border-neutral-800 flex flex-row justify-between items-center">
+                            <div>
+                                <CardTitle className="text-lg font-bold">Add Fund Manually</CardTitle>
+                                <CardDescription>Enter a fund's holdings to add it to your portfolio.</CardDescription>
+                            </div>
+                            <Button variant="ghost" size="icon" onClick={resetManualForm} className="size-8 rounded-full" aria-label="Close">&times;</Button>
+                        </CardHeader>
+                        <CardContent className="p-6">
+                            <form onSubmit={handleCreateManually} className="space-y-4">
+                                <div>
+                                    <label htmlFor="mf-name" className={manualLabelClass}>Fund Name</label>
+                                    <input id="mf-name" required autoFocus placeholder="e.g. Meezan Islamic Fund" type="text" value={formData.fund_name} onChange={e => setFormData({ ...formData, fund_name: e.target.value })} className={manualInputClass} />
+                                </div>
+                                <div>
+                                    <label htmlFor="mf-symbol" className={manualLabelClass}>Symbol</label>
+                                    <input id="mf-symbol" required placeholder="e.g. MIF" type="text" value={formData.fund_symbol} onChange={e => setFormData({ ...formData, fund_symbol: e.target.value })} className={manualInputClass} />
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                    <div>
+                                        <label htmlFor="mf-units" className={manualLabelClass}>Units</label>
+                                        <input id="mf-units" required min="0" placeholder="0.0000" type="number" step="0.0001" value={formData.units} onChange={e => setFormData({ ...formData, units: e.target.value })} className={manualInputClass} />
+                                    </div>
+                                    <div>
+                                        <label htmlFor="mf-nav" className={manualLabelClass}>NAV (PKR)</label>
+                                        <input id="mf-nav" required min="0" placeholder="0.0000" type="number" step="0.0001" value={formData.current_nav} onChange={e => setFormData({ ...formData, current_nav: e.target.value })} className={manualInputClass} />
+                                    </div>
+                                    <div>
+                                        <label htmlFor="mf-invested" className={manualLabelClass}>Invested (PKR)</label>
+                                        <input id="mf-invested" required min="0" placeholder="0.00" type="number" step="0.01" value={formData.invested_amount} onChange={e => setFormData({ ...formData, invested_amount: e.target.value })} className={manualInputClass} />
+                                    </div>
+                                </div>
+
+                                {showManualPreview && (
+                                    <div className="flex items-center justify-between gap-4 rounded-lg bg-gray-50 dark:bg-neutral-800/50 border border-gray-100 dark:border-neutral-800 px-4 py-3">
+                                        <div>
+                                            <p className="text-[10px] uppercase tracking-wider text-gray-400 dark:text-gray-500 font-medium">Current Value</p>
+                                            <p className="text-sm font-bold text-[#7c2889] dark:text-[#a855f7]">PKR {fmtPKR(mValue)}</p>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-[10px] uppercase tracking-wider text-gray-400 dark:text-gray-500 font-medium">Gain / Loss</p>
+                                            <p className={`text-sm font-bold flex items-center gap-1 justify-end ${mGain >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'}`}>
+                                                {mInvested > 0 && (mGain >= 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />)}
+                                                {mGain >= 0 ? '+' : ''}{fmtPKR(mGain)}
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="flex gap-3 pt-1">
+                                    <Button variant="outline" type="button" onClick={resetManualForm} className="flex-1">Cancel</Button>
+                                    <Button type="submit" disabled={isSavingManual} className="flex-1">
+                                        {isSavingManual ? (
+                                            <Loader2 data-icon="inline-start" className="animate-spin" />
+                                        ) : (
+                                            <Plus data-icon="inline-start" />
+                                        )}
+                                        Save Record
+                                    </Button>
+                                </div>
+                            </form>
+                        </CardContent>
+                    </Card>
+                </div>
             )}
 
             {showHtmlModal && (

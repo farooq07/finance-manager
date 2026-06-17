@@ -77,9 +77,9 @@ function lastFour(s = '') {
     return digits.slice(-4) || 'XXXX';
 }
 
-/* Tiny sparkline used inside the bank card's coloured right pane.
-   No real history — synthesizes a believable trend so the card has visual life. */
-function CardSparkline({ seed = 0 }) {
+/* Tiny sparkline — synthesizes a believable trend so the ledger card has
+   quiet visual life. `stroke` lets each card draw it in its own brand ink. */
+function CardSparkline({ seed = 0, stroke = 'currentColor' }) {
     // Deterministic-ish wobble around an upward trend
     const points = Array.from({ length: 14 }, (_, i) => {
         const base = 38 - i * 1.6;
@@ -88,8 +88,8 @@ function CardSparkline({ seed = 0 }) {
     });
     const d = points.map((y, i) => `${i === 0 ? 'M' : 'L'}${(i / (points.length - 1)) * 180},${y}`).join(' ');
     return (
-        <svg viewBox="0 0 180 48" className="w-full h-12" preserveAspectRatio="none">
-            <path d={d} fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        <svg viewBox="0 0 180 48" className="w-full h-9" preserveAspectRatio="none">
+            <path d={d} fill="none" stroke={stroke} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
     );
 }
@@ -100,14 +100,14 @@ function BankCard({ bank, onEditBalance, onDelete, isEditing, balanceInput, setB
     const seed = (bank.name?.charCodeAt(0) || 0) + (bank.account_no?.length || 0);
 
     return (
-        <div className="group relative grid grid-cols-1 sm:grid-cols-[1fr,1fr] rounded-2xl border border-gray-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 overflow-hidden">
-            {/* Hover actions (top-right of whole card) */}
-            <div className="absolute top-2 right-2 z-10 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="group relative bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-xl transition-colors hover:border-gray-300 dark:hover:border-neutral-700">
+            {/* Hover actions (top-right) */}
+            <div className="absolute top-2.5 right-2.5 z-10 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                 <Button
                     variant="ghost"
                     size="icon"
                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); onEditBalance(); }}
-                    className="h-7 w-7 bg-white/90 dark:bg-neutral-800/90 text-gray-500 hover:text-primary-600 backdrop-blur-sm"
+                    className="h-7 w-7bg-white/90 dark:bg-neutral-800/90 text-gray-500 hover:text-primary-600 backdrop-blur-sm"
                     title="Edit balance"
                 >
                     <Edit2 className="w-3.5 h-3.5" />
@@ -116,209 +116,89 @@ function BankCard({ bank, onEditBalance, onDelete, isEditing, balanceInput, setB
                     variant="ghost"
                     size="icon"
                     onClick={onDelete}
-                    className="h-7 w-7 bg-white/90 dark:bg-neutral-800/90 text-gray-500 hover:text-error-600 backdrop-blur-sm"
+                    className="h-7 w-7bg-white/90 dark:bg-neutral-800/90 text-gray-500 hover:text-error-600 backdrop-blur-sm"
                     title="Delete bank"
                 >
                     <Trash2 className="w-3.5 h-3.5" />
                 </Button>
             </div>
 
-            {/* LEFT — identity */}
-            <div className="p-5 flex flex-col">
-
-                <div className="mt-3 flex items-center gap-3">
+            <div className="p-5">
+                {/* Identity row */}
+                <div className="flex items-center gap-3">
                     <span
-                        className="w-10 h-10 rounded-xl flex items-center justify-center text-white text-[12px] font-semibold shrink-0"
+                        className="w-9 h-9 rounded-lg flex items-center justify-center text-white text-[11px] font-bold tracking-wide shrink-0"
                         style={{ background: color }}
                     >
                         {monogram(bank.name)}
                     </span>
-                    <div className="min-w-0">
-                        <h3 className="text-[15px] font-semibold text-gray-900 dark:text-gray-100 leading-tight truncate">{bank.name}</h3>
-                        <p className="text-[11.5px] font-mono text-gray-500 dark:text-gray-400 mt-0.5 truncate">{bank.account_no}</p>
+                    <div className="min-w-0 flex-1">
+                        <h3 className="text-[14px] font-semibold text-gray-900 dark:text-gray-100 leading-tight truncate">{bank.name}</h3>
+                        <p className="text-[11px] font-mono text-gray-500 dark:text-gray-400 mt-0.5 truncate">{bank.account_no}</p>
                     </div>
+                    <span className="self-start text-[9px] font-mono font-semibold tracking-[0.22em] uppercase text-gray-400 dark:text-gray-500 shrink-0">Bank</span>
                 </div>
 
-                {bank.iban_no && (
-                    <div className="mt-4 pt-4 border-t border-gray-100 dark:border-neutral-800">
-                        <p className="text-[10px] font-semibold tracking-[0.16em] uppercase text-gray-400 dark:text-gray-500">IBAN</p>
-                        <p className="mt-1 text-[11.5px] font-mono text-gray-700 dark:text-gray-300 break-all">{bank.iban_no}</p>
-                    </div>
-                )}
-
-                <div className="mt-auto pt-4">
-                    <Link
-                        to={`/banks/${bank.id}`}
-                        className="inline-flex items-center gap-1 text-[12.5px] font-semibold text-gray-700 dark:text-gray-200 hover:text-primary-600 dark:hover:text-primary-300 transition-colors"
-                    >
-                        View statements <ArrowRight className="w-3.5 h-3.5" />
-                    </Link>
-                </div>
-            </div>
-
-            {/* RIGHT — coloured balance pane */}
-            <div
-                className="p-5 text-white flex flex-col justify-between relative overflow-hidden min-h-[180px]"
-                style={{ background: `linear-gradient(140deg, ${color} 0%, ${shade(color, -0.25)} 100%)` }}
-            >
-                {/* Decorative concentric rings */}
-                <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full border border-white/10 pointer-events-none" />
-                <div className="absolute -top-4 -right-4 w-28 h-28 rounded-full border border-white/10 pointer-events-none" />
-
-                <div className="relative z-10 flex items-start justify-between">
-                    <span className="text-[10px] font-semibold tracking-[0.18em] uppercase text-white/70">Current balance</span>
-                </div>
-
-                {isEditing ? (
-                    <div className="relative z-10 flex items-center gap-2">
-                        <input
-                            autoFocus
-                            type="number"
-                            className="bg-white/15 border border-white/30 rounded-lg px-3 py-1.5 text-white placeholder-white/50 w-full outline-none focus:ring-2 focus:ring-white/40 text-base font-semibold"
-                            value={balanceInput}
-                            onChange={(e) => setBalanceInput(e.target.value)}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter') onSaveBalance(e);
-                                if (e.key === 'Escape') onCancelEdit();
-                            }}
-                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                        />
-                        <Button size="sm" onClick={onSaveBalance} className="bg-white text-gray-900 hover:bg-gray-100 h-8 px-3 font-semibold">
-                            Save
-                        </Button>
-                    </div>
-                ) : (
-                    <div className="relative z-10">
-                        <div className="flex items-baseline gap-2">
-                            <span className="text-[11px] font-medium text-white/70">{bank.currency || 'PKR'}</span>
-                            <MaskedBalance
-                                value={bank.current_balance}
-                                className="text-xl font-semibold tracking-tight"
-                                iconClassName="text-white/80 hover:text-white bg-white/15 hover:bg-white/25 p-1 ml-1"
-                                showSymbol={false}
-                            />
-                        </div>
-                        <div className="mt-3 opacity-70">
-                            <CardSparkline seed={seed} />
-                        </div>
-                    </div>
-                )}
-
-                <div className="relative z-10 flex items-end justify-between">
-                    <p className="font-mono text-[12.5px] tracking-[0.18em] text-white/85">
-                        •••• •••• •••• {lastFour(bank.account_no)}
-                    </p>
-                    <span className="text-[10px] font-semibold tracking-[0.18em] uppercase text-white/60">Bank</span>
-                </div>
-            </div>
-        </div>
-    );
-}
-
-/* ─── Wallet card — full-bleed coloured credit-card style ─── */
-function WalletCard({ wallet, holderName, isEditing, balanceInput, setBalanceInput, onEditBalance, onSaveBalance, onCancelEdit, onDelete }) {
-    const color = walletCardColor(wallet);
-
-    return (
-        <div className="group relative">
-            <div
-                className="h-48 rounded-2xl p-5 flex flex-col justify-between text-white relative overflow-hidden"
-                style={{ background: `linear-gradient(140deg, ${color} 0%, ${shade(color, -0.25)} 100%)` }}
-            >
-                {/* Decorative rings */}
-                <div className="absolute -top-12 -right-12 w-44 h-44 rounded-full border border-white/10 pointer-events-none" />
-                <div className="absolute -bottom-10 -left-10 w-32 h-32 rounded-full border border-white/10 pointer-events-none" />
-
-                {/* Top — wallet type + name */}
-                <div className="relative z-10">
-                    <p className="text-[10px] font-semibold tracking-[0.18em] uppercase text-white/65">Mobile wallet</p>
-                    <h3 className="text-lg font-semibold mt-0.5 leading-tight">{wallet.institution || wallet.name}</h3>
-                </div>
-
-                {/* Mid — chip + balance */}
-                <div className="relative z-10 flex items-center gap-3">
-                    {/* Chip */}
-                    <div className="w-9 h-7 rounded-md bg-gradient-to-br from-yellow-200 via-yellow-400 to-yellow-600 shadow-inner relative overflow-hidden shrink-0">
-                        <div className="absolute inset-0 flex items-center justify-center">
-                            <div className="w-6 h-4 rounded-sm border border-yellow-700/40 grid grid-cols-3 grid-rows-2 gap-px p-0.5">
-                                {Array.from({ length: 6 }).map((_, i) => (
-                                    <div key={i} className="bg-yellow-700/30" />
-                                ))}
-                            </div>
-                        </div>
-                    </div>
+                {/* Balance */}
+                <div className="mt-4 pt-4 border-t border-gray-100 dark:border-neutral-800">
                     {isEditing ? (
-                        <div className="flex items-center gap-2 flex-1">
+                        <div className="flex items-center gap-2">
                             <input
                                 autoFocus
                                 type="number"
-                                className="bg-white/15 border border-white/30 rounded-lg px-3 py-1.5 text-white placeholder-white/50 w-full outline-none focus:ring-2 focus:ring-white/40 text-base font-semibold"
+                                className="flex-1 rounded-lg border border-gray-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 px-3 py-1.5 text-gray-900 dark:text-gray-100 text-base font-semibold tabular-nums outline-none focus:ring-2 focus:ring-gray-300 dark:focus:ring-neutral-600"
                                 value={balanceInput}
                                 onChange={(e) => setBalanceInput(e.target.value)}
                                 onKeyDown={(e) => {
-                                    if (e.key === 'Enter') onSaveBalance();
+                                    if (e.key === 'Enter') onSaveBalance(e);
                                     if (e.key === 'Escape') onCancelEdit();
                                 }}
+                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
                             />
-                            <Button size="sm" onClick={onSaveBalance} className="bg-white text-gray-900 hover:bg-gray-100 h-8 px-3 font-semibold shrink-0">
+                            <Button size="sm" onClick={onSaveBalance} className="rounded-lg text-white hover:opacity-90 h-9 px-4 font-semibold shrink-0" style={{ background: color }}>
                                 Save
                             </Button>
                         </div>
                     ) : (
-                        <div>
-                            <p className="text-[10px] font-semibold tracking-[0.18em] uppercase text-white/65">Balance</p>
-                            <div className="flex items-baseline gap-1.5">
-                                <span className="text-[11px] font-medium text-white/70">{wallet.currency || 'PKR'}</span>
+                        <>
+                            <p className="text-[9.5px] font-semibold tracking-[0.22em] uppercase text-gray-400 dark:text-gray-500">Current balance</p>
+                            <div className="mt-1 flex items-baseline gap-2">
+                                <span className="text-[11px] font-mono text-gray-400 dark:text-gray-500">{bank.currency || 'PKR'}</span>
                                 <MaskedBalance
-                                    value={wallet.balance}
-                                    className="text-lg font-semibold tracking-tight"
-                                    iconClassName="text-white/80 hover:text-white bg-white/15 hover:bg-white/25 p-1 ml-1"
+                                    value={bank.current_balance}
+                                    className="text-[26px] leading-none font-bold tabular-nums tracking-tight text-gray-900 dark:text-gray-100"
+                                    iconClassName="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
                                     showSymbol={false}
                                 />
                             </div>
-                        </div>
+                            <div className="mt-2 -mb-1" style={{ color }}>
+                                <CardSparkline seed={seed} stroke={color} />
+                            </div>
+                        </>
                     )}
                 </div>
 
-                {/* Bottom — masked number + holder */}
-                <div className="relative z-10 flex items-end justify-between">
-                    <p className="font-mono text-[13px] tracking-[0.22em] text-white/90">
-                        •••• •••• •••• {lastFour(wallet.account_num)}
+                {bank.iban_no && (
+                    <p className="mt-3 text-[11px] font-mono text-gray-500 dark:text-gray-400 break-all">
+                        <span className="tracking-[0.16em] uppercase text-[9px] text-gray-400 dark:text-gray-500 mr-1.5">IBAN</span>{bank.iban_no}
                     </p>
-                    <div className="text-right">
-                        <p className="text-[9px] font-semibold tracking-[0.2em] uppercase text-white/55">Holder</p>
-                        <p className="text-[12px] font-medium text-white/95 leading-tight mt-0.5">{holderName || '—'}</p>
-                    </div>
-                </div>
-            </div>
+                )}
 
-            {/* Hover actions (top-right, overlaying the card) */}
-            <div className="absolute top-2 right-2 z-20 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <Link to={`/wallets/${wallet.id}`}>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white" title="Open">
-                        <ArrowRight className="w-3.5 h-3.5" />
-                    </Button>
-                </Link>
-                <Button variant="ghost" size="icon" onClick={onEditBalance} className="h-7 w-7 bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white" title="Edit balance">
-                    <Edit2 className="w-3.5 h-3.5" />
-                </Button>
-                <Button variant="ghost" size="icon" onClick={onDelete} className="h-7 w-7 bg-error-500/85 hover:bg-error-500 backdrop-blur-sm text-white" title="Delete">
-                    <Trash2 className="w-3.5 h-3.5" />
-                </Button>
+                {/* Footer */}
+                <div className="mt-4 pt-3 border-t border-gray-100 dark:border-neutral-800 flex items-center justify-between">
+                    <p className="font-mono text-[12px] tracking-[0.16em] text-gray-500 dark:text-gray-400">
+                        •••• •••• {lastFour(bank.account_no)}
+                    </p>
+                    <Link
+                        to={`/banks/${bank.id}`}
+                        className="inline-flex items-center gap-1 text-[12px] font-semibold text-gray-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white transition-colors"
+                    >
+                        Statements <ArrowRight className="w-3.5 h-3.5" />
+                    </Link>
+                </div>
             </div>
         </div>
     );
-}
-
-/* Tiny colour-shade helper — darkens a hex by `pct` (−1..1) for our gradient ends. */
-function shade(hex, pct) {
-    const h = hex.replace('#', '');
-    const num = parseInt(h.length === 3 ? h.split('').map(c => c + c).join('') : h, 16);
-    const r = (num >> 16) & 0xff;
-    const g = (num >> 8) & 0xff;
-    const b = num & 0xff;
-    const adj = (c) => Math.max(0, Math.min(255, Math.round(c + 255 * pct)));
-    return `#${[adj(r), adj(g), adj(b)].map(v => v.toString(16).padStart(2, '0')).join('')}`;
 }
 
 /* ─── Tab shell ─ My Accounts (banks + wallets) | Beneficiaries ───────── */
@@ -581,33 +461,37 @@ function AccountsList() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {wallets.map(wallet => {
-                        const bgGradient = CARD_THEMES[wallet.color_theme] || CARD_THEMES.blue;
+                        const color = walletCardColor(wallet);
                         const isEditing = editWalletId === wallet.id;
 
                         return (
                             <div key={wallet.id} className="relative group">
-                                {/* Card UI */}
-                                <div className={`h-48 rounded-2xl p-6 flex flex-col justify-between text-white shadow-lg bg-gradient-to-br ${bgGradient} relative overflow-hidden transition-transform transform hover:-tranneutral-y-1`}>
-                                    {/* Decorative rings */}
-                                    <div className="absolute top-0 right-0 -mr-8 -mt-8 w-32 h-32 rounded-full border-4 border-white/10"></div>
-                                    <div className="absolute bottom-0 left-0 -ml-8 -mb-8 w-24 h-24 rounded-full border-4 border-white/10"></div>
-
-                                    <div className="relative z-10 flex justify-between items-start">
-                                        <div>
-                                            <h3 className="font-bold text-lg">{wallet.institution}</h3>
-                                            <p className="text-white/80 text-sm font-medium">{wallet.name}</p>
+                                {/* Ledger tile — square edges, brand spine on the left, hairline rules */}
+                                <div className="h-48 bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-xl transition-colors hover:border-gray-300 dark:hover:border-neutral-700 flex flex-col p-5">
+                                    {/* Identity row */}
+                                    <div className="flex items-center gap-3">
+                                        <span
+                                            className="w-9 h-9 rounded-lg flex items-center justify-center text-white text-[11px] font-bold tracking-wide shrink-0"
+                                            style={{ background: color }}
+                                        >
+                                            {monogram(wallet.institution || wallet.name)}
+                                        </span>
+                                        <div className="min-w-0 flex-1">
+                                            <h3 className="text-[14px] font-semibold text-gray-900 dark:text-gray-100 leading-tight truncate">{wallet.institution}</h3>
+                                            <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 truncate">{wallet.name}</p>
                                         </div>
-                                        <WalletIcon className="w-8 h-8 opacity-50" />
+                                        <span className="self-start text-[9px] font-mono font-semibold tracking-[0.22em] uppercase text-gray-400 dark:text-gray-500 shrink-0">Wallet</span>
                                     </div>
 
-                                    <div className="relative z-10">
+                                    {/* Balance */}
+                                    <div className="mt-auto pt-4 border-t border-gray-100 dark:border-neutral-800">
                                         {isEditing ? (
-                                            <div className="flex items-center gap-2 mt-2">
+                                            <div className="flex items-center gap-2">
                                                 <input
                                                     autoFocus
                                                     type="number"
-                                                    className="bg-white/20 border border-white/30 rounded px-2 py-1 text-white placeholder-white/50 w-full outline-none focus:ring-2 focus:ring-white/50"
-                                                    placeholder="New Balance"
+                                                    className="flex-1 rounded-lg border border-gray-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 px-3 py-1.5 text-gray-900 dark:text-gray-100 text-base font-semibold tabular-nums outline-none focus:ring-2 focus:ring-gray-300 dark:focus:ring-neutral-600"
+                                                    placeholder="New balance"
                                                     value={balanceInput}
                                                     onChange={e => setBalanceInput(e.target.value)}
                                                     onKeyDown={e => {
@@ -618,42 +502,42 @@ function AccountsList() {
                                                 <Button
                                                     size="sm"
                                                     onClick={() => handleUpdateWalletBalance(wallet.id)}
-                                                    className="bg-white text-gray-900 text-xs px-3 py-1.5 font-bold hover:bg-gray-100 h-8"
+                                                    className="rounded-lg text-white text-xs px-4 h-9 font-semibold shrink-0 hover:opacity-90"
+                                                    style={{ background: color }}
                                                 >
                                                     Save
                                                 </Button>
                                             </div>
                                         ) : (
                                             <>
-                                                <p className="text-sm text-white/70 mb-1">Available Balance</p>
-                                                <div className="flex flex-col">
-                                                    <div className="flex items-center">
-                                                        <span className="text-white/70 font-semibold mr-1">{wallet.currency || 'PKR'}</span>
-                                                        <MaskedBalance value={wallet.balance} className="text-3xl font-bold tracking-tight" iconClassName="text-white hover:text-white bg-white/20 p-1.5 ml-2 hover:bg-white/30" showSymbol={false} />
-                                                    </div>
-                                                    {wallet.currency && wallet.currency !== 'PKR' && (
-                                                        <span className="text-xs text-white/60 mt-1">≈ {fmtPKR(wallet.balance * (wallet.exchange_rate || 1))}</span>
-                                                    )}
+                                                <p className="text-[9.5px] font-semibold tracking-[0.22em] uppercase text-gray-400 dark:text-gray-500">Available balance</p>
+                                                <div className="mt-1 flex items-baseline gap-2">
+                                                    <span className="text-[11px] font-mono text-gray-400 dark:text-gray-500">{wallet.currency || 'PKR'}</span>
+                                                    <MaskedBalance value={wallet.balance} className="text-[26px] leading-none font-bold tabular-nums tracking-tight text-gray-900 dark:text-gray-100" iconClassName="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200" showSymbol={false} />
                                                 </div>
+                                                {wallet.currency && wallet.currency !== 'PKR' && (
+                                                    <span className="block text-[11px] font-mono text-gray-400 dark:text-gray-500 mt-1">≈ {fmtPKR(wallet.balance * (wallet.exchange_rate || 1))}</span>
+                                                )}
                                             </>
                                         )}
                                     </div>
 
-                                    <div className="relative z-10 flex justify-between items-end">
-                                        <p className="tracking-widest opacity-80 font-mono text-sm">
+                                    {/* Footer — masked number + hover actions */}
+                                    <div className="mt-3 pt-3 border-t border-gray-100 dark:border-neutral-800 flex items-center justify-between">
+                                        <p className="font-mono text-[12px] tracking-[0.16em] text-gray-500 dark:text-gray-400">
                                             •••• {wallet.account_num ? wallet.account_num.slice(-4) : 'XXXX'}
                                         </p>
 
                                         {/* Action Buttons (visible on hover) */}
-                                        <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                             <Link to={`/wallets/${wallet.id}`}>
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
-                                                    className="p-1.5 bg-white/20 rounded hover:bg-white/30 backdrop-blur-sm h-8 w-8 text-white"
+                                                    className="h-7 w-7bg-white dark:bg-neutral-800 text-gray-500 hover:text-primary-600"
                                                     title="View Statements & Transactions"
                                                 >
-                                                    <ArrowRight className="w-4 h-4" />
+                                                    <ArrowRight className="w-3.5 h-3.5" />
                                                 </Button>
                                             </Link>
                                             <Button
@@ -663,19 +547,19 @@ function AccountsList() {
                                                     setEditWalletId(wallet.id);
                                                     setBalanceInput(wallet.balance.toString());
                                                 }}
-                                                className="p-1.5 bg-white/20 rounded hover:bg-white/30 backdrop-blur-sm h-8 w-8 text-white"
+                                                className="h-7 w-7bg-white dark:bg-neutral-800 text-gray-500 hover:text-primary-600"
                                                 title="Update Balance"
                                             >
-                                                <Edit2 className="w-4 h-4" />
+                                                <Edit2 className="w-3.5 h-3.5" />
                                             </Button>
                                             <Button
                                                 variant="ghost"
                                                 size="icon"
                                                 onClick={() => handleWalletDelete(wallet.id)}
-                                                className="p-1.5 bg-red-500/80 rounded hover:bg-red-500 backdrop-blur-sm h-8 w-8 text-white"
+                                                className="h-7 w-7bg-white dark:bg-neutral-800 text-gray-500 hover:text-error-600"
                                                 title="Delete Account"
                                             >
-                                                <Trash2 className="w-4 h-4" />
+                                                <Trash2 className="w-3.5 h-3.5" />
                                             </Button>
                                         </div>
                                     </div>
@@ -688,10 +572,10 @@ function AccountsList() {
                     <Button
                         variant="outline"
                         onClick={() => setShowWalletModal(true)}
-                        className="h-48 rounded-2xl border-2 border-dashed border-gray-300 dark:border-neutral-700 flex flex-col items-center justify-center text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:border-gray-400 dark:hover:border-neutral-500 hover:bg-gray-50 dark:hover:bg-neutral-800/50 bg-transparent"
+                        className="h-48 rounded-xl border border-dashed border-gray-300 dark:border-neutral-700 flex flex-col items-center justify-center gap-2 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:border-gray-400 dark:hover:border-neutral-500 hover:bg-gray-50 dark:hover:bg-neutral-800/50 bg-transparent"
                     >
-                        <Plus className="w-8 h-8 mb-2 text-gray-400 dark:text-gray-500" />
-                        <span className="font-medium">Link New Wallet</span>
+                        <Plus className="w-6 h-6 text-gray-400 dark:text-gray-500" />
+                        <span className="text-xs font-semibold tracking-[0.18em] uppercase">Link new wallet</span>
                     </Button>
                 </div>
             </section>

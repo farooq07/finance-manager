@@ -12,6 +12,7 @@ import { useWallets } from '../hooks/useWallets';
 import { fmtPKR } from '../utils/currency';
 import { fmtDate } from '../utils/dates';
 import { useConfirm } from '../components/ui/confirm-dialog';
+import MaskedBalance from '../components/MaskedBalance';
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Period helpers — client computes the anchor date for the insights call so
@@ -312,9 +313,10 @@ function StatsRow({ data, period }) {
                         <TrendingDown className="w-4 h-4 text-rose-500 dark:text-rose-400" />
                         <p className="text-[11px] uppercase tracking-[0.14em] text-gray-500 dark:text-gray-400 font-semibold">Spent</p>
                     </div>
-                    <p className="text-4xl md:text-5xl font-bold text-rose-600 dark:text-rose-400 tracking-tight tabular-nums">
-                        {fmtPKR(totals.currentSpend)}
-                    </p>
+                    <MaskedBalance
+                        value={totals.currentSpend}
+                        className="text-4xl md:text-5xl font-bold text-rose-600 dark:text-rose-400 tracking-tight tabular-nums"
+                    />
                     <div className="mt-3 flex items-center gap-1.5 text-[10px] uppercase tracking-[0.1em] text-gray-500 dark:text-gray-400">
                         <span>this {PERIOD_NOUN[period]}</span>
                         <DeltaPill delta={spendDelta} inverted />
@@ -328,7 +330,7 @@ function StatsRow({ data, period }) {
                 className="md:col-span-3"
                 icon={TrendingUp}
                 label="Earned"
-                value={fmtPKR(totals.currentIncome)}
+                value={totals.currentIncome}
                 tint="emerald"
                 delta={incomeDelta}
                 period={period}
@@ -339,7 +341,7 @@ function StatsRow({ data, period }) {
                 className="md:col-span-3"
                 icon={Calendar}
                 label="Net"
-                value={fmtPKR(totals.net)}
+                value={totals.net}
                 tint={totals.net >= 0 ? 'emerald' : 'rose'}
                 period={period}
             />
@@ -358,7 +360,7 @@ function SecondaryStat({ className = '', icon: Icon, label, value, tint, delta, 
                 <Icon className={`w-4 h-4 ${colorMap[tint]}`} />
                 <p className="text-[11px] uppercase tracking-[0.14em] text-gray-500 dark:text-gray-400 font-semibold">{label}</p>
             </div>
-            <p className={`text-2xl font-semibold tabular-nums ${colorMap[tint]}`}>{value}</p>
+            <MaskedBalance value={value} className={`text-2xl font-semibold tabular-nums ${colorMap[tint]}`} />
             <div className="mt-2 flex items-center gap-1.5 text-[10px] uppercase tracking-[0.1em] text-gray-500 dark:text-gray-400">
                 <span>this {PERIOD_NOUN[period]}</span>
                 {delta !== null && delta !== undefined && (
