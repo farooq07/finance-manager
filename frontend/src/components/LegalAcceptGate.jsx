@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { ShieldCheck } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
+import { Checkbox } from './ui/checkbox';
 
 export default function LegalAcceptGate() {
     const { user, refreshUser } = useAuth();
@@ -61,17 +62,17 @@ export default function LegalAcceptGate() {
                         from Settings.
                     </p>
 
-                    <label className="flex items-start gap-3 p-3 rounded-lg bg-gray-50 dark:bg-neutral-800/60 cursor-pointer">
-                        <input
-                            type="checkbox"
+                    <div className="flex items-start gap-3 p-3 rounded-lg bg-gray-50 dark:bg-neutral-800/60">
+                        <Checkbox
+                            id="legal-agree"
                             checked={agreed}
-                            onChange={(e) => setAgreed(e.target.checked)}
-                            className="mt-0.5 h-4 w-4 rounded border-gray-300 dark:border-neutral-600 text-emerald-600 focus:ring-emerald-500"
+                            onCheckedChange={(c) => setAgreed(c === true)}
+                            className="mt-0.5"
                         />
-                        <span className="text-sm text-gray-700 dark:text-gray-300 leading-snug">
+                        <label htmlFor="legal-agree" className="text-sm text-gray-700 dark:text-gray-300 leading-snug cursor-pointer">
                             I have read and agree to the Terms of Service and Privacy Policy.
-                        </span>
-                    </label>
+                        </label>
+                    </div>
 
                     {error && (
                         <p className="text-xs text-red-600 dark:text-red-400">{error}</p>

@@ -8,6 +8,7 @@ import { TableSkeleton, StatSkeleton } from '../components/Skeleton';
 import Modal from '../components/Modal';
 import { HeartHandshake, Plus, Trash2, Calculator, Calendar } from 'lucide-react';
 import { toast } from 'sonner';
+import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
 
 export default function Zakat() {
     const { data: zakatData, isLoading: loadingZakat } = useZakatEntries();
@@ -69,7 +70,7 @@ export default function Zakat() {
 
             {/* Top Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-sm border border-emerald-100 dark:border-emerald-900/30 p-6 flex items-start gap-4">
+                <Card className="flex items-start gap-4 p-6 border-emerald-100 dark:border-emerald-900/30">
                     <div className="p-3 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 rounded-full">
                         <Calculator className="w-6 h-6" />
                     </div>
@@ -78,9 +79,9 @@ export default function Zakat() {
                         <MaskedBalance value={applicableZakat} className="text-3xl font-bold text-gray-900 dark:text-gray-100" />
                         <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">Based on Net Worth minus Receivables (PKR {fmtPKR(totalNetWorth - totalReceivable)})</p>
                     </div>
-                </div>
+                </Card>
 
-                <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-sm border border-blue-100 dark:border-blue-900/30 p-6 flex items-start gap-4">
+                <Card className="flex items-start gap-4 p-6 border-blue-100 dark:border-blue-900/30">
                     <div className="p-3 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-full">
                         <HeartHandshake className="w-6 h-6" />
                     </div>
@@ -89,11 +90,11 @@ export default function Zakat() {
                         <MaskedBalance value={currentYearTotal} className="text-3xl font-bold text-gray-900 dark:text-gray-100" />
                         <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">Sum of all entries this calendar year</p>
                     </div>
-                </div>
+                </Card>
             </div>
 
             {/* Form & Table */}
-            <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-sm border border-gray-100 dark:border-neutral-800 overflow-hidden">
+            <Card className="overflow-hidden">
                 <div className="p-6 border-b border-gray-100 dark:border-neutral-800">
                     <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-4">Record New Zakat Payment</h3>
                     <form onSubmit={handleAdd} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
@@ -191,7 +192,7 @@ export default function Zakat() {
                         <p>No Zakat records found. Start adding your contributions above.</p>
                     </div>
                 )}
-            </div>
+            </Card>
             <Modal
                 isOpen={deleteModal.isOpen}
                 onClose={() => setDeleteModal({ isOpen: false, id: null })}

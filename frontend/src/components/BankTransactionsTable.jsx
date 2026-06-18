@@ -270,7 +270,7 @@ export default function BankTransactionsTable({ bankId, transactions = [], resou
                                         <div className="flex justify-center">
                                             <Checkbox
                                                 checked={selectedIds.size === pendingTxs.length && pendingTxs.length > 0}
-                                                onChange={toggleSelectAll}
+                                                onCheckedChange={toggleSelectAll}
                                                 className="border-gray-300 dark:border-gray-600"
                                             />
                                         </div>
@@ -292,7 +292,7 @@ export default function BankTransactionsTable({ bankId, transactions = [], resou
                                                 <div className="flex justify-center">
                                                     <Checkbox
                                                         checked={selectedIds.has(tx.id)}
-                                                        onChange={() => toggleSelect(tx.id)}
+                                                        onCheckedChange={() => toggleSelect(tx.id)}
                                                         className="border-gray-300 dark:border-gray-600"
                                                     />
                                                 </div>

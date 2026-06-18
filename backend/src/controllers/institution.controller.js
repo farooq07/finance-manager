@@ -8,15 +8,58 @@ const institutionSchema = z.object({
     color: z.string().max(20).default('blue')
 });
 
+// Default Pakistani banks + wallets. Colours are brand hex values that line up
+// with the brand-aware card pickers on the Accounts page. Used both for the
+// explicit "Auto-Seed" button and to auto-populate a brand-new user's list so
+// the Add Bank / Add Wallet pickers are never empty.
+const DEFAULT_INSTITUTIONS = [
+    // Banks
+    { name: 'HBL', type: 'bank', color: '#1a8556' },
+    { name: 'United Bank Limited', type: 'bank', color: '#063a8e' },
+    { name: 'MCB Bank', type: 'bank', color: '#003e7e' },
+    { name: 'Meezan Bank', type: 'bank', color: '#005c4a' },
+    { name: 'Standard Chartered', type: 'bank', color: '#0c77b9' },
+    { name: 'Bank Alfalah', type: 'bank', color: '#5c3697' },
+    { name: 'Habib Metro', type: 'bank', color: '#0a6f47' },
+    { name: 'Askari Bank', type: 'bank', color: '#0b6b3a' },
+    { name: 'Faysal Bank', type: 'bank', color: '#0e7c3f' },
+    { name: 'Al Baraka Bank', type: 'bank', color: '#1d4ed8' },
+    { name: 'Soneri Bank', type: 'bank', color: '#b91c1c' },
+    // Wallets
+    { name: 'Naya Pay', type: 'wallet', color: '#ff5018' },
+    { name: 'Jazz Cash', type: 'wallet', color: '#b8005c' },
+    { name: 'Easy Paisa', type: 'wallet', color: '#0a6f47' },
+    { name: 'SadaPay', type: 'wallet', color: '#0c0c0c' },
+    { name: 'UPaisa', type: 'wallet', color: '#5c3697' },
+    // Cash
+    { name: 'Cash in Hand', type: 'cash', color: '#6b7280' },
+];
+
 // @desc    Get all institutions for a user
 // @route   GET /api/institutions
 // @access  Private
 export const getInstitutions = async (req, res) => {
     try {
-        const institutions = await prisma.institution.findMany({
+        const order = { orderBy: [{ type: 'asc' }, { name: 'asc' }] };
+        let institutions = await prisma.institution.findMany({
             where: { user_id: req.user.id },
-            orderBy: [{ type: 'asc' }, { name: 'asc' }]
+            ...order
         });
+
+        // First-time users have no list yet — auto-populate the defaults so the
+        // Add Bank / Add Wallet pickers always have options without a manual
+        // trip to Console Settings.
+        if (institutions.length === 0) {
+            await prisma.institution.createMany({
+                data: DEFAULT_INSTITUTIONS.map((d) => ({ user_id: req.user.id, ...d })),
+                skipDuplicates: true
+            });
+            institutions = await prisma.institution.findMany({
+                where: { user_id: req.user.id },
+                ...order
+            });
+        }
+
         res.json(institutions);
     } catch (error) {
         console.error('Error fetching institutions:', error);
@@ -91,14 +134,7 @@ export const deleteInstitution = async (req, res) => {
 // @route   POST /api/institutions/seed
 // @access  Private
 export const seedInstitutions = async (req, res) => {
-    const defaults = [
-        { name: 'Standard Chartered', type: 'bank', color: 'emerald' },
-        { name: 'Habib Metro', type: 'bank', color: 'purple' },
-        { name: 'Easy Paisa', type: 'wallet', color: 'emerald' },
-        { name: 'Jazz Cash', type: 'wallet', color: 'rose' },
-        { name: 'Naya Pay', type: 'wallet', color: 'amber' },
-        { name: 'Cash in Hand', type: 'cash', color: 'slate' },
-    ];
+    const defaults = DEFAULT_INSTITUTIONS;
 
     try {
         let addedCount = 0;

@@ -2,15 +2,15 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Papa from 'papaparse';
 import ReactECharts from 'echarts-for-react';
-import { 
-    Upload, Plus, Trash2, TrendingUp, Calendar, Clock, Database, 
-    ChevronDown, ChevronRight, Activity, Percent, Eye, EyeOff, Briefcase, 
-    Loader2, RefreshCw, Gift, Newspaper 
+import {
+    Upload, Plus, Trash2, TrendingUp, TrendingDown, Calendar, Clock, Database,
+    ChevronDown, ChevronRight, ChevronUp, Activity, Percent, Eye, EyeOff, Briefcase,
+    Loader2, RefreshCw, Gift, Newspaper, Search, MoreHorizontal, Info
 } from 'lucide-react';
 import { usePin } from '../context/PinContext';
-import { 
+import {
     usePsxSnapshots, useUploadPsxSnapshot, useUpdatePsxSummary,
-    useDeletePsxSnapshot, useDeleteSymbolFromSnapshot, useSyncPsxData 
+    useDeletePsxSnapshot, useDeleteSymbolFromSnapshot, useSyncPsxData
 } from '../hooks/usePsx';
 import { useDividends, useSyncDividends, useDeleteDividend } from '../hooks/useDividends';
 import { useBrokerAccounts } from '../hooks/useBrokerAccounts';
@@ -27,6 +27,10 @@ import Modal from '../components/Modal';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Input } from '@/components/ui/input';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 const DEFAULT_TARGETS = ['HUBC', 'FFL', 'FFC', 'MEBL', 'OGDC', 'EFERT', 'FATIMA', 'LUCK', 'MARI', 'MTL', 'NATF', 'PPL', 'PSO', 'SYS'];
 
@@ -59,16 +63,16 @@ export default function Stocks() {
         if (snapshots.length < 2) return null;
         const targetDate = new Date();
         targetDate.setDate(targetDate.getDate() - 30);
-        
+
         const pastSnap = snapshots.find(s => new Date(s.snapshot_date) >= targetDate && s.id !== latestSnapshot?.id);
         if (!pastSnap) return null;
-        
+
         const pastHolding = pastSnap.holdings_data.find(h => h.symbol === symbol);
         const pastPrice = Number(pastHolding?.market_rate) || 0;
-        
+
         const currentStock = liveStocks.find(s => s.ticker === symbol);
         const currentPrice = currentStock?.price || 0;
-        
+
         if (pastPrice === 0 || currentPrice === 0) return null;
         return ((currentPrice - pastPrice) / pastPrice) * 100;
     };
@@ -111,6 +115,8 @@ export default function Stocks() {
     const [showSummaryModal, setShowSummaryModal] = useState(false);
     const [showHtmlModal, setShowHtmlModal] = useState(false);
     const [htmlContent, setHtmlContent] = useState('');
+    const [searchTerm, setSearchTerm] = useState('');
+    const [sortConfig, setSortConfig] = useState({ key: 'custody_val', direction: 'desc' });
     const [isSyncing, setIsSyncing] = useState(false);
     const [showHistory, setShowHistory] = useState(false);
     const [openSnapshotId, setOpenSnapshotId] = useState(null);
@@ -159,6 +165,60 @@ export default function Stocks() {
     );
 
     const currentCustody = latestSnapshot ? Number(latestSnapshot.total_custody) : 0;
+
+    // ---- Filter & Sort Logic ----
+    const handleSort = (key) => {
+        let direction = 'desc';
+        if (sortConfig.key === key && sortConfig.direction === 'desc') {
+            direction = 'asc';
+        }
+        setSortConfig({ key, direction });
+    };
+
+    const renderSortIcon = (key) => {
+        if (sortConfig.key !== key) return <ChevronDown className="w-3 h-3 ml-1 opacity-0 group-hover:opacity-50" />;
+        return sortConfig.direction === 'asc' ? <ChevronUp className="w-3 h-3 ml-1" /> : <ChevronDown className="w-3 h-3 ml-1" />;
+    };
+
+    const filteredAndSortedHoldings = consolidatedHoldings.filter(stock => {
+        const term = searchTerm.toLowerCase();
+        const symbolMatch = stock.symbol.toLowerCase().includes(term);
+        const nameMatch = stock.live_data?.companyName?.toLowerCase().includes(term) || false;
+        return symbolMatch || nameMatch;
+    }).sort((a, b) => {
+        if (!sortConfig.key) return 0;
+        
+        let aVal = a[sortConfig.key];
+        let bVal = b[sortConfig.key];
+
+        // Specific handling for derived keys
+        if (sortConfig.key === 'total_gl') {
+            aVal = a.custody_val - a.total_cost;
+            bVal = b.custody_val - b.total_cost;
+        } else if (sortConfig.key === 'change_pct') {
+            const aCost = a.total_cost || 1;
+            const bCost = b.total_cost || 1;
+            aVal = (a.custody_val - a.total_cost) / aCost;
+            bVal = (b.custody_val - b.total_cost) / bCost;
+        } else if (sortConfig.key === 'perf_30d') {
+            aVal = get30dChange(a.symbol) || -9999;
+            bVal = get30dChange(b.symbol) || -9999;
+        } else if (sortConfig.key === 'today_pct') {
+             const aPrev = a.custody_val - (a.today_gl || 0);
+             const bPrev = b.custody_val - (b.today_gl || 0);
+             aVal = aPrev > 0 ? (a.today_gl || 0) / aPrev : 0;
+             bVal = bPrev > 0 ? (b.today_gl || 0) / bPrev : 0;
+        } else if (sortConfig.key === 'symbol') {
+            // String comparison for symbol
+            return sortConfig.direction === 'asc' 
+                ? a.symbol.localeCompare(b.symbol) 
+                : b.symbol.localeCompare(a.symbol);
+        }
+
+        if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
+        return 0;
+    });
 
     // ---- Handlers ----
     const handleFileUpload = (e) => {
@@ -498,94 +558,103 @@ export default function Stocks() {
     return (
         <div className="">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-5">
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 transition-colors">PSX Portfolio Tracking</h1>
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 transition-colors">Stocks Tracker</h1>
 
                 <div className="flex flex-col sm:flex-row flex-wrap items-center gap-3 w-full md:w-auto">
-                    <Button
-                        variant="default"
-                        onClick={async () => {
-                            try {
-                                const result = await syncLiveStocks.mutateAsync();
-                                if (result?.success) {
-                                    toast.success(`✓ ${result.message}`);
-                                } else if (result?.message) {
-                                    toast.warning(result.message);
-                                } else {
-                                    toast.success('Live stock prices synced.');
-                                }
-                            } catch (error) {
-                                toast.error(error.response?.data?.message || error.message || 'Failed to sync live stock prices');
-                            }
-                        }}
-                        disabled={syncLiveStocks.isPending}
-                        className="h-10 px-4 w-full sm:w-auto"
-                    >
-                        {syncLiveStocks.isPending ? (
-                            <Loader2 data-icon="inline-start" className="animate-spin" />
-                        ) : (
-                            <RefreshCw data-icon="inline-start" />
-                        )}
-                        Sync Live Data
-                    </Button>
-                    
+                    <Popover>
+                        <PopoverTrigger asChild>
+                            <Button variant="outline" className="h-10 px-4 shadow-none w-full sm:w-auto">
+                                Sync Actions <ChevronDown className="w-4 h-4 ml-2 opacity-70" />
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent align="end" className="w-48 p-1.5 shadow-xl border-neutral-100 dark:border-neutral-800 rounded-xl">
+                            <div className="flex flex-col space-y-0.5">
+                                <Button
+                                    variant="ghost"
+                                    onClick={async () => {
+                                        try {
+                                            const result = await syncLiveStocks.mutateAsync();
+                                            if (result?.success) {
+                                                toast.success(`✓ ${result.message}`);
+                                            } else if (result?.message) {
+                                                toast.warning(result.message);
+                                            } else {
+                                                toast.success('Live stock prices synced.');
+                                            }
+                                        } catch (error) {
+                                            toast.error(error.response?.data?.message || error.message || 'Failed to sync live stock prices');
+                                        }
+                                    }}
+                                    disabled={syncLiveStocks.isPending}
+                                    className="justify-start w-full text-sm h-9 px-2.5 font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                                >
+                                    {syncLiveStocks.isPending ? (
+                                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                    ) : (
+                                        <RefreshCw className="w-4 h-4 mr-2" />
+                                    )}
+                                    Sync Live Data
+                                </Button>
+
+                                <Button
+                                    variant="ghost"
+                                    onClick={async () => {
+                                        try {
+                                            const result = await syncStockNews.mutateAsync();
+                                            if (result?.success) {
+                                                toast.success(result.message || '✓ News synced successfully');
+                                                if (result.details?.failed?.length > 0) {
+                                                    const failedList = result.details.failed.map(f => `${f.ticker} (${f.reason})`).join(', ');
+                                                    toast.info(`⚠ Could not fetch news for: ${failedList}`, { duration: 5000 });
+                                                }
+                                            } else if (result?.message) {
+                                                toast.warning(result.message);
+                                            } else {
+                                                toast.success('News sync completed');
+                                            }
+                                        } catch (error) {
+                                            const errorMsg = error.response?.data?.message || error.response?.data?.error || error.message || 'Failed to sync stock news';
+                                            toast.error(errorMsg);
+                                        }
+                                    }}
+                                    disabled={syncStockNews.isPending}
+                                    className="justify-start w-full text-sm h-9 px-2.5 font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                                >
+                                    {syncStockNews.isPending ? (
+                                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                    ) : (
+                                        <Newspaper className="w-4 h-4 mr-2" />
+                                    )}
+                                    Sync News
+                                </Button>
+                            </div>
+                        </PopoverContent>
+                    </Popover>
+
                     <Button
                         variant="outline"
-                        onClick={async () => {
-                            try {
-                                const result = await syncStockNews.mutateAsync();
-                                if (result?.success) {
-                                    toast.success(result.message || '✓ News synced successfully');
-                                    if (result.details?.failed?.length > 0) {
-                                        const failedList = result.details.failed.map(f => `${f.ticker} (${f.reason})`).join(', ');
-                                        toast.info(`⚠ Could not fetch news for: ${failedList}`, { duration: 5000 });
-                                    }
-                                } else if (result?.message) {
-                                    toast.warning(result.message);
-                                } else {
-                                    toast.success('News sync completed');
-                                }
-                            } catch (error) {
-                                const errorMsg = error.response?.data?.message || error.response?.data?.error || error.message || 'Failed to sync stock news';
-                                toast.error(errorMsg);
-                            }
-                        }}
-                        disabled={syncStockNews.isPending}
-                        className="h-10 px-4 w-full sm:w-auto border-emerald-200 dark:border-emerald-800/50 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20"
-                    >
-                        {syncStockNews.isPending ? (
-                            <Loader2 data-icon="inline-start" className="animate-spin" />
-                        ) : (
-                            <Newspaper data-icon="inline-start" />
-                        )}
-                        Sync News
-                    </Button>
-
-
-
-                    <Button
-                        variant="ghost"
                         onClick={() => {
                             setHtmlContent('');
                             setShowHtmlModal(true);
                         }}
-                        className="h-10 px-4 bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300 border-neutral-200 dark:border-neutral-700 shadow-sm w-full sm:w-auto"
+                        className="h-10 px-4 w-full sm:w-auto shadow-none"
                     >
-                        <Database className="w-4 h-4 mr-2 text-neutral-500" /> Paste HTML
+                        <Plus className="w-4 h-4 mr-2" /> Add Stocks
                     </Button>
 
                     <Button
-                        variant="ghost"
+                        variant="outline"
                         onClick={() => setShowDividendsModal(true)}
-                        className="h-10 px-4 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/50 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 shadow-sm w-full sm:w-auto"
+                        className="h-10 px-4 w-full sm:w-auto shadow-none"
                     >
-                        <Gift className="w-4 h-4 mr-2" /> Dividends
+                        Dividends
                     </Button>
                 </div>
             </div>
 
             {/* Broker Accounts Header */}
             {brokerAccounts.length > 0 && (
-                <div className="bg-white dark:bg-neutral-900 rounded-xl shadow-sm border border-gray-200 dark:border-neutral-800 overflow-hidden mb-8 transition-colors">
+                <Card className="overflow-hidden mb-8 transition-colors">
                     <div className="bg-neutral-50 dark:bg-neutral-800/50 border-b border-gray-200 dark:border-neutral-800 px-6 py-3 flex items-center gap-2 transition-colors">
                         <Briefcase className="w-5 h-5 text-neutral-600 dark:text-neutral-400" />
                         <h2 className="text-sm font-bold text-neutral-800 dark:text-neutral-200 uppercase tracking-wider">Trading Accounts</h2>
@@ -640,7 +709,7 @@ export default function Stocks() {
                             </div>
                         ))}
                     </div>
-                </div>
+                </Card>
             )}
 
 
@@ -651,109 +720,323 @@ export default function Stocks() {
                     const computedTotalCost = consolidatedHoldings.reduce((sum, h) => sum + h.total_cost, 0);
                     const totalGL = totalMarketValue - computedTotalCost;
                     const totalGLPct = computedTotalCost > 0 ? (totalGL / computedTotalCost) * 100 : 0;
+                    const todayTotalGL = consolidatedHoldings.reduce((sum, h) => sum + (h.today_gl || 0), 0);
                     const liveCoverageCount = liveStocks.length;
+
+                    // Compute chronological data for sparklines
+                    const chronSnapshots = [...snapshots].reverse();
+                    
+                    const marketValueSparkline = {
+                        grid: { left: 0, right: 0, top: 5, bottom: 0 },
+                        xAxis: { type: 'category', show: false, data: chronSnapshots.map(s => s.snapshot_date) },
+                        yAxis: { type: 'value', show: false, scale: true },
+                        series: [{
+                            data: chronSnapshots.map(s => Number(s.total_custody)),
+                            type: 'line', smooth: true, symbol: 'none',
+                            lineStyle: { width: 2, color: '#10b981' },
+                            areaStyle: { color: 'rgba(16, 185, 129, 0.1)' }
+                        }],
+                        tooltip: { show: false }
+                    };
+
+                    const glSparkline = {
+                        grid: { left: 0, right: 0, top: 5, bottom: 0 },
+                        xAxis: { type: 'category', show: false, data: chronSnapshots.map(s => s.snapshot_date) },
+                        yAxis: { type: 'value', show: false, scale: true },
+                        series: [{
+                            data: chronSnapshots.map(s => Number(s.total_custody) - Number(s.total_invested)),
+                            type: 'line', smooth: true, symbol: 'none',
+                            lineStyle: { width: 2, color: totalGL >= 0 ? '#10b981' : '#ef4444' },
+                            areaStyle: { color: totalGL >= 0 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)' }
+                        }],
+                        tooltip: { show: false }
+                    };
 
                     return (
                         <>
-                            <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-sm border border-gray-100 dark:border-neutral-800 p-6 transition-colors">
-                                <div className="flex items-center justify-between">
-                                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Cost</p>
+                            <Card>
+                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                    <CardTitle className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Cost</CardTitle>
                                     <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                                        <Database className="w-5 h-5 text-blue-600 dark:text-blue-500" />
+                                        <Database className="w-4 h-4 text-blue-600 dark:text-blue-500" />
                                     </div>
-                                </div>
-                                <div className="mt-2">
-                                    <MaskedBalance
-                                        value={computedTotalCost}
-                                        className="text-3xl font-bold text-gray-900 dark:text-gray-100"
+                                </CardHeader>
+                                <CardContent>
+                                    <MaskedBalance 
+                                        value={computedTotalCost} 
+                                        className="text-2xl font-bold text-gray-900 dark:text-gray-100" 
+                                        iconClassName="!opacity-100"
                                     />
-                                </div>
-                            </div>
-
-                            <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-sm border border-gray-100 dark:border-neutral-800 p-6 transition-colors">
-                                <div className="flex items-center justify-between">
-                                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Market Value</p>
-                                    <div className="p-2 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg">
-                                        <Activity className="w-5 h-5 text-emerald-600 dark:text-emerald-500" />
-                                    </div>
-                                </div>
-                                <div className="mt-2">
-                                    <MaskedBalance
-                                        value={totalMarketValue}
-                                        className="text-3xl font-bold text-gray-900 dark:text-gray-100"
-                                    />
-                                </div>
-                                {liveCoverageCount > 0 && (
                                     <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
-                                        Live · {liveCoverageCount} tickers · price × volume
+                                        All-time capital invested
                                     </p>
-                                )}
-                            </div>
+                                </CardContent>
+                            </Card>
 
-                            <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-sm border border-gray-100 dark:border-neutral-800 p-6 relative overflow-hidden transition-colors">
-                                <div className="flex items-center justify-between relative z-10">
-                                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Gain/Loss</p>
-                                    <div className={`p-2 rounded-lg ${totalGL >= 0 ? 'bg-emerald-50 dark:bg-emerald-900/20' : 'bg-red-50 dark:bg-red-900/20'}`}>
-                                        <TrendingUp className={`w-5 h-5 ${totalGL >= 0 ? 'text-emerald-600 dark:text-emerald-500' : 'text-red-500 dark:text-red-400'}`} />
+                            <Card>
+                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                    <CardTitle className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Market Value</CardTitle>
+                                    <div className="p-2 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg">
+                                        <Activity className="w-4 h-4 text-emerald-600 dark:text-emerald-500" />
                                     </div>
-                                </div>
-                                <div className="mt-2 relative z-10">
-                                    <MaskedBalance
-                                        value={fmtGL(totalGL)}
-                                        className={`text-3xl font-bold ${glColor(totalGL)}`}
-                                        isCurrency={false}
-                                    />
-                                    <p className={`mt-1 text-sm font-medium ${glColor(totalGL)}`}>
-                                        {isUnlocked ? `${totalGLPct >= 0 ? '+' : ''}${totalGLPct.toFixed(2)}% ROI` : '••••% ROI'}
-                                    </p>
-                                </div>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="flex justify-between items-end gap-2">
+                                        <div>
+                                            <MaskedBalance 
+                                                value={totalMarketValue} 
+                                                className="text-2xl font-bold text-gray-900 dark:text-gray-100" 
+                                                iconClassName="!opacity-100"
+                                            />
+                                            <p className="mt-1 text-[10px] text-gray-400 dark:text-gray-500 flex items-center gap-1">
+                                                {liveCoverageCount > 0 ? (
+                                                    <>Live · {liveCoverageCount} tickers</>
+                                                ) : (
+                                                    <>Based on latest snapshot</>
+                                                )}
+                                            </p>
+                                        </div>
+                                        <div className="w-24 h-10">
+                                            {chronSnapshots.length > 1 && (
+                                                <ReactECharts option={marketValueSparkline} style={{ height: '100%', width: '100%' }} />
+                                            )}
+                                        </div>
+                                    </div>
+                                </CardContent>
+                            </Card>
+
+                            <Card className="relative overflow-hidden">
+                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative z-10">
+                                    <CardTitle className="text-sm font-medium text-gray-500 dark:text-gray-400 flex items-center gap-1.5">
+                                        Total Gain/Loss
+                                        <TooltipProvider>
+                                            <Tooltip>
+                                                <TooltipTrigger>
+                                                    <Info className="w-3.5 h-3.5 text-gray-400" />
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                    <p className="text-xs">Unrealized profit/loss based on total cost</p>
+                                                </TooltipContent>
+                                            </Tooltip>
+                                        </TooltipProvider>
+                                    </CardTitle>
+                                    <div className={`p-2 rounded-lg ${totalGL >= 0 ? 'bg-emerald-50 dark:bg-emerald-900/20' : 'bg-red-50 dark:bg-red-900/20'}`}>
+                                        {totalGL >= 0 ? (
+                                            <TrendingUp className="w-4 h-4 text-emerald-600 dark:text-emerald-500" />
+                                        ) : (
+                                            <TrendingDown className="w-4 h-4 text-red-500 dark:text-red-400" />
+                                        )}
+                                    </div>
+                                </CardHeader>
+                                <CardContent className="relative z-10">
+                                    <div className="flex justify-between items-end gap-2">
+                                        <div>
+                                            <MaskedBalance 
+                                                value={fmtGL(totalGL)} 
+                                                className={`text-2xl font-bold ${glColor(totalGL)}`} 
+                                                iconClassName="!opacity-100"
+                                                isCurrency={false}
+                                            />
+                                            <div className="flex items-center gap-2 mt-1">
+                                                <p className={`text-[10px] font-medium ${glColor(totalGL)} flex items-center gap-0.5`}>
+                                                    {totalGLPct >= 0 ? '+' : ''}{totalGLPct.toFixed(2)}% ROI
+                                                </p>
+                                                <span className="text-[10px] text-gray-300 dark:text-gray-600">|</span>
+                                                <p className={`text-[10px] font-medium ${glColor(todayTotalGL)} flex items-center gap-0.5`}>
+                                                    {todayTotalGL >= 0 ? '+' : ''}{fmtPKR(todayTotalGL)} Today
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div className="w-24 h-10">
+                                            {chronSnapshots.length > 1 && (
+                                                <ReactECharts option={glSparkline} style={{ height: '100%', width: '100%' }} />
+                                            )}
+                                        </div>
+                                    </div>
+                                </CardContent>
                                 <div className={`absolute -right-6 -bottom-6 w-32 h-32 rounded-full opacity-10 ${totalGL >= 0 ? 'bg-emerald-500' : 'bg-red-500'}`}></div>
-                            </div>
+                            </Card>
                         </>
                     );
                 })()}
             </div>
 
+            {/* Visual Analytics */}
+            {snapshots.length > 0 && (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                    {(() => {
+                        const chronSnapshots = [...snapshots].reverse();
+                        const performanceOptions = {
+                            tooltip: { trigger: 'axis', axisPointer: { type: 'cross' } },
+                            legend: { data: ['Market Value', 'Total Cost'], bottom: 0 },
+                            grid: { left: '3%', right: '4%', bottom: '10%', top: '10%', containLabel: true },
+                            xAxis: { type: 'category', boundaryGap: false, data: chronSnapshots.map(s => fmtDateShort(s.snapshot_date)) },
+                            yAxis: { type: 'value', axisLabel: { formatter: (value) => (value / 1000000).toFixed(1) + 'M' } },
+                            series: [
+                                {
+                                    name: 'Market Value',
+                                    type: 'line',
+                                    data: chronSnapshots.map(s => Number(s.total_custody)),
+                                    smooth: true,
+                                    areaStyle: { opacity: 0.1 },
+                                    itemStyle: { color: '#10b981' }
+                                },
+                                {
+                                    name: 'Total Cost',
+                                    type: 'line',
+                                    data: chronSnapshots.map(s => Number(s.total_invested)),
+                                    smooth: true,
+                                    itemStyle: { color: '#3b82f6' }
+                                }
+                            ]
+                        };
+
+                        const allocationOptions = {
+                            tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
+                            series: [
+                                {
+                                    name: 'Allocation',
+                                    type: 'pie',
+                                    radius: ['40%', '70%'],
+                                    avoidLabelOverlap: false,
+                                    itemStyle: { borderRadius: 8, borderColor: 'transparent', borderWidth: 2 },
+                                    label: { show: false, position: 'center' },
+                                    emphasis: { label: { show: true, fontSize: 18, fontWeight: 'bold' } },
+                                    labelLine: { show: false },
+                                    data: consolidatedHoldings.map(h => ({ value: h.custody_val, name: h.symbol }))
+                                }
+                            ]
+                        };
+
+                        return (
+                            <>
+                                <Card className="border border-gray-100 dark:border-neutral-800 shadow-sm transition-colors bg-white dark:bg-neutral-900">
+                                    <CardHeader className="pb-2">
+                                        <CardTitle className="text-sm font-bold text-gray-900 dark:text-gray-100">Portfolio Performance</CardTitle>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <ReactECharts option={performanceOptions} style={{ height: '300px', width: '100%' }} />
+                                    </CardContent>
+                                </Card>
+                                <Card className="border border-gray-100 dark:border-neutral-800 shadow-sm transition-colors bg-white dark:bg-neutral-900">
+                                    <CardHeader className="pb-2">
+                                        <CardTitle className="text-sm font-bold text-gray-900 dark:text-gray-100">Asset Allocation</CardTitle>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <ReactECharts option={allocationOptions} style={{ height: '300px', width: '100%' }} />
+                                    </CardContent>
+                                </Card>
+                            </>
+                        );
+                    })()}
+                </div>
+            )}
+
             {/* Current Holdings Data Table */}
             {latestSnapshot && (
-                <div className="bg-white mb-4 dark:bg-neutral-900 rounded-2xl shadow-sm border border-gray-100 dark:border-neutral-800 overflow-hidden text-sm transition-colors">
-                    <div className="px-6 py-5 border-b border-gray-100 dark:border-neutral-800 flex justify-between items-center bg-gray-50 dark:bg-neutral-800/50 transition-colors">
-                        <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">Latest Holdings</h3>
-                        <span className="px-3 py-1 bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-700 text-gray-600 dark:text-gray-300 rounded-full text-xs font-medium shadow-sm flex items-center transition-colors">
-                            <Clock className="w-3 h-3 mr-1" />
-                            {fmtDateLong(latestSnapshot.snapshot_date)}
-                        </span>
-                    </div>
+                <Card className="mb-4 overflow-hidden text-sm transition-colors">
+                    <CardHeader className="px-6 py-5 border-b border-gray-100 dark:border-neutral-800 flex flex-col sm:flex-row justify-between sm:items-center bg-gray-50 dark:bg-neutral-800/50 transition-colors space-y-4 sm:space-y-0">
+                        <div className="flex items-center gap-3">
+                            <CardTitle className="text-lg font-bold text-gray-900 dark:text-gray-100">Latest Holdings</CardTitle>
+                            <span className="px-3 py-1 bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-700 text-gray-600 dark:text-gray-300 rounded-full text-xs font-medium flex items-center transition-colors">
+                                <Clock className="w-3 h-3 mr-1" />
+                                {fmtDateLong(latestSnapshot.snapshot_date)}
+                            </span>
+                        </div>
+                        <div className="relative w-full sm:w-64">
+                            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                            <Input 
+                                placeholder="Search symbol or company..." 
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="pl-9 h-9 text-xs shadow-none border-gray-200 dark:border-neutral-700"
+                            />
+                        </div>
+                    </CardHeader>
 
-                    <div className="overflow-x-auto">
-                        <table className="min-w-full divide-y divide-gray-200 dark:divide-neutral-800 transition-colors">
-                            <thead className="bg-white dark:bg-neutral-900 tracking-wider text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase text-left transition-colors">
+                    <CardContent className="p-0 overflow-x-auto max-h-[600px] overflow-y-auto">
+                        <table className="min-w-full divide-y divide-gray-200 dark:divide-neutral-800 transition-colors relative">
+                            <thead className="bg-white dark:bg-neutral-900 tracking-wider text-xs font-bold text-gray-900 dark:text-gray-100 uppercase text-left transition-colors sticky top-0 z-20 shadow-sm">
                                 <tr>
-                                    <th className="px-6 py-4">Symbol</th>
-                                    <th className="px-6 py-4 text-right">Quantity</th>
-                                    <th className="px-6 py-4 text-right">Cost/Unit</th>
-                                    <th className="px-6 py-4 text-right">Total Cost</th>
-                                    <th className="px-6 py-4 text-right">Market Price</th>
-                                    <th className="px-6 py-4 text-right">Total G/L</th>
-                                    <th className="px-6 py-4 text-right">Current Value</th>
-                                    <th className="px-6 py-4 text-right">Today G/L</th>
-                                    <th className="px-6 py-4 text-right">30d Perf</th>
+                                    <th className="px-6 py-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors group" onClick={() => handleSort('symbol')}>
+                                        <div className="flex items-center">Symbol {renderSortIcon('symbol')}</div>
+                                    </th>
+                                    <th className="px-6 py-4 text-right cursor-pointer hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors group" onClick={() => handleSort('holding')}>
+                                        <div className="flex items-center justify-end">Quantity {renderSortIcon('holding')}</div>
+                                    </th>
+                                    <th className="px-6 py-4 text-right cursor-pointer hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors group" onClick={() => handleSort('cost_per_unit')}>
+                                        <div className="flex items-center justify-end">Cost/Unit {renderSortIcon('cost_per_unit')}</div>
+                                    </th>
+                                    <th className="px-6 py-4 text-right cursor-pointer hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors group" onClick={() => handleSort('total_cost')}>
+                                        <div className="flex items-center justify-end">Total Cost {renderSortIcon('total_cost')}</div>
+                                    </th>
+                                    <th className="px-6 py-4 text-right cursor-pointer hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors group" onClick={() => handleSort('market_rate')}>
+                                        <div className="flex items-center justify-end">Market Price {renderSortIcon('market_rate')}</div>
+                                    </th>
+                                    <th className="px-6 py-4 text-right cursor-pointer hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors group" onClick={() => handleSort('total_gl')}>
+                                        <div className="flex items-center justify-end gap-1">
+                                            <TooltipProvider>
+                                                <Tooltip>
+                                                    <TooltipTrigger>
+                                                        <span className="border-b border-dotted border-gray-400">Total G/L</span>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent>
+                                                        <p className="text-xs">Unrealized profit/loss based on total cost</p>
+                                                    </TooltipContent>
+                                                </Tooltip>
+                                            </TooltipProvider>
+                                            {renderSortIcon('total_gl')}
+                                        </div>
+                                    </th>
+                                    <th className="px-6 py-4 text-right cursor-pointer hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors group" onClick={() => handleSort('custody_val')}>
+                                        <div className="flex items-center justify-end">Current Value {renderSortIcon('custody_val')}</div>
+                                    </th>
+                                    <th className="px-6 py-4 text-right cursor-pointer hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors group" onClick={() => handleSort('today_gl')}>
+                                        <div className="flex items-center justify-end">Today G/L {renderSortIcon('today_gl')}</div>
+                                    </th>
+                                    <th className="px-6 py-4 text-right cursor-pointer hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors group" onClick={() => handleSort('perf_30d')}>
+                                        <div className="flex items-center justify-end gap-1">
+                                            <TooltipProvider>
+                                                <Tooltip>
+                                                    <TooltipTrigger>
+                                                        <span className="border-b border-dotted border-gray-400">30d Perf</span>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent>
+                                                        <p className="text-xs">30-day performance based on historical snapshots</p>
+                                                    </TooltipContent>
+                                                </Tooltip>
+                                            </TooltipProvider>
+                                            {renderSortIcon('perf_30d')}
+                                        </div>
+                                    </th>
                                     <th className="px-6 py-4 text-center">Action</th>
                                 </tr>
                             </thead>
                             <tbody className="bg-white dark:bg-neutral-900 divide-y divide-gray-100 dark:divide-neutral-800 transition-colors">
-                                {consolidatedHoldings.map((stock, idx) => {
-                                    const computedChange = stock.custody_val - stock.total_cost;
-                                    const changePct = stock.total_cost > 0 ? (computedChange / stock.total_cost) * 100 : 0;
-                                    const todayGl = stock.today_gl || 0;
-                                    const prevVal = stock.custody_val - todayGl;
-                                    const todayPct = prevVal > 0 ? (todayGl / prevVal) * 100 : 0;
-                                    return (
-                                        <tr
-                                            key={idx}
-                                            onClick={() => navigate(`/stocks/${stock.symbol}`)}
-                                            className={`hover:bg-blue-50/50 dark:hover:bg-blue-900/10 cursor-pointer transition-colors ${stock.holding === 0 ? 'opacity-60 grayscale-[0.5]' : ''}`}
-                                        >
+                                {(() => {
+                                    const canHighlight = filteredAndSortedHoldings.length > 3;
+                                    const topGainerSymbol = canHighlight ? [...filteredAndSortedHoldings].reduce((prev, curr) => (curr.custody_val - curr.total_cost) > (prev.custody_val - prev.total_cost) ? curr : prev).symbol : null;
+                                    const topLoserSymbol = canHighlight ? [...filteredAndSortedHoldings].reduce((prev, curr) => (curr.custody_val - curr.total_cost) < (prev.custody_val - prev.total_cost) ? curr : prev).symbol : null;
+                                    const topValueSymbol = canHighlight ? [...filteredAndSortedHoldings].reduce((prev, curr) => curr.custody_val > prev.custody_val ? curr : prev).symbol : null;
+
+                                    return filteredAndSortedHoldings.map((stock, idx) => {
+                                        const computedChange = stock.custody_val - stock.total_cost;
+                                        const changePct = stock.total_cost > 0 ? (computedChange / stock.total_cost) * 100 : 0;
+                                        const todayGl = stock.today_gl || 0;
+                                        const prevVal = stock.custody_val - todayGl;
+                                        const todayPct = prevVal > 0 ? (todayGl / prevVal) * 100 : 0;
+
+                                        let rowBgClass = 'hover:bg-blue-50/50 dark:hover:bg-blue-900/10 cursor-pointer transition-colors';
+                                        if (stock.symbol === topGainerSymbol) rowBgClass += ' bg-emerald-50/30 dark:bg-emerald-900/10';
+                                        else if (stock.symbol === topLoserSymbol) rowBgClass += ' bg-red-50/30 dark:bg-red-900/10';
+                                        else if (stock.symbol === topValueSymbol) rowBgClass += ' bg-blue-50/30 dark:bg-blue-900/10';
+
+                                        return (
+                                            <tr
+                                                key={idx}
+                                                onClick={() => navigate(`/stocks/${stock.symbol.trim()}`)}
+                                                className={`${rowBgClass} ${stock.holding === 0 ? 'opacity-60 grayscale-[0.5]' : ''}`}
+                                            >
                                             <td className="px-6 py-3 whitespace-nowrap">
                                                 <div className="flex flex-col">
                                                     <span className="font-bold text-blue-600 dark:text-blue-400 underline underline-offset-2">{stock.symbol}</span>
@@ -804,28 +1087,50 @@ export default function Stocks() {
                                             <td className="px-6 py-3 whitespace-nowrap text-right">
                                                 {(() => {
                                                     const perf = get30dChange(stock.symbol);
-                                                    if (perf === null) return <span className="text-gray-400 text-[10px]">No History</span>;
+                                                    if (perf === null) return <span className="text-gray-400 text-[10px]">No 30D Data</span>;
                                                     return (
-                                                        <span className={`text-sm font-bold ${glColor(perf)}`}>
+                                                        <span className={`text-sm font-bold ${glColor(perf)} flex items-center justify-end gap-0.5`}>
+                                                            {perf >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
                                                             {perf >= 0 ? '+' : ''}{perf.toFixed(1)}%
                                                         </span>
                                                     );
                                                 })()}
                                             </td>
                                             <td className="px-6 py-3 whitespace-nowrap text-center">
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    onClick={(e) => { e.stopPropagation(); handleDeleteSymbolFromSnapshot(latestSnapshot.id, stock.symbol); }}
-                                                    className="size-8 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
-                                                    title={`Remove ${stock.symbol} from today's holding`}
-                                                >
-                                                    <Trash2 />
-                                                </Button>
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild>
+                                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-500" onClick={(e) => e.stopPropagation()}>
+                                                            <MoreHorizontal className="w-4 h-4" />
+                                                        </Button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent align="end" className="w-40 border-gray-200 dark:border-neutral-800">
+                                                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); navigate(`/stocks/${stock.symbol.trim()}`); }}>
+                                                            <Eye className="w-4 h-4 mr-2" /> View Details
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setShowDividendsModal(true); }}>
+                                                            <Gift className="w-4 h-4 mr-2" /> Dividends
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuSeparator className="bg-gray-100 dark:bg-neutral-800" />
+                                                        <DropdownMenuItem 
+                                                            className="text-red-600 focus:bg-red-50 dark:focus:bg-red-900/20"
+                                                            onClick={(e) => { e.stopPropagation(); handleDeleteSymbolFromSnapshot(latestSnapshot.id, stock.symbol); }}
+                                                        >
+                                                            <Trash2 className="w-4 h-4 mr-2" /> Remove Log
+                                                        </DropdownMenuItem>
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
                                             </td>
                                         </tr>
                                     );
-                                })}
+                                });
+                                })()}
+                                {filteredAndSortedHoldings.length === 0 && (
+                                    <tr>
+                                        <td colSpan={10} className="px-6 py-8 text-center text-gray-500">
+                                            No stocks found matching your search.
+                                        </td>
+                                    </tr>
+                                )}
                             </tbody>
                             <tfoot className="bg-gray-50 dark:bg-neutral-800/50 font-bold text-gray-900 dark:text-gray-100 text-xs text-right">
                                 <tr>
@@ -854,14 +1159,14 @@ export default function Stocks() {
                                 </tr>
                             </tfoot>
                         </table>
-                    </div>
-                </div>
+                    </CardContent>
+                </Card>
             )}
 
 
             {/* Snapshot History List (Collapsible) */}
             {snapshots.length > 1 && (
-                <div className="bg-white mb-4 dark:bg-neutral-900 rounded-2xl shadow-sm border border-gray-100 dark:border-neutral-800 overflow-hidden transition-colors">
+                <Card className="mb-4 overflow-hidden transition-colors">
                     <Button
                         variant="ghost"
                         onClick={() => setShowHistory(!showHistory)}
@@ -1006,22 +1311,26 @@ export default function Stocks() {
                             })}
                         </div>
                     )}
-                </div>
+                </Card>
             )}
 
 
 
             {/* Main Chart */}
-            <div className="bg-white dark:bg-neutral-900 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-neutral-800 transition-colors">
-                <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-4">Portfolio Growth vs Investment</h3>
-                {snapshots.length > 0 ? (
-                    <ReactECharts option={chartOptions} style={{ height: '350px' }} />
-                ) : (
-                    <div className="h-[350px] flex items-center justify-center text-gray-400 dark:text-gray-500 border-2 border-dashed border-gray-200 dark:border-neutral-700 rounded-xl">
-                        Upload your first PSX CSV to see chart
-                    </div>
-                )}
-            </div>
+            <Card className="transition-colors">
+                <CardHeader>
+                    <CardTitle className="text-lg font-bold text-gray-900 dark:text-gray-100">Portfolio Growth vs Investment</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    {snapshots.length > 0 ? (
+                        <ReactECharts option={chartOptions} style={{ height: '350px' }} />
+                    ) : (
+                        <div className="h-[350px] flex items-center justify-center text-gray-400 dark:text-gray-500 border-2 border-dashed border-gray-200 dark:border-neutral-700 rounded-xl">
+                            Upload your first PSX CSV to see chart
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
 
             {/* Daily Summary Entry Modal */}
             {showSummaryModal && (
@@ -1177,7 +1486,7 @@ export default function Stocks() {
                                                     size="sm"
                                                     className="px-6"
                                                 >
-                                                    {isSyncingDividends ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />} 
+                                                    {isSyncingDividends ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
                                                     Sync Records
                                                 </Button>
                                             </div>
@@ -1239,8 +1548,8 @@ export default function Stocks() {
                                                         <Badge
                                                             variant={div.status?.toLowerCase() === 'paid' ? 'default' : 'secondary'}
                                                             className={`text-[10px] font-bold uppercase ${div.status?.toLowerCase() === 'paid'
-                                                                    ? 'bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800'
-                                                                    : 'bg-amber-500/10 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400 border-amber-200 dark:border-amber-800'
+                                                                ? 'bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800'
+                                                                : 'bg-amber-500/10 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400 border-amber-200 dark:border-amber-800'
                                                                 }`}
                                                         >
                                                             {div.status}

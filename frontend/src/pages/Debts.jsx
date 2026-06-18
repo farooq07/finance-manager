@@ -6,6 +6,7 @@ import { Plus, CreditCard, Car, Home, Wallet, Banknote, X, ArrowRight, Trash2 } 
 import api from '../services/api';
 import { fmtPKR } from '../utils/currency';
 import { useConfirm } from '../components/ui/confirm-dialog';
+import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
 
 const DEBT_TYPES = [
     { value: 'credit_card',   label: 'Credit card',   icon: CreditCard },
@@ -134,11 +135,11 @@ function SummaryCard({ label, value, sub, tone }) {
         danger:   'text-rose-600 dark:text-rose-400',
     }[tone];
     return (
-        <div className="p-5 rounded-2xl border border-gray-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/40">
+        <Card className="p-5">
             <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">{label}</p>
             <p className={`mt-2 text-2xl font-semibold tabular-nums ${toneText}`}>{value}</p>
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{sub}</p>
-        </div>
+        </Card>
     );
 }
 
@@ -150,7 +151,7 @@ function DebtCard({ debt, onDelete }) {
     const paidPct = principal > 0 ? Math.max(0, Math.min(100, ((principal - outstanding) / principal) * 100)) : 0;
 
     return (
-        <div className={`p-5 rounded-2xl border border-gray-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/40 ${debt.is_active ? '' : 'opacity-70'}`}>
+        <Card className={`p-5 ${debt.is_active ? '' : 'opacity-70'}`}>
             <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
                     <div className="w-10 h-10 rounded-lg bg-rose-50 dark:bg-rose-950/40 flex items-center justify-center shrink-0">
@@ -182,13 +183,13 @@ function DebtCard({ debt, onDelete }) {
             >
                 View details <ArrowRight className="w-3.5 h-3.5" />
             </Link>
-        </div>
+        </Card>
     );
 }
 
 function EmptyState({ onAdd }) {
     return (
-        <div className="p-10 text-center rounded-2xl border border-dashed border-gray-300 dark:border-neutral-700 bg-white dark:bg-neutral-900/40">
+        <div className="p-10 text-center rounded-2xl border border-dashed border-gray-300 dark:border-neutral-700 bg-white dark:bg-neutral-850">
             <CreditCard className="w-8 h-8 mx-auto text-gray-400 dark:text-gray-500" />
             <h3 className="mt-3 text-base font-semibold text-gray-900 dark:text-gray-100">No debts tracked yet</h3>
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400 max-w-md mx-auto">

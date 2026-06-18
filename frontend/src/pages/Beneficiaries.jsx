@@ -7,6 +7,7 @@ import {
 } from '../hooks/useBeneficiaries';
 import { TableSkeleton } from '../components/Skeleton';
 import Modal from '../components/Modal';
+import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -91,15 +92,15 @@ export default function Beneficiaries() {
 
             {/* List */}
             {beneficiaries.length === 0 ? (
-                <div className="bg-white dark:bg-neutral-900 rounded-xl border border-gray-200 dark:border-neutral-800 p-12 text-center">
+                <Card className="p-12 text-center">
                     <User className="w-10 h-10 mx-auto text-gray-300 dark:text-gray-600 mb-3" />
                     <p className="text-gray-500 dark:text-gray-400 font-medium">No beneficiaries yet</p>
                     <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
                         Add a person's account number and their transactions will be auto-linked.
                     </p>
-                </div>
+                </Card>
             ) : (
-                <div className="bg-white dark:bg-neutral-900 rounded-xl border border-gray-200 dark:border-neutral-800 divide-y divide-gray-100 dark:divide-neutral-800">
+                <Card className="divide-y divide-gray-100 dark:divide-neutral-800">
                     {beneficiaries.map((b) => (
                         <div key={b.id} className="flex items-center gap-4 px-5 py-4 hover:bg-gray-50 dark:hover:bg-neutral-800/50 transition-colors">
                             <div className="w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center shrink-0">
@@ -144,7 +145,7 @@ export default function Beneficiaries() {
                             </div>
                         </div>
                     ))}
-                </div>
+                </Card>
             )}
 
             {/* Add Modal */}

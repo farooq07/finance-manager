@@ -7,6 +7,7 @@ import { ArrowLeft, Plus, X, AlertTriangle } from 'lucide-react';
 import api from '../services/api';
 import { fmtPKR } from '../utils/currency';
 import { fmtDateLong } from '../utils/dates';
+import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
 
 export default function DebtDetail() {
     const { id } = useParams();
@@ -104,23 +105,23 @@ function Stat({ label, value, sub, tone }) {
         danger:   'text-rose-600 dark:text-rose-400',
     }[tone];
     return (
-        <div className="p-5 rounded-2xl border border-gray-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/40">
+        <Card className="p-5">
             <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">{label}</p>
             <p className={`mt-2 text-2xl font-semibold tabular-nums ${toneText}`}>{value}</p>
             {sub && <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{sub}</p>}
-        </div>
+        </Card>
     );
 }
 
 function ProjectionPanel({ projection, debt }) {
     if (!projection) {
         return (
-            <div className="p-5 rounded-2xl border border-gray-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/40">
+            <Card className="p-5">
                 <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Payoff projection</h3>
                 <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
                     Add an interest rate and minimum monthly payment on this debt to see a payoff timeline.
                 </p>
-            </div>
+            </Card>
         );
     }
     if (projection.unpayable) {
@@ -179,7 +180,7 @@ function ProjectionPanel({ projection, debt }) {
     };
 
     return (
-        <div className="p-5 rounded-2xl border border-gray-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/40">
+        <Card className="p-5">
             <div className="flex flex-wrap items-baseline justify-between gap-3 mb-3">
                 <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Payoff projection</h3>
                 <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -190,20 +191,20 @@ function ProjectionPanel({ projection, debt }) {
             <p className="mt-2 text-[11px] text-gray-400 dark:text-gray-500">
                 Simple amortisation. Assumes constant rate and minimum payment. Capped at 60 months in the chart.
             </p>
-        </div>
+        </Card>
     );
 }
 
 function PaymentsList({ payments }) {
     if (!payments || payments.length === 0) {
         return (
-            <div className="p-5 rounded-2xl border border-dashed border-gray-300 dark:border-neutral-700 bg-white dark:bg-neutral-900/40 text-center text-sm text-gray-500 dark:text-gray-400">
+            <div className="p-5 rounded-2xl border border-dashed border-gray-300 dark:border-neutral-700 bg-white dark:bg-neutral-850 text-center text-sm text-gray-500 dark:text-gray-400">
                 No payments recorded yet.
             </div>
         );
     }
     return (
-        <div className="rounded-2xl border border-gray-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/40 overflow-hidden">
+        <Card className="overflow-hidden">
             <div className="px-5 py-3 border-b border-gray-200 dark:border-neutral-800">
                 <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Recent payments</h3>
             </div>
@@ -221,7 +222,7 @@ function PaymentsList({ payments }) {
                     </li>
                 ))}
             </ul>
-        </div>
+        </Card>
     );
 }
 

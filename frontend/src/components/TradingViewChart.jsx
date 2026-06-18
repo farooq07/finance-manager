@@ -15,7 +15,7 @@ function TradingViewChart({ symbol }) {
     script.async = true;
     script.innerHTML = JSON.stringify({
       "autosize": true,
-      "symbol": `PSX:${symbol}`,
+      "symbol": `PSX:${symbol.trim()}`,
       "interval": "D",
       "timezone": "Etc/UTC",
       "theme": "light",

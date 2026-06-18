@@ -20,6 +20,7 @@ import StatementFileUpload from '../components/StatementFileUpload';
 import CsvMappingModal from '../components/CsvMappingModal';
 import StatementReviewModal from '../components/StatementReviewModal';
 import { useConfirm } from '../components/ui/confirm-dialog';
+import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
 
 /* ─── PKR shorthand: 6.82 L (lakh), 12.4 K, etc. ──────────────── */
 function fmtPKRShort(n) {
@@ -311,7 +312,7 @@ export default function BankDetail() {
                 {/* Right main: transactions */}
                 <section className="col-span-12 lg:col-span-9">
                     {(txLoading || allTransactions.length > 0) ? (
-                        <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-gray-200 dark:border-neutral-800 overflow-hidden">
+                        <Card className="overflow-hidden">
                             <div className="p-5">
                                 {txLoading ? (
                                     <TableSkeleton rows={8} />
@@ -322,7 +323,7 @@ export default function BankDetail() {
                                     />
                                 )}
                             </div>
-                        </div>
+                        </Card>
                     ) : (
                         <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-dashed border-gray-300 dark:border-neutral-700 px-6 py-16 text-center">
                             <UploadCloud className="w-10 h-10 mx-auto text-gray-300 dark:text-gray-600 mb-3" />
@@ -457,7 +458,7 @@ export default function BankDetail() {
 function HeroCard({ bank, change, changePct }) {
     const positive = change >= 0;
     return (
-        <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-gray-200 dark:border-neutral-800 overflow-hidden">
+        <Card className="overflow-hidden">
             <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-gray-200 dark:divide-neutral-800">
                 {/* Left — identity */}
                 <div className="p-6 flex items-start gap-4">
@@ -514,7 +515,7 @@ function HeroCard({ bank, change, changePct }) {
                     </div>
                 </div>
             </div>
-        </div>
+        </Card>
     );
 }
 
@@ -576,7 +577,7 @@ function StatStrip({ stats }) {
         },
     ];
     return (
-        <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-gray-200 dark:border-neutral-800 overflow-hidden">
+        <Card className="overflow-hidden">
             <div className="flex flex-col lg:flex-row lg:items-stretch divide-y lg:divide-y-0 lg:divide-x divide-gray-200 dark:divide-neutral-800">
                 {/* Primary group */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-gray-200 dark:divide-neutral-800 lg:flex-[3]">
@@ -587,7 +588,7 @@ function StatStrip({ stats }) {
                     {secondary.map((it) => <StatCell key={it.label} {...it} secondary />)}
                 </div>
             </div>
-        </div>
+        </Card>
     );
 }
 
@@ -639,7 +640,7 @@ function StatementsList({ statements, onUpload, onSelect, onSync, onDelete, sync
     }), [statements]);
 
     return (
-        <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-gray-200 dark:border-neutral-800 overflow-hidden">
+        <Card className="overflow-hidden">
             {/* Header */}
             <div className="px-4 py-3 flex items-center justify-between border-b border-gray-100 dark:border-neutral-800">
                 <div className="flex items-center gap-2">
@@ -728,7 +729,7 @@ function StatementsList({ statements, onUpload, onSelect, onSync, onDelete, sync
                     })}
                 </ul>
             )}
-        </div>
+        </Card>
     );
 }
 
@@ -748,7 +749,7 @@ function CategoryMiniBreakdown({ data }) {
     const total = summary.length;
 
     return (
-        <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-gray-200 dark:border-neutral-800 overflow-hidden">
+        <Card className="overflow-hidden">
             <div className="px-4 py-3 flex items-center justify-between border-b border-gray-100 dark:border-neutral-800">
                 <div className="flex items-center gap-2">
                     <BarChart3 className="w-4 h-4 text-gray-500 dark:text-gray-400" />
@@ -785,6 +786,6 @@ function CategoryMiniBreakdown({ data }) {
                     );
                 })}
             </ul>
-        </div>
+        </Card>
     );
 }

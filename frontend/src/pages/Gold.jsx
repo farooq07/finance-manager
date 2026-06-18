@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import {
     Plus, RefreshCcw, Gem, X, Loader2, ShieldCheck, AlertTriangle, ArrowRight, Trash2, Pencil, ImageIcon,
 } from 'lucide-react';
+import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
 import GoldPinGate from '../components/GoldPinGate';
 import {
     useGoldItems, useGoldLatestPrice, useGoldPriceHistory, useGoldZakatSummary,
@@ -155,11 +156,11 @@ function LivePricesCard({ latest, loading, onSync, syncing }) {
 
     if (!latest?.row || !latest?.per_carat) {
         return (
-            <div
-                className="p-6 rounded-2xl text-center"
+            <Card
+                className="p-6 text-center"
                 style={{
                     background: 'linear-gradient(135deg, #3a2614 0%, #1a0f08 100%)',
-                    border: '1px solid rgba(212,175,55,0.25)',
+                    borderColor: 'rgba(212,175,55,0.25)',
                 }}
             >
                 <Gem className="w-8 h-8 mx-auto" style={{ color: GOLD_AMBER }} />
@@ -176,18 +177,18 @@ function LivePricesCard({ latest, loading, onSync, syncing }) {
                     {syncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCcw className="w-4 h-4" />}
                     Sync now
                 </button>
-            </div>
+            </Card>
         );
     }
 
     const carats = [24, 22, 21, 20, 18];
 
     return (
-        <div
-            className="p-6 rounded-2xl"
+        <Card
+            className="p-6"
             style={{
                 background: 'linear-gradient(135deg, #3a2614 0%, #1a0f08 100%)',
-                border: '1px solid rgba(212,175,55,0.25)',
+                borderColor: 'rgba(212,175,55,0.25)',
             }}
         >
             <div className="flex items-center justify-between mb-4">
@@ -227,7 +228,7 @@ function LivePricesCard({ latest, loading, onSync, syncing }) {
                     <p className="text-xs text-amber-200/70">per tola</p>
                 </div>
             </div>
-        </div>
+        </Card>
     );
 }
 
@@ -239,7 +240,7 @@ function TrendChart({ history, loading }) {
     }
     if (!history || history.length === 0) {
         return (
-            <div className="p-5 rounded-2xl border border-dashed border-gray-300 dark:border-neutral-700 bg-white dark:bg-neutral-900/40 text-center text-sm text-gray-500 dark:text-gray-400">
+            <div className="p-5 rounded-2xl border border-dashed border-gray-300 dark:border-neutral-700 bg-white dark:bg-neutral-850 text-center text-sm text-gray-500 dark:text-gray-400">
                 Price history will build up here as the daily scraper runs.
             </div>
         );
@@ -287,13 +288,13 @@ function TrendChart({ history, loading }) {
     };
 
     return (
-        <div className="p-5 rounded-2xl border border-gray-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/40">
+        <Card className="p-5">
             <div className="flex items-baseline justify-between mb-3">
                 <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">30-day trend · 24K per gram</h3>
                 <p className="text-xs text-gray-500 dark:text-gray-400">{history.length} day{history.length === 1 ? '' : 's'} of history</p>
             </div>
             <ReactECharts option={option} style={{ height: 240 }} opts={{ renderer: 'canvas' }} />
-        </div>
+        </Card>
     );
 }
 
@@ -315,7 +316,7 @@ function ItemsSection({ data, loading, onAdd, onEdit, onDelete }) {
 
     if (items.length === 0) {
         return (
-            <div className="p-10 text-center rounded-2xl border border-dashed border-gray-300 dark:border-neutral-700 bg-white dark:bg-neutral-900/40">
+            <div className="p-10 text-center rounded-2xl border border-dashed border-gray-300 dark:border-neutral-700 bg-white dark:bg-neutral-850">
                 <Gem className="w-8 h-8 mx-auto text-gray-400 dark:text-gray-500" />
                 <h3 className="mt-3 text-base font-semibold text-gray-900 dark:text-gray-100">No gold items yet</h3>
                 <p className="mt-1 text-sm text-gray-500 dark:text-gray-400 max-w-md mx-auto">
@@ -366,7 +367,7 @@ function ItemsSection({ data, loading, onAdd, onEdit, onDelete }) {
 
 function StatCard({ label, value, sub, highlight, subColor, valueColor }) {
     return (
-        <div className="p-4 rounded-2xl border border-gray-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/40">
+        <Card className="p-4">
             <p className="text-[11px] uppercase tracking-wider text-gray-500 dark:text-gray-400">{label}</p>
             <p
                 className="mt-1.5 text-xl font-semibold tabular-nums truncate"
@@ -379,7 +380,7 @@ function StatCard({ label, value, sub, highlight, subColor, valueColor }) {
                     {sub}
                 </p>
             )}
-        </div>
+        </Card>
     );
 }
 
@@ -389,7 +390,7 @@ function ItemCard({ item, onEdit, onDelete }) {
     const gainPct = (hasPurchase && item.purchase_value_pkr > 0) ? ((gainLoss / item.purchase_value_pkr) * 100) : null;
 
     return (
-        <div className="rounded-2xl border border-gray-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/40 overflow-hidden">
+        <Card className="overflow-hidden">
             {/* Image strip or icon row */}
             {item.image_url ? (
                 <div className="h-40 bg-gray-200 dark:bg-neutral-800 overflow-hidden">
@@ -467,7 +468,7 @@ function ItemCard({ item, onEdit, onDelete }) {
                     {Number(item.equivalent_24k_grams).toFixed(2)} g 24K-equivalent
                 </p>
             </div>
-        </div>
+        </Card>
     );
 }
 
@@ -486,13 +487,13 @@ function ZakatPanel({ summary, loading }) {
     const tint = eligible ? GOLD_AMBER : '#9ca3af';
 
     return (
-        <div
-            className="p-6 rounded-2xl"
+        <Card
+            className="p-6 overflow-hidden"
             style={{
                 background: eligible
                     ? 'linear-gradient(135deg, #3a2614 0%, #1a0f08 100%)'
                     : 'linear-gradient(135deg, #1f2937 0%, #0f1419 100%)',
-                border: `1px solid ${eligible ? 'rgba(212,175,55,0.25)' : 'rgba(255,255,255,0.08)'}`,
+                borderColor: eligible ? 'rgba(212,175,55,0.25)' : 'rgba(255,255,255,0.08)',
             }}
         >
             <div className="flex items-start gap-4 text-amber-50">
@@ -530,7 +531,7 @@ function ZakatPanel({ summary, loading }) {
                     )}
                 </div>
             </div>
-        </div>
+        </Card>
     );
 }
 

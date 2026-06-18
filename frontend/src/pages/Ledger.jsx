@@ -13,6 +13,7 @@ import { fmtDateLong } from '../utils/dates';
 import DatePickerInput from '../components/DatePickerInput';
 import Modal from '../components/Modal';
 import { useConfirm } from '../components/ui/confirm-dialog';
+import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
 
 /* ─── Debt-type metadata ───────────────────────────────────── */
 const DEBT_TYPES = [
@@ -221,7 +222,7 @@ function StatCard({ label, value, hint, icon: Icon, tone, emphasis }) {
     }[tone] || 'bg-gray-100 text-gray-600';
 
     return (
-        <div className={`rounded-2xl border bg-white dark:bg-neutral-900 p-5 ${emphasis ? 'border-primary-200 dark:border-primary-900/40 shadow-sm' : 'border-gray-200 dark:border-neutral-800'}`}>
+        <Card className={`p-5 ${emphasis ? 'border-primary-200 dark:border-primary-900/40 shadow-sm' : 'border-gray-200 dark:border-neutral-800'}`}>
             <div className="flex items-center justify-between mb-2">
                 <span className="text-[11px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{label}</span>
                 <span className={`w-8 h-8 rounded-full flex items-center justify-center ${iconBg}`}>
@@ -230,7 +231,7 @@ function StatCard({ label, value, hint, icon: Icon, tone, emphasis }) {
             </div>
             <p className={`text-2xl font-semibold tabular-nums ${toneClass}`}>{value}</p>
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{hint}</p>
-        </div>
+        </Card>
     );
 }
 
@@ -317,7 +318,7 @@ function AllView({ people, debts }) {
     return (
         <div className="space-y-3">
             <SearchInput value={q} onChange={setQ} />
-            <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-gray-200 dark:border-neutral-800 overflow-hidden">
+            <Card className="overflow-hidden">
                 {rows.length === 0 ? (
                     <div className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
                         Nothing matches "{q}".
@@ -327,7 +328,7 @@ function AllView({ people, debts }) {
                         <AllRow key={`${r.kind}-${r.id}`} row={r} isLast={i === rows.length - 1} />
                     ))
                 )}
-            </div>
+            </Card>
         </div>
     );
 }
@@ -340,11 +341,10 @@ function AllRow({ row, isLast }) {
 
     const content = (
         <div className={`flex items-center gap-4 px-5 py-4 ${isLast ? '' : 'border-b border-gray-100 dark:border-neutral-800'} hover:bg-gray-50/50 dark:hover:bg-neutral-800/50 transition-colors`}>
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
-                isPerson
-                    ? 'bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
-                    : 'bg-rose-50 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400'
-            }`}>
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isPerson
+                ? 'bg-primary-50 text-primary-700 dark:bg-primary-600/30 dark:text-primary-300'
+                : 'bg-rose-50 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400'
+                }`}>
                 <Icon className="w-5 h-5" />
             </div>
             <div className="min-w-0 flex-1">
@@ -352,13 +352,12 @@ function AllRow({ row, isLast }) {
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{row.meta}</p>
             </div>
             <div className="text-right shrink-0">
-                <p className={`text-base font-semibold tabular-nums ${
-                    isZero
-                        ? 'text-gray-500 dark:text-gray-400'
-                        : isPositive
+                <p className={`text-base font-semibold tabular-nums ${isZero
+                    ? 'text-gray-500 dark:text-gray-400'
+                    : isPositive
                         ? 'text-success-700 dark:text-success-400'
                         : 'text-error-600 dark:text-error-400'
-                }`}>
+                    }`}>
                     {isZero ? fmtPKR(0) : `${isPositive ? '+' : '−'}${fmtPKR(Math.abs(row.balance))}`}
                 </p>
                 <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
@@ -490,15 +489,14 @@ function PersonCard({ person, open, onToggle, onChanged }) {
     });
 
     return (
-        <div className={`bg-white dark:bg-neutral-900 rounded-2xl border ${open ? 'border-primary-200 dark:border-primary-900/40 shadow-sm' : 'border-gray-200 dark:border-neutral-800'} overflow-hidden transition-colors`}>
+        <Card className={`${open ? 'border-primary-200 dark:border-primary-900/40 shadow-sm' : 'border-gray-200 dark:border-neutral-800'} overflow-hidden transition-colors`}>
             <button
                 type="button"
                 onClick={onToggle}
                 className="w-full flex items-center gap-4 px-5 py-4 text-left hover:bg-gray-50/50 dark:hover:bg-neutral-800/50 transition-colors"
             >
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-semibold shrink-0 ${
-                    isZero ? 'bg-gray-400 dark:bg-neutral-600' : isPositive ? 'bg-success-600' : 'bg-error-500'
-                }`}>
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-semibold shrink-0 ${isZero ? 'bg-gray-400 dark:bg-neutral-600' : isPositive ? 'bg-success-600' : 'bg-error-500'
+                    }`}>
                     {person.name.charAt(0).toUpperCase()}
                 </div>
                 <div className="min-w-0 flex-1">
@@ -509,13 +507,12 @@ function PersonCard({ person, open, onToggle, onChanged }) {
                     </p>
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
-                    <div className={`px-3 py-1 rounded-full text-sm font-semibold ${
-                        isZero
-                            ? 'bg-gray-100 dark:bg-neutral-800 text-gray-500 dark:text-gray-400'
-                            : isPositive
+                    <div className={`px-3 py-1 rounded-full text-sm font-semibold ${isZero
+                        ? 'bg-gray-100 dark:bg-neutral-800 text-gray-500 dark:text-gray-400'
+                        : isPositive
                             ? 'bg-success-50 text-success-700 dark:bg-success-900/20 dark:text-success-400'
                             : 'bg-error-50 text-error-700 dark:bg-error-900/20 dark:text-error-400'
-                    }`}>
+                        }`}>
                         {isZero ? fmtPKR(0) : `${isPositive ? '+' : '−'}${fmtPKR(Math.abs(balance))}`}
                     </div>
                     {open ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
@@ -601,7 +598,7 @@ function PersonCard({ person, open, onToggle, onChanged }) {
                     onSaved={onChanged}
                 />
             )}
-        </div>
+        </Card>
     );
 }
 
@@ -825,7 +822,7 @@ function DebtCard({ debt, onDelete }) {
     const repaidPct = principal > 0 ? Math.max(0, Math.min(100, ((principal - outstanding) / principal) * 100)) : 0;
 
     return (
-        <div className={`p-5 rounded-2xl bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 transition-colors ${debt.is_active ? '' : 'opacity-70'}`}>
+        <Card className={`p-5 transition-colors ${debt.is_active ? '' : 'opacity-70'}`}>
             <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
                     <div className="w-10 h-10 rounded-xl bg-rose-50 dark:bg-rose-900/30 flex items-center justify-center shrink-0">
@@ -860,7 +857,7 @@ function DebtCard({ debt, onDelete }) {
             >
                 View details <ArrowRight className="w-3.5 h-3.5" />
             </Link>
-        </div>
+        </Card>
     );
 }
 
@@ -924,13 +921,12 @@ function AddTxModal({ person, onClose, onSaved }) {
                                     key={opt.v}
                                     type="button"
                                     onClick={() => setForm((f) => ({ ...f, transaction_type: opt.v }))}
-                                    className={`px-3 py-2.5 rounded-xl text-sm font-medium border transition-all ${
-                                        active
-                                            ? opt.tone === 'success'
-                                                ? 'bg-success-50 border-success-300 text-success-700 dark:bg-success-900/20 dark:border-success-800/40 dark:text-success-300'
-                                                : 'bg-error-50 border-error-300 text-error-700 dark:bg-error-900/20 dark:border-error-800/40 dark:text-error-300'
-                                            : 'border-gray-200 dark:border-neutral-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-neutral-800'
-                                    }`}
+                                    className={`px-3 py-2.5 rounded-xl text-sm font-medium border transition-all ${active
+                                        ? opt.tone === 'success'
+                                            ? 'bg-success-50 border-success-300 text-success-700 dark:bg-success-900/20 dark:border-success-800/40 dark:text-success-300'
+                                            : 'bg-error-50 border-error-300 text-error-700 dark:bg-error-900/20 dark:border-error-800/40 dark:text-error-300'
+                                        : 'border-gray-200 dark:border-neutral-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-neutral-800'
+                                        }`}
                                 >
                                     {opt.label}
                                 </button>
@@ -1013,11 +1009,10 @@ function AddDebtModal({ onClose, onSaved }) {
                                     key={t.value}
                                     type="button"
                                     onClick={() => setForm((f) => ({ ...f, debt_type: t.value }))}
-                                    className={`flex flex-col items-center gap-1.5 px-3 py-3 rounded-xl border text-xs font-medium transition-colors ${
-                                        active
-                                            ? 'border-primary-600 bg-primary-50 text-primary-700 dark:bg-primary-900/20 dark:text-primary-300'
-                                            : 'border-gray-200 dark:border-neutral-700 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-neutral-800'
-                                    }`}
+                                    className={`flex flex-col items-center gap-1.5 px-3 py-3 rounded-xl border text-xs font-medium transition-colors ${active
+                                        ? 'border-primary-600 bg-primary-50 text-primary-700 dark:bg-primary-900/20 dark:text-primary-300'
+                                        : 'border-gray-200 dark:border-neutral-700 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-neutral-800'
+                                        }`}
                                 >
                                     <I className="w-4 h-4" />
                                     {t.label}

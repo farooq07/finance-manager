@@ -366,16 +366,17 @@ export default function Settings() {
                                         <div className="mb-1 block">
                                             <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Type</label>
                                         </div>
-                                        <Select
+                                        <select
                                             id="bank-type"
                                             value={formData.type}
                                             onChange={e => setFormData({ ...formData, type: e.target.value })}
+                                            className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                         >
                                             <option value="bank">Bank</option>
                                             <option value="wallet">Virtual Wallet</option>
                                             <option value="cash">Cash in Hand</option>
                                             <option value="other">Other</option>
-                                        </Select>
+                                        </select>
                                     </div>
                                     <div>
                                         <div className="mb-1 block">
@@ -1142,7 +1143,7 @@ function ExportDataView() {
                         return (
                             <div
                                 key={item.key}
-                                className="flex items-start gap-4 p-4 rounded-xl border border-gray-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/40 transition-colors"
+                                className="flex items-start gap-4 p-4 rounded-xl border border-gray-200 dark:border-neutral-800 bg-white dark:bg-neutral-850 transition-colors"
                             >
                                 <div className="w-10 h-10 rounded-lg bg-blue-50 dark:bg-blue-950/40 flex items-center justify-center shrink-0">
                                     <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400" />

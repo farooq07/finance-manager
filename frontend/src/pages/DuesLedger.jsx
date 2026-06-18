@@ -7,6 +7,8 @@ import DatePickerInput from '../components/DatePickerInput';
 import { toast } from 'sonner';
 import Modal from '../components/Modal';
 import Button from '../components/Button';
+import { Checkbox } from '../components/ui/checkbox';
+import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
 
 export default function DuesLedger() {
     const { user } = useAuth();
@@ -323,7 +325,7 @@ export default function DuesLedger() {
                 return (
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         {/* Total Receivable */}
-                        <div className="bg-white dark:bg-neutral-900 rounded-xl border border-gray-100 dark:border-neutral-800 shadow-sm p-5 transition-colors">
+                        <Card className="p-5 transition-colors">
                             <div className="flex items-center justify-between mb-2">
                                 <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Total Receivable</span>
                                 <div className="w-8 h-8 rounded-full bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center">
@@ -332,9 +334,9 @@ export default function DuesLedger() {
                             </div>
                             <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-500">+PKR {formatPKR(totalReceivable)}</div>
                             <p className="text-xs text-gray-400 mt-1">Amount others owe you</p>
-                        </div>
+                        </Card>
                         {/* Total Payable */}
-                        <div className="bg-white dark:bg-neutral-900 rounded-xl border border-gray-100 dark:border-neutral-800 shadow-sm p-5 transition-colors">
+                        <Card className="p-5 transition-colors">
                             <div className="flex items-center justify-between mb-2">
                                 <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Total Payable</span>
                                 <div className="w-8 h-8 rounded-full bg-red-50 dark:bg-red-900/20 flex items-center justify-center">
@@ -343,9 +345,9 @@ export default function DuesLedger() {
                             </div>
                             <div className="text-2xl font-bold text-red-500 dark:text-red-400">-PKR {formatPKR(totalPayable)}</div>
                             <p className="text-xs text-gray-400 mt-1">Amount you owe others</p>
-                        </div>
+                        </Card>
                         {/* Net Balance */}
-                        <div className={`rounded-xl border shadow-sm p-5 transition-colors ${netBalance >= 0 ? 'bg-emerald-50/50 dark:bg-emerald-900/10 border-emerald-100 dark:border-emerald-900/30' : 'bg-red-50/50 dark:bg-red-900/10 border-red-100 dark:border-red-900/30'}`}>
+                        <Card className={`p-5 transition-colors ${netBalance >= 0 ? 'bg-emerald-50/50 dark:bg-emerald-900/10 border-emerald-100 dark:border-emerald-900/30' : 'bg-red-50/50 dark:bg-red-900/10 border-red-100 dark:border-red-900/30'}`}>
                             <div className="flex items-center justify-between mb-2">
                                 <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Net Balance</span>
                                 <div className={`w-8 h-8 rounded-full flex items-center justify-center ${netBalance >= 0 ? 'bg-emerald-100 dark:bg-emerald-900/30' : 'bg-red-100 dark:bg-red-900/30'}`}>
@@ -356,7 +358,7 @@ export default function DuesLedger() {
                                 {netBalance >= 0 ? '+' : '-'}PKR {formatPKR(Math.abs(netBalance))}
                             </div>
                             <p className="text-xs text-gray-400 mt-1">{netBalance >= 0 ? 'You are owed overall' : 'You owe overall'}</p>
-                        </div>
+                        </Card>
                     </div>
                 );
             })()}
@@ -436,7 +438,7 @@ export default function DuesLedger() {
                     const someSelected = allIds.some(id => selectedTxs.has(id));
 
                     return (
-                        <div key={person.id} className="bg-white dark:bg-neutral-900 rounded-xl shadow-sm border border-gray-100 dark:border-neutral-800 overflow-hidden transition-colors">
+                        <Card key={person.id} className="overflow-hidden transition-colors">
                             {/* Person Header */}
                             <div className="px-6 py-4 flex justify-between items-center cursor-pointer hover:bg-gray-50/80 dark:hover:bg-neutral-800/80 transition-colors" onClick={() => toggleExpand(person.id)}>
                                 <div className="flex items-center space-x-4">
@@ -556,11 +558,9 @@ export default function DuesLedger() {
                                                 <thead>
                                                     <tr className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-100 dark:border-neutral-800 transition-colors">
                                                         <th className="px-4 py-3 text-left w-10">
-                                                            <input
-                                                                type="checkbox"
+                                                            <Checkbox
                                                                 checked={allSelected}
-                                                                onChange={() => toggleSelectAll(person.transactions)}
-                                                                className="w-4 h-4 rounded border-gray-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                                                onCheckedChange={() => toggleSelectAll(person.transactions)}
                                                             />
                                                         </th>
                                                         <th className="px-4 py-3 text-left font-medium w-10">#</th>
@@ -580,11 +580,9 @@ export default function DuesLedger() {
                                                             <tr key={tx.id} className={`transition-colors ${isEditing ? 'bg-blue-50/40 dark:bg-blue-900/10' : 'hover:bg-gray-50/50 dark:hover:bg-neutral-800/50'}`}>
                                                                 {/* Checkbox */}
                                                                 <td className="px-4 py-3">
-                                                                    <input
-                                                                        type="checkbox"
+                                                                    <Checkbox
                                                                         checked={selectedTxs.has(tx.id)}
-                                                                        onChange={() => toggleSelect(tx.id)}
-                                                                        className="w-4 h-4 rounded border-gray-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                                                        onCheckedChange={() => toggleSelect(tx.id)}
                                                                     />
                                                                 </td>
                                                                 <td className="px-4 py-3 text-gray-400 dark:text-gray-500 font-mono text-xs">{idx + 1}</td>
@@ -688,7 +686,7 @@ export default function DuesLedger() {
                                     )}
                                 </div>
                             )}
-                        </div>
+                        </Card>
                     );
                 })}
             </div>

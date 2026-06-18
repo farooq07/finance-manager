@@ -16,6 +16,7 @@ import StatementFileUpload from '../components/StatementFileUpload';
 import CsvMappingModal from '../components/CsvMappingModal';
 import StatementReviewModal from '../components/StatementReviewModal';
 import { useConfirm } from '../components/ui/confirm-dialog';
+import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
 
 export default function WalletDetail() {
     const { id } = useParams();
@@ -226,7 +227,7 @@ export default function WalletDetail() {
 
     return (
         <div className="max-w-7xl mx-auto space-y-6">
-            <div className="bg-white dark:bg-neutral-900 rounded-xl shadow-sm border border-gray-200 dark:border-neutral-800 overflow-hidden transition-colors">
+            <Card className="overflow-hidden transition-colors">
                 <div className="p-6 border-b border-gray-100 dark:border-neutral-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 transition-colors">
                     <div>
                         <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100">{wallet.name}</h1>
@@ -261,9 +262,9 @@ export default function WalletDetail() {
                     ) : (
                         <div className="space-y-4">
                             {wallet.statements.map((statement) => (
-                                <div
+                                <Card
                                     key={statement.id}
-                                    className="bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-lg p-4 hover:shadow-md transition-shadow"
+                                    className="p-4 hover:shadow-md transition-shadow"
                                 >
                                     <div className="flex items-center justify-between mb-3">
                                         <div>
@@ -305,16 +306,16 @@ export default function WalletDetail() {
                                             <Trash2 className="w-4 h-4" />
                                         </button>
                                     </div>
-                                </div>
+                                </Card>
                             ))}
                         </div>
                     )}
                 </div>
-            </div>
+            </Card>
 
             {/* All Transactions Table */}
             {allTransactions.length > 0 && (
-                <div className="bg-white dark:bg-neutral-900 rounded-xl shadow-sm border border-gray-200 dark:border-neutral-800 overflow-hidden transition-colors p-6">
+                <Card className="overflow-hidden transition-colors p-6">
                     <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-6">
                         All Transactions
                     </h2>
@@ -323,7 +324,7 @@ export default function WalletDetail() {
                         transactions={allTransactions}
                         resource="wallets"
                     />
-                </div>
+                </Card>
             )}
 
             {/* Statement Transactions Modal */}

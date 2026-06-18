@@ -10,6 +10,7 @@ import {
 import { fmtPKR } from '../utils/currency';
 import { TableSkeleton } from '../components/Skeleton';
 import Modal from '../components/Modal';
+import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -134,22 +135,22 @@ export default function BeneficiaryDetail() {
 
             {/* Summary cards */}
             <div className="grid grid-cols-3 gap-4">
-                <div className="bg-white dark:bg-neutral-900 rounded-xl border border-gray-200 dark:border-neutral-800 p-4">
+                <Card className="p-4">
                     <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Total Transactions</p>
                     <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{transactions.length}</p>
-                </div>
-                <div className="bg-white dark:bg-neutral-900 rounded-xl border border-gray-200 dark:border-neutral-800 p-4">
+                </Card>
+                <Card className="p-4">
                     <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Received from them</p>
                     <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{fmtPKR(totalIn)}</p>
-                </div>
-                <div className="bg-white dark:bg-neutral-900 rounded-xl border border-gray-200 dark:border-neutral-800 p-4">
+                </Card>
+                <Card className="p-4">
                     <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Sent to them</p>
                     <p className="text-lg font-bold text-red-500">{fmtPKR(totalOut)}</p>
-                </div>
+                </Card>
             </div>
 
             {/* Account numbers */}
-            <div className="bg-white dark:bg-neutral-900 rounded-xl border border-gray-200 dark:border-neutral-800">
+            <Card>
                 <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 dark:border-neutral-800">
                     <div className="flex items-center gap-2">
                         <CreditCard className="w-4 h-4 text-gray-400" />
@@ -185,7 +186,7 @@ export default function BeneficiaryDetail() {
                         ))}
                     </div>
                 )}
-            </div>
+            </Card>
 
             {/* Notes */}
             {beneficiary.notes && (
@@ -195,7 +196,7 @@ export default function BeneficiaryDetail() {
             )}
 
             {/* Transaction history */}
-            <div className="bg-white dark:bg-neutral-900 rounded-xl border border-gray-200 dark:border-neutral-800">
+            <Card>
                 <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 dark:border-neutral-800">
                     <span className="font-semibold text-sm text-gray-900 dark:text-gray-100">Linked Transactions</span>
                     <Button
@@ -258,7 +259,7 @@ export default function BeneficiaryDetail() {
                         ))}
                     </div>
                 )}
-            </div>
+            </Card>
 
             {/* Edit Modal */}
             <Modal isOpen={editModal} onClose={() => setEditModal(false)} title="Edit Beneficiary" size="md">

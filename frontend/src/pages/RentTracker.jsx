@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import Button from '../components/Button';
 import { TableSkeleton } from '../components/Skeleton';
 import Modal from '../components/Modal';
+import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
@@ -141,7 +142,7 @@ export default function RentTracker() {
 
             {/* Summary Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-white dark:bg-neutral-900 rounded-xl border border-gray-100 dark:border-neutral-800 shadow-sm p-5 transition-colors">
+                <Card className="p-5 transition-colors">
                     <div className="flex items-center justify-between mb-2">
                         <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Total Received (All Time)</span>
                         <div className="w-8 h-8 rounded-full bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center">
@@ -150,9 +151,9 @@ export default function RentTracker() {
                     </div>
                     <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">PKR {formatPKR(data.totalReceived)}</div>
                     <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{data.entries.length} total payments</p>
-                </div>
+                </Card>
 
-                <div className="bg-white dark:bg-neutral-900 rounded-xl border border-gray-100 dark:border-neutral-800 shadow-sm p-5 transition-colors">
+                <Card className="p-5 transition-colors">
                     <div className="flex items-center justify-between mb-2">
                         <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{selectedYear} Total</span>
                         <div className="w-8 h-8 rounded-full bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center">
@@ -161,7 +162,7 @@ export default function RentTracker() {
                     </div>
                     <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">PKR {formatPKR(yearTotal)}</div>
                     <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{yearEntries.length} payments this year</p>
-                </div>
+                </Card>
 
             </div>
 
@@ -239,7 +240,7 @@ export default function RentTracker() {
             </div>
 
             {/* Monthly Overview Bar */}
-            <div className="bg-white dark:bg-neutral-900 rounded-xl border border-gray-100 dark:border-neutral-800 shadow-sm overflow-hidden transition-colors">
+            <Card className="overflow-hidden transition-colors">
                 <div className="px-6 py-4 border-b border-gray-100 dark:border-neutral-800">
                     <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200">Monthly Breakdown — {selectedYear}</h3>
                 </div>
@@ -257,10 +258,10 @@ export default function RentTracker() {
                         );
                     })}
                 </div>
-            </div>
+            </Card>
 
             {/* Entries Table */}
-            <div className="bg-white dark:bg-neutral-900 rounded-xl border border-gray-100 dark:border-neutral-800 shadow-sm overflow-hidden transition-colors">
+            <Card className="overflow-hidden transition-colors">
                 <div className="px-6 py-4 border-b border-gray-100 dark:border-neutral-800 flex justify-between items-center">
                     <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200">Payment Records — {selectedYear}</h3>
                     <span className="text-xs text-gray-400 dark:text-gray-500">{yearEntries.length} entries</span>
@@ -336,7 +337,7 @@ export default function RentTracker() {
                         <p className="text-gray-300 dark:text-gray-600 text-xs mt-1">Click "Add Payment" to log a rent received</p>
                     </div>
                 )}
-            </div>
+            </Card>
             <Modal
                 isOpen={deleteModal.isOpen}
                 onClose={() => setDeleteModal({ isOpen: false, id: null })}

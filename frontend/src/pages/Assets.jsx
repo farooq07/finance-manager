@@ -8,7 +8,7 @@ import { TableSkeleton, StatSkeleton } from '../components/Skeleton';
 import Modal from '../components/Modal';
 import { Car, Home, Camera, Gem, Plus, Trash2, Box, Calendar } from 'lucide-react';
 import { toast } from 'sonner';
-
+import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
 const ASSET_TYPES = ['Real Estate', 'Vehicle', 'Gold/Jewelry', 'Electronics', 'Other'];
 
 const getIconForType = (type) => {
@@ -74,7 +74,7 @@ export default function Assets() {
 
             {/* Total Value Card */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-sm border border-indigo-100 dark:border-indigo-900/30 p-6 flex items-start gap-4">
+                <Card className="flex items-start gap-4 p-6 border-indigo-100 dark:border-indigo-900/30">
                     <div className="p-3 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 rounded-full">
                         <Box className="w-6 h-6" />
                     </div>
@@ -82,13 +82,16 @@ export default function Assets() {
                         <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Total Assets Value</p>
                         <MaskedBalance value={totalValue} className="text-3xl font-bold text-gray-900 dark:text-gray-100" />
                     </div>
-                </div>
+                </Card>
             </div>
 
             {/* Form */}
-            <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-sm border border-gray-100 dark:border-neutral-800 p-6">
-                <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-4">Add New Asset</h3>
-                <form onSubmit={handleAdd} className="grid grid-cols-1 md:grid-cols-6 gap-4 items-end">
+            <Card>
+                <CardHeader className="pb-2">
+                    <CardTitle className="text-lg">Add New Asset</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <form onSubmit={handleAdd} className="grid grid-cols-1 md:grid-cols-6 gap-4 items-end">
                     <div className="space-y-1 md:col-span-2">
                         <label className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Asset Name</label>
                         <input
@@ -143,14 +146,15 @@ export default function Assets() {
                         </Button>
                     </div>
                 </form>
-            </div>
+                </CardContent>
+            </Card>
 
             {/* Asset List Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {assets.map((asset) => {
                     const Icon = getIconForType(asset.type);
                     return (
-                        <div key={asset.id} className="bg-white dark:bg-neutral-900 rounded-2xl shadow-sm border border-gray-100 dark:border-neutral-800 p-6 flex flex-col group relative overflow-hidden">
+                        <Card key={asset.id} className="p-6 flex flex-col group relative overflow-hidden">
                             <div className="flex justify-between items-start mb-4 relative z-10">
                                 <div className="p-3 bg-gray-50 dark:bg-neutral-800 text-gray-600 dark:text-gray-300 rounded-xl">
                                     <Icon className="w-5 h-5" />
@@ -181,7 +185,7 @@ export default function Assets() {
                             </div>
                             {/* Decorative background icon */}
                             <Icon className="absolute -right-6 -bottom-6 w-32 h-32 text-gray-50 dark:text-neutral-800 opacity-50 pointer-events-none group-hover:scale-110 transition-transform duration-500" />
-                        </div>
+                        </Card>
                     );
                 })}
 

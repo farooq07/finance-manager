@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 import MaskedBalance from '../components/MaskedBalance';
 import Modal from '../components/Modal';
 import api from '../services/api';
+import { Card, CardTitle, CardHeader, CardContent } from '@/components/ui/card';
 
 // Mapping color themes to Tailwind gradients for the Credit Card UI
 const CARD_THEMES = {
@@ -223,7 +224,7 @@ export default function Accounts() {
                         onClick={() => setTab(key)}
                         className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-150
                             ${active === key
-                                ? 'bg-white dark:bg-neutral-900 text-gray-900 dark:text-gray-100 shadow-sm'
+                                ? 'bg-white dark:bg-neutral-800 text-gray-900 dark:text-gray-100 shadow-sm'
                                 : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
                             }`}
                     >
@@ -395,15 +396,15 @@ function AccountsList() {
     return (
         <div className="space-y-10 max-w-7xl mx-auto">
             {/* Header */}
-            <div className="flex flex-col md:flex-row justify-between md:items-center gap-4 bg-white dark:bg-neutral-900 p-6 rounded-xl border border-gray-100 dark:border-neutral-800 shadow-sm transition-colors">
+            <Card className="flex flex-col md:flex-row justify-between md:items-center gap-4 p-6 transition-colors">
                 <div>
-                    <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100">Total Liquidity</h1>
+                    <CardTitle className="text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100">Total Liquidity</CardTitle>
                     <p className="text-gray-500 dark:text-gray-400 mt-1">Aggregated balance across all your banks and mapped wallets.</p>
                 </div>
                 <div className="text-right">
                     <MaskedBalance value={totalLiquidity} className="text-3xl font-bold text-gray-900 dark:text-gray-100 tracking-tight" />
                 </div>
-            </div>
+            </Card>
 
             {/* Banks Section */}
             <section className="space-y-6">
@@ -411,7 +412,7 @@ function AccountsList() {
                     <h2 className="text-xl font-bold text-gray-800 dark:text-gray-200 flex items-center gap-2">
                         <Building2 className="w-5 h-5 text-blue-600 dark:text-blue-500" /> Formal Banking
                     </h2>
-                    <Button color="light" size="sm" onClick={() => setShowBankModal(true)}>
+                    <Button color="primary" size="sm" onClick={() => setShowBankModal(true)}>
                         <Plus className="w-4 h-4 mr-1.5" /> Add Bank
                     </Button>
                 </div>
@@ -450,13 +451,13 @@ function AccountsList() {
                         <WalletIcon className="w-5 h-5 text-emerald-600 dark:text-emerald-500" /> Wallets & Cash
                     </h2>
                     <Button
-                        variant="secondary"
+                        color="primary"
                         size="sm"
                         onClick={() => setShowWalletModal(true)}
-                        className="bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/40"
                     >
                         <Plus className="w-4 h-4 mr-1.5" /> Add Wallet
                     </Button>
+
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -465,106 +466,103 @@ function AccountsList() {
                         const isEditing = editWalletId === wallet.id;
 
                         return (
-                            <div key={wallet.id} className="relative group">
-                                {/* Ledger tile — square edges, brand spine on the left, hairline rules */}
-                                <div className="h-48 bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-xl transition-colors hover:border-gray-300 dark:hover:border-neutral-700 flex flex-col p-5">
-                                    {/* Identity row */}
-                                    <div className="flex items-center gap-3">
-                                        <span
-                                            className="w-9 h-9 rounded-lg flex items-center justify-center text-white text-[11px] font-bold tracking-wide shrink-0"
-                                            style={{ background: color }}
-                                        >
-                                            {monogram(wallet.institution || wallet.name)}
-                                        </span>
-                                        <div className="min-w-0 flex-1">
-                                            <h3 className="text-[14px] font-semibold text-gray-900 dark:text-gray-100 leading-tight truncate">{wallet.institution}</h3>
-                                            <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 truncate">{wallet.name}</p>
-                                        </div>
-                                        <span className="self-start text-[9px] font-mono font-semibold tracking-[0.22em] uppercase text-gray-400 dark:text-gray-500 shrink-0">Wallet</span>
+                            <Card key={wallet.id} className="relative group h-48 transition-colors hover:border-gray-300 dark:hover:border-neutral-700 flex flex-col p-5">
+                                {/* Identity row */}
+                                <div className="flex items-center gap-3">
+                                    <span
+                                        className="w-9 h-9 rounded-lg flex items-center justify-center text-white text-[11px] font-bold tracking-wide shrink-0"
+                                        style={{ background: color }}
+                                    >
+                                        {monogram(wallet.institution || wallet.name)}
+                                    </span>
+                                    <div className="min-w-0 flex-1">
+                                        <h3 className="text-[14px] font-semibold text-gray-900 dark:text-gray-100 leading-tight truncate">{wallet.institution}</h3>
+                                        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 truncate">{wallet.name}</p>
                                     </div>
+                                    <span className="self-start text-[9px] font-mono font-semibold tracking-[0.22em] uppercase text-gray-400 dark:text-gray-500 shrink-0">Wallet</span>
+                                </div>
 
-                                    {/* Balance */}
-                                    <div className="mt-auto pt-4 border-t border-gray-100 dark:border-neutral-800">
-                                        {isEditing ? (
-                                            <div className="flex items-center gap-2">
-                                                <input
-                                                    autoFocus
-                                                    type="number"
-                                                    className="flex-1 rounded-lg border border-gray-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 px-3 py-1.5 text-gray-900 dark:text-gray-100 text-base font-semibold tabular-nums outline-none focus:ring-2 focus:ring-gray-300 dark:focus:ring-neutral-600"
-                                                    placeholder="New balance"
-                                                    value={balanceInput}
-                                                    onChange={e => setBalanceInput(e.target.value)}
-                                                    onKeyDown={e => {
-                                                        if (e.key === 'Enter') handleUpdateWalletBalance(wallet.id);
-                                                        if (e.key === 'Escape') setEditWalletId(null);
-                                                    }}
-                                                />
-                                                <Button
-                                                    size="sm"
-                                                    onClick={() => handleUpdateWalletBalance(wallet.id)}
-                                                    className="rounded-lg text-white text-xs px-4 h-9 font-semibold shrink-0 hover:opacity-90"
-                                                    style={{ background: color }}
-                                                >
-                                                    Save
-                                                </Button>
-                                            </div>
-                                        ) : (
-                                            <>
-                                                <p className="text-[9.5px] font-semibold tracking-[0.22em] uppercase text-gray-400 dark:text-gray-500">Available balance</p>
-                                                <div className="mt-1 flex items-baseline gap-2">
-                                                    <span className="text-[11px] font-mono text-gray-400 dark:text-gray-500">{wallet.currency || 'PKR'}</span>
-                                                    <MaskedBalance value={wallet.balance} className="text-[26px] leading-none font-bold tabular-nums tracking-tight text-gray-900 dark:text-gray-100" iconClassName="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200" showSymbol={false} />
-                                                </div>
-                                                {wallet.currency && wallet.currency !== 'PKR' && (
-                                                    <span className="block text-[11px] font-mono text-gray-400 dark:text-gray-500 mt-1">≈ {fmtPKR(wallet.balance * (wallet.exchange_rate || 1))}</span>
-                                                )}
-                                            </>
-                                        )}
-                                    </div>
-
-                                    {/* Footer — masked number + hover actions */}
-                                    <div className="mt-3 pt-3 border-t border-gray-100 dark:border-neutral-800 flex items-center justify-between">
-                                        <p className="font-mono text-[12px] tracking-[0.16em] text-gray-500 dark:text-gray-400">
-                                            •••• {wallet.account_num ? wallet.account_num.slice(-4) : 'XXXX'}
-                                        </p>
-
-                                        {/* Action Buttons (visible on hover) */}
-                                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <Link to={`/wallets/${wallet.id}`}>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="h-7 w-7bg-white dark:bg-neutral-800 text-gray-500 hover:text-primary-600"
-                                                    title="View Statements & Transactions"
-                                                >
-                                                    <ArrowRight className="w-3.5 h-3.5" />
-                                                </Button>
-                                            </Link>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                onClick={() => {
-                                                    setEditWalletId(wallet.id);
-                                                    setBalanceInput(wallet.balance.toString());
+                                {/* Balance */}
+                                <div className="mt-auto pt-4 border-t border-gray-100 dark:border-neutral-800">
+                                    {isEditing ? (
+                                        <div className="flex items-center gap-2">
+                                            <input
+                                                autoFocus
+                                                type="number"
+                                                className="flex-1 rounded-lg border border-gray-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 px-3 py-1.5 text-gray-900 dark:text-gray-100 text-base font-semibold tabular-nums outline-none focus:ring-2 focus:ring-gray-300 dark:focus:ring-neutral-600"
+                                                placeholder="New balance"
+                                                value={balanceInput}
+                                                onChange={e => setBalanceInput(e.target.value)}
+                                                onKeyDown={e => {
+                                                    if (e.key === 'Enter') handleUpdateWalletBalance(wallet.id);
+                                                    if (e.key === 'Escape') setEditWalletId(null);
                                                 }}
-                                                className="h-7 w-7bg-white dark:bg-neutral-800 text-gray-500 hover:text-primary-600"
-                                                title="Update Balance"
+                                            />
+                                            <Button
+                                                size="sm"
+                                                onClick={() => handleUpdateWalletBalance(wallet.id)}
+                                                className="rounded-lg text-white text-xs px-4 h-9 font-semibold shrink-0 hover:opacity-90"
+                                                style={{ background: color }}
                                             >
-                                                <Edit2 className="w-3.5 h-3.5" />
+                                                Save
                                             </Button>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <p className="text-[9.5px] font-semibold tracking-[0.22em] uppercase text-gray-400 dark:text-gray-500">Available balance</p>
+                                            <div className="mt-1 flex items-baseline gap-2">
+                                                <span className="text-[11px] font-mono text-gray-400 dark:text-gray-500">{wallet.currency || 'PKR'}</span>
+                                                <MaskedBalance value={wallet.balance} className="text-[26px] leading-none font-bold tabular-nums tracking-tight text-gray-900 dark:text-gray-100" iconClassName="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200" showSymbol={false} />
+                                            </div>
+                                            {wallet.currency && wallet.currency !== 'PKR' && (
+                                                <span className="block text-[11px] font-mono text-gray-400 dark:text-gray-500 mt-1">≈ {fmtPKR(wallet.balance * (wallet.exchange_rate || 1))}</span>
+                                            )}
+                                        </>
+                                    )}
+                                </div>
+
+                                {/* Footer — masked number + hover actions */}
+                                <div className="mt-3 pt-3 border-t border-gray-100 dark:border-neutral-800 flex items-center justify-between">
+                                    <p className="font-mono text-[12px] tracking-[0.16em] text-gray-500 dark:text-gray-400">
+                                        •••• {wallet.account_num ? wallet.account_num.slice(-4) : 'XXXX'}
+                                    </p>
+
+                                    {/* Action Buttons (visible on hover) */}
+                                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <Link to={`/wallets/${wallet.id}`}>
                                             <Button
                                                 variant="ghost"
                                                 size="icon"
-                                                onClick={() => handleWalletDelete(wallet.id)}
-                                                className="h-7 w-7bg-white dark:bg-neutral-800 text-gray-500 hover:text-error-600"
-                                                title="Delete Account"
+                                                className="h-7 w-7bg-white dark:bg-neutral-800 text-gray-500 hover:text-primary-600"
+                                                title="View Statements & Transactions"
                                             >
-                                                <Trash2 className="w-3.5 h-3.5" />
+                                                <ArrowRight className="w-3.5 h-3.5" />
                                             </Button>
-                                        </div>
+                                        </Link>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            onClick={() => {
+                                                setEditWalletId(wallet.id);
+                                                setBalanceInput(wallet.balance.toString());
+                                            }}
+                                            className="h-7 w-7bg-white dark:bg-neutral-800 text-gray-500 hover:text-primary-600"
+                                            title="Update Balance"
+                                        >
+                                            <Edit2 className="w-3.5 h-3.5" />
+                                        </Button>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            onClick={() => handleWalletDelete(wallet.id)}
+                                            className="h-7 w-7bg-white dark:bg-neutral-800 text-gray-500 hover:text-error-600"
+                                            title="Delete Account"
+                                        >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                        </Button>
                                     </div>
                                 </div>
-                            </div>
+                            </Card>
                         );
                     })}
 

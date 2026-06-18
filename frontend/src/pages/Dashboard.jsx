@@ -297,7 +297,7 @@ function Composition({ summary, history, loading, historyLoading, onSnapshot, sn
 
 function ChartCard({ title, subtitle, children, className = '', height = 280, action = null }) {
     return (
-        <div className={`p-5 rounded-2xl border border-gray-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/40 ${className}`}>
+        <div className={`p-5 rounded-2xl border border-gray-200 dark:border-neutral-800 bg-white dark:bg-neutral-850 ${className}`}>
             <div className="flex items-start justify-between mb-3 gap-3">
                 <div>
                     <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{title}</h3>
@@ -312,7 +312,11 @@ function ChartCard({ title, subtitle, children, className = '', height = 280, ac
 
 function HistoryChart({ history, loading, className, onSnapshot, snapshotting }) {
     if (loading) {
-        return <div className={`h-72 rounded-2xl bg-gray-100 dark:bg-neutral-800/60 animate-pulse ${className}`} />;
+        return (
+            <ChartCard title="Net worth over time" className={className} height={280}>
+                <div className="h-full rounded-xl bg-gray-100 dark:bg-neutral-800/60 animate-pulse" />
+            </ChartCard>
+        );
     }
 
     const snapshots = history?.snapshots || [];
@@ -393,7 +397,11 @@ const ALLOCATION_COLORS = ['#0a5c3b', '#52A397', '#71B7AC', '#c75a2f', '#fbbf24'
 
 function AllocationDonut({ data, loading, className }) {
     if (loading) {
-        return <div className={`h-72 rounded-2xl bg-gray-100 dark:bg-neutral-800/60 animate-pulse ${className}`} />;
+        return (
+            <ChartCard title="Asset allocation" className={className} height={280}>
+                <div className="h-full rounded-xl bg-gray-100 dark:bg-neutral-800/60 animate-pulse" />
+            </ChartCard>
+        );
     }
     if (!data || data.length === 0) {
         return (
@@ -487,7 +495,7 @@ const TINT_CLASSES = {
 function MetricCard({ label, value, icon: Icon, tint, pl }) {
     const t = TINT_CLASSES[tint] || TINT_CLASSES.emerald;
     return (
-        <div className="p-4 rounded-2xl border border-gray-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/40 transition-colors hover:border-gray-300 dark:hover:border-neutral-700">
+        <div className="p-4 rounded-2xl border border-gray-200 dark:border-neutral-800 bg-white dark:bg-neutral-850 transition-colors hover:border-gray-300 dark:hover:border-neutral-700">
             <div className="flex items-center justify-between mb-3">
                 <p className="text-[10px] uppercase tracking-[0.14em] text-gray-500 dark:text-gray-400 font-semibold">{label}</p>
                 <div className={`w-7 h-7 rounded-lg ${t.bg} flex items-center justify-center`}>

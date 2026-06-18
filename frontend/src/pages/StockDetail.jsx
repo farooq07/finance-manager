@@ -5,6 +5,7 @@ import { usePsxSnapshots } from '../hooks/usePsx';
 import { fmtPKR, glColor, fmtGL } from '../utils/currency';
 import { fmtDateLong, fmtDateShort } from '../utils/dates';
 import { Button } from '@/components/ui/button';
+import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
 import { toast } from 'sonner';
 import MaskedBalance from '../components/MaskedBalance';
 import { usePin } from '../context/PinContext';
@@ -116,7 +117,7 @@ export default function StockDetail() {
 
 
             {/* Stock Detail Card */}
-            <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-sm border border-gray-100 dark:border-neutral-800 p-8 transition-colors">
+            <Card className="p-8 transition-colors">
                 {!stock ? (
                     <div className="text-center py-12">
                         <div className="inline-flex items-center justify-center p-4 bg-gray-50 dark:bg-neutral-800 rounded-full mb-4">
@@ -365,7 +366,7 @@ export default function StockDetail() {
                         </div>
                     </>
                 )}
-            </div>
+            </Card>
         </div>
     );
 }

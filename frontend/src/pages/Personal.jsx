@@ -6,10 +6,10 @@ import Assets from './Assets';
 import Gold from './Gold';
 
 const TABS = [
-    { key: 'zakat',  label: 'Zakat',   icon: HeartHandshake },
-    { key: 'rent',   label: 'Rent',    icon: Building },
-    { key: 'assets', label: 'Assets',  icon: Box },
-    { key: 'gold',   label: 'Gold',    icon: Gem },
+    { key: 'zakat', label: 'Zakat', icon: HeartHandshake },
+    { key: 'rent', label: 'Rent', icon: Building },
+    { key: 'assets', label: 'Assets', icon: Box },
+    { key: 'gold', label: 'Gold', icon: Gem },
 ];
 
 const VALID_TABS = TABS.map((t) => t.key);
@@ -37,7 +37,7 @@ export default function Personal() {
                         onClick={() => setTab(key)}
                         className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-150
                             ${active === key
-                                ? 'bg-white dark:bg-neutral-900 text-gray-900 dark:text-gray-100 shadow-sm'
+                                ? 'bg-white dark:bg-neutral-800 text-gray-900 dark:text-gray-100 shadow-sm'
                                 : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
                             }`}
                     >
@@ -49,10 +49,10 @@ export default function Personal() {
 
             {/* Tab content */}
             <div>
-                {active === 'zakat'  && <Zakat />}
-                {active === 'rent'   && <RentTracker />}
+                {active === 'zakat' && <Zakat />}
+                {active === 'rent' && <RentTracker />}
                 {active === 'assets' && <Assets />}
-                {active === 'gold'   && <Gold />}
+                {active === 'gold' && <Gold />}
             </div>
         </div>
     );

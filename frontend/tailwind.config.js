@@ -127,7 +127,8 @@ export default {
 			},
 			colors: {
 				...brandColors,
-				brand: brandColors.primary,
+				neutral: { 850: '#1e1e1e' }, // dark-mode card surface, one step above neutral-900
+					brand: brandColors.primary,
 				'brand-medium': brandColors.primary[500],
 				'brand-strong': brandColors.primary[700],
 				cyan: brandColors.primary,

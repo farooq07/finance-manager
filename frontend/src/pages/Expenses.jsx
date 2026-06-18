@@ -13,6 +13,7 @@ import { fmtPKR } from '../utils/currency';
 import { fmtDate } from '../utils/dates';
 import { useConfirm } from '../components/ui/confirm-dialog';
 import MaskedBalance from '../components/MaskedBalance';
+import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Period helpers — client computes the anchor date for the insights call so
@@ -306,7 +307,7 @@ function StatsRow({ data, period }) {
     return (
         <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
             {/* Hero — Spent */}
-            <div className="md:col-span-6 p-6 rounded-2xl shadow-sm border border-gray-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/40 relative overflow-hidden">
+            <Card className="md:col-span-6 p-6 relative overflow-hidden">
                 <div className="absolute -right-8 -top-8 w-32 h-32 rounded-full bg-rose-50 dark:bg-rose-950/30 opacity-60" />
                 <div className="relative">
                     <div className="flex items-center gap-2 mb-2">
@@ -323,7 +324,7 @@ function StatsRow({ data, period }) {
                         <span>vs last {PERIOD_NOUN[period]}</span>
                     </div>
                 </div>
-            </div>
+            </Card>
 
             {/* Earned */}
             <SecondaryStat
@@ -355,7 +356,7 @@ function SecondaryStat({ className = '', icon: Icon, label, value, tint, delta, 
         rose: 'text-rose-600 dark:text-rose-400',
     };
     return (
-        <div className={`p-6 rounded-2xl shadow-sm border border-gray-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/40 ${className}`}>
+        <Card className={`p-6 ${className}`}>
             <div className="flex items-center gap-2 mb-2">
                 <Icon className={`w-4 h-4 ${colorMap[tint]}`} />
                 <p className="text-[11px] uppercase tracking-[0.14em] text-gray-500 dark:text-gray-400 font-semibold">{label}</p>
@@ -369,7 +370,7 @@ function SecondaryStat({ className = '', icon: Icon, label, value, tint, delta, 
                     </>
                 )}
             </div>
-        </div>
+        </Card>
     );
 }
 
@@ -392,7 +393,7 @@ function DeltaPill({ delta, inverted }) {
 
 function ChartCard({ title, subtitle, children, className = '', height = 280, action = null }) {
     return (
-        <div className={`p-6 rounded-2xl shadow-sm border border-gray-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/40 ${className}`}>
+        <Card className={`p-6 ${className}`}>
             <div className="flex items-start justify-between mb-3 gap-3">
                 <div>
                     <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{title}</h3>
@@ -401,7 +402,7 @@ function ChartCard({ title, subtitle, children, className = '', height = 280, ac
                 {action}
             </div>
             <div style={{ height: typeof height === 'number' ? `${height}px` : height }}>{children}</div>
-        </div>
+        </Card>
     );
 }
 
@@ -641,7 +642,7 @@ function Transactions({ entries, loading, periodLabel }) {
 
 function EntryList({ entries, onEdit, onDelete }) {
     return (
-        <div className="rounded-2xl border border-gray-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/40 shadow-sm overflow-hidden">
+        <Card className="overflow-hidden">
             <ul className="divide-y divide-gray-100 dark:divide-neutral-800">
                 {entries.map((e) => (
                     <li
@@ -695,7 +696,7 @@ function EntryList({ entries, onEdit, onDelete }) {
                     </li>
                 ))}
             </ul>
-        </div>
+        </Card>
     );
 }
 

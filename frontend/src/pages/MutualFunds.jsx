@@ -6,6 +6,7 @@ import Modal from '../components/Modal';
 import ReactECharts from 'echarts-for-react';
 import { StatSkeleton, ChartSkeleton, TableSkeleton } from '../components/Skeleton';
 import { Button } from '../components/ui/button';
+import { Checkbox } from '../components/ui/checkbox';
 import { Skeleton } from '../components/ui/skeleton';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/card';
 import MaskedBalance from '../components/MaskedBalance';
@@ -231,7 +232,7 @@ export default function MutualFunds() {
     };
 
     const toggleSnapSelect = (id, e) => {
-        e.stopPropagation();
+        e?.stopPropagation();
         setSelectedSnapIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
     };
 
@@ -375,10 +376,10 @@ export default function MutualFunds() {
                 <div className="flex items-center gap-3">
                     <input type="file" accept=".csv,.xlsx,.xls" className="hidden" ref={fileInputRef} onChange={handleFileUpload} />
                     <Button
-                        variant="secondary"
+                        variant="outline"
                         onClick={() => fileInputRef.current?.click()}
                         disabled={isUploading}
-                        className="shadow-sm"
+                        className=" shadow-sm"
                     >
                         {isUploading ? (
                             <Loader2 data-icon="inline-start" className="animate-spin" />
@@ -390,7 +391,7 @@ export default function MutualFunds() {
                     <Button
                         variant="outline"
                         onClick={() => setShowHtmlModal(true)}
-                        className="shadow-sm"
+                        className=""
                     >
                         <Plus data-icon="inline-start" /> Paste HTML
                     </Button>
@@ -406,51 +407,69 @@ export default function MutualFunds() {
 
             {/* Summary Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                <div className="bg-white dark:bg-neutral-900 rounded-xl border border-gray-100 dark:border-neutral-800 shadow-sm p-5 transition-colors">
-                    <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Portfolio Value</span>
-                    <div className="mt-1">
+                <Card className="transition-colors">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Portfolio Value</CardTitle>
+                    </CardHeader>
+                    <CardContent>
                         <MaskedBalance value={totalValue} className={`text-2xl font-bold ${theme.textPrimary}`} />
-                    </div>
-                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{funds.length} active funds</p>
-                </div>
-                <div className="bg-white dark:bg-neutral-900 rounded-xl border border-gray-100 dark:border-neutral-800 shadow-sm p-5 transition-colors">
-                    <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Gain/Loss (To Date)</span>
-                    <div className="mt-1">
+                        <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{funds.length} active funds</p>
+                    </CardContent>
+                </Card>
+                <Card className="transition-colors">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Gain/Loss (To Date)</CardTitle>
+                    </CardHeader>
+                    <CardContent>
                         <MaskedBalance
                             value={totalToDate}
                             className={`text-2xl font-bold ${totalToDate >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'}`}
                         />
-                    </div>
-                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{totalInvested > 0 ? `${pctChange(totalValue, totalInvested)}% return` : 'Since inception'}</p>
-                </div>
-                <div className="bg-white dark:bg-neutral-900 rounded-xl border border-gray-100 dark:border-neutral-800 shadow-sm p-5 transition-colors">
-                    <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Total Invested</span>
-                    <div className="mt-1">
+                        <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{totalInvested > 0 ? `${pctChange(totalValue, totalInvested)}% return` : 'Since inception'}</p>
+                    </CardContent>
+                </Card>
+                <Card className="transition-colors">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Total Invested</CardTitle>
+                    </CardHeader>
+                    <CardContent>
                         <MaskedBalance value={totalInvested} className="text-2xl font-bold text-gray-900 dark:text-gray-100" />
-                    </div>
-                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{snapshots.length} upload(s) recorded</p>
-                </div>
+                        <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{snapshots.length} upload(s) recorded</p>
+                    </CardContent>
+                </Card>
             </div>
 
             {/* Charts Row */}
             {funds.length > 0 && (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-                    <div className="bg-white dark:bg-neutral-900 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-neutral-800 transition-colors">
-                        <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">Fund Value vs Invested</h3>
-                        <ReactECharts option={barOption} style={{ height: 280 }} />
-                    </div>
-                    <div className="bg-white dark:bg-neutral-900 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-neutral-800 transition-colors">
-                        <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">Portfolio Allocation</h3>
-                        <ReactECharts option={pieOption} style={{ height: 280 }} />
-                    </div>
+                    <Card className="transition-colors">
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-sm font-semibold text-gray-800 dark:text-gray-200">Fund Value vs Invested</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <ReactECharts option={barOption} style={{ height: 280 }} />
+                        </CardContent>
+                    </Card>
+                    <Card className="transition-colors">
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-sm font-semibold text-gray-800 dark:text-gray-200">Portfolio Allocation</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <ReactECharts option={pieOption} style={{ height: 280 }} />
+                        </CardContent>
+                    </Card>
                 </div>
             )}
 
             {timelineOption && (
-                <div className="bg-white dark:bg-neutral-900 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-neutral-800 transition-colors mb-6">
-                    <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">Portfolio Timeline</h3>
-                    <ReactECharts option={timelineOption} style={{ height: 300 }} />
-                </div>
+                <Card className="mb-6 transition-colors">
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-semibold text-gray-800 dark:text-gray-200">Portfolio Timeline</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <ReactECharts option={timelineOption} style={{ height: 300 }} />
+                    </CardContent>
+                </Card>
             )}
 
             {showForm && (
@@ -594,11 +613,11 @@ export default function MutualFunds() {
                         const prevFunds = prevSnap && Array.isArray(prevSnap.funds_data) ? prevSnap.funds_data : [];
 
                         return (
-                            <div key={snap.id} className="bg-white dark:bg-neutral-900 rounded-xl shadow-sm border border-gray-100 dark:border-neutral-800 overflow-hidden transition-colors">
+                            <Card key={snap.id} className="overflow-hidden transition-colors">
                                 <div className="w-full px-5 py-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-neutral-800/50 transition-colors cursor-pointer" onClick={() => setExpandedSnap(isOpen ? null : snap.id)}>
                                     <div className="flex items-center gap-4">
                                         <div className="flex items-center gap-2">
-                                            <input type="checkbox" checked={isSelected} onChange={(e) => toggleSnapSelect(snap.id, e)} onClick={(e) => e.stopPropagation()} className="w-4 h-4 rounded border-gray-300 text-[#7c2889] focus:ring-[#7c2889] cursor-pointer" />
+                                            <Checkbox checked={isSelected} onCheckedChange={() => toggleSnapSelect(snap.id)} onClick={(e) => e.stopPropagation()} />
                                             {isOpen ? <ChevronDown className="w-4 h-4 text-gray-400 dark:text-gray-500" /> : <ChevronRight className="w-4 h-4 text-gray-400 dark:text-gray-500" />}
                                         </div>
                                         <div className="text-left">
@@ -687,7 +706,7 @@ export default function MutualFunds() {
                                         </div>
                                     </div>
                                 )}
-                            </div>
+                            </Card>
                         );
                     })}
                 </div>
