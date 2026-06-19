@@ -10,6 +10,7 @@ import {
 import api from '../services/api';
 import { fmtPKR } from '../utils/currency';
 import { fmtDateLong } from '../utils/dates';
+import MaskedBalance from '../components/MaskedBalance';
 import DatePickerInput from '../components/DatePickerInput';
 import Modal from '../components/Modal';
 import { useConfirm } from '../components/ui/confirm-dialog';
@@ -185,6 +186,7 @@ function StatsRow({ stats }) {
                 hint={`From ${stats.peopleOwingMe} ${stats.peopleOwingMe === 1 ? 'person' : 'people'}`}
                 icon={ArrowUpCircle}
                 tone="positive"
+                mask
             />
             <StatCard
                 label="Payable"
@@ -195,6 +197,7 @@ function StatsRow({ stats }) {
                 ].filter(Boolean).join(' + ') || 'Nothing owed'}
                 icon={ArrowDownCircle}
                 tone="danger"
+                mask
             />
             <StatCard
                 label="Net"
@@ -203,12 +206,13 @@ function StatsRow({ stats }) {
                 icon={Scale}
                 tone={stats.net >= 0 ? 'positive' : 'danger'}
                 emphasis
+                mask
             />
         </div>
     );
 }
 
-function StatCard({ label, value, hint, icon: Icon, tone, emphasis }) {
+function StatCard({ label, value, hint, icon: Icon, tone, emphasis, mask }) {
     const toneClass = {
         positive: 'text-success-700 dark:text-success-400',
         danger: 'text-error-600 dark:text-error-400',
@@ -229,7 +233,16 @@ function StatCard({ label, value, hint, icon: Icon, tone, emphasis }) {
                     <Icon className="w-4 h-4" />
                 </span>
             </div>
-            <p className={`text-2xl font-semibold tabular-nums ${toneClass}`}>{value}</p>
+            {mask ? (
+                <MaskedBalance
+                    value={value}
+                    isCurrency={false}
+                    className={`text-2xl font-semibold tabular-nums ${toneClass} inline-block`}
+                    iconClassName="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 ml-1"
+                />
+            ) : (
+                <p className={`text-2xl font-semibold tabular-nums ${toneClass}`}>{value}</p>
+            )}
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{hint}</p>
         </Card>
     );
@@ -842,7 +855,11 @@ function DebtCard({ debt, onDelete }) {
             </div>
 
             <div className="mt-4 flex items-baseline justify-between gap-3">
-                <p className="text-2xl font-bold text-error-600 dark:text-error-400 tabular-nums">{fmtPKR(outstanding)}</p>
+                <MaskedBalance
+                    value={outstanding}
+                    className="text-2xl font-bold text-error-600 dark:text-error-400 tabular-nums inline-block"
+                    iconClassName="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 ml-1"
+                />
                 <p className="text-xs text-gray-500 dark:text-gray-400">of {fmtPKR(principal)}</p>
             </div>
 

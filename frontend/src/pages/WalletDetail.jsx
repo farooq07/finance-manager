@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useWallets } from '../hooks/useWallets';
 import { fmtPKR } from '../utils/currency';
+import MaskedBalance from '../components/MaskedBalance';
 import { ArrowLeft, UploadCloud, Loader2, Trash2, RefreshCw } from 'lucide-react';
 import api from '../services/api';
 import { toast } from 'sonner';
@@ -235,7 +236,12 @@ export default function WalletDetail() {
                     </div>
                     <div className="text-right">
                         <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Current Balance</p>
-                        <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mt-1">{fmtPKR(wallet.balance)}</h2>
+                        <MaskedBalance
+                            value={wallet.balance}
+                            className="text-3xl font-bold text-gray-900 dark:text-gray-100 mt-1 inline-block"
+                            iconClassName="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 ml-1"
+                        />
+
                     </div>
                 </div>
 

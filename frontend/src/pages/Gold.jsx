@@ -12,6 +12,7 @@ import {
     useAddGoldItem, useUpdateGoldItem, useDeleteGoldItem, useSyncGoldPrice,
 } from '../hooks/useGold';
 import { fmtPKR } from '../utils/currency';
+import MaskedBalance from '../components/MaskedBalance';
 import { fmtDateLong } from '../utils/dates';
 import { useConfirm } from '../components/ui/confirm-dialog';
 
@@ -337,10 +338,11 @@ function ItemsSection({ data, loading, onAdd, onEdit, onDelete }) {
         <div className="space-y-4">
             {/* Stats row */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <StatCard label="Today's Value" value={fmtPKR(todayTotal)} highlight />
+                <StatCard label="Today's Value" value={fmtPKR(todayTotal)} highlight mask />
                 <StatCard
                     label="Purchase Value"
                     value={purchaseTotal != null ? fmtPKR(purchaseTotal) : '—'}
+                    mask
                 />
                 <StatCard
                     label="Gain / Loss"
@@ -348,6 +350,7 @@ function ItemsSection({ data, loading, onAdd, onEdit, onDelete }) {
                     sub={gainLossPct != null ? `${gainLoss >= 0 ? '+' : '−'}${Math.abs(gainLossPct).toFixed(1)}%` : null}
                     subColor={gainLoss != null ? (gainLoss >= 0 ? '#22c55e' : '#ef4444') : undefined}
                     valueColor={gainLoss != null ? (gainLoss >= 0 ? '#22c55e' : '#ef4444') : undefined}
+                    mask
                 />
                 <StatCard
                     label="Total Weight"
@@ -365,16 +368,29 @@ function ItemsSection({ data, loading, onAdd, onEdit, onDelete }) {
     );
 }
 
-function StatCard({ label, value, sub, highlight, subColor, valueColor }) {
+function StatCard({ label, value, sub, highlight, subColor, valueColor, mask }) {
+    const valueStyle = { color: valueColor || (highlight ? GOLD_AMBER : undefined) };
     return (
         <Card className="p-4">
             <p className="text-[11px] uppercase tracking-wider text-gray-500 dark:text-gray-400">{label}</p>
-            <p
-                className="mt-1.5 text-xl font-semibold tabular-nums truncate"
-                style={{ color: valueColor || (highlight ? GOLD_AMBER : undefined) }}
-            >
-                {value}
-            </p>
+            {mask ? (
+                // Colour lives on the wrapper so the masked value span inherits it.
+                <div className="mt-1.5" style={valueStyle}>
+                    <MaskedBalance
+                        value={value}
+                        isCurrency={false}
+                        className="text-xl font-semibold tabular-nums truncate inline-block"
+                        iconClassName="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 ml-1"
+                    />
+                </div>
+            ) : (
+                <p
+                    className="mt-1.5 text-xl font-semibold tabular-nums truncate"
+                    style={valueStyle}
+                >
+                    {value}
+                </p>
+            )}
             {sub && (
                 <p className="mt-0.5 text-xs font-medium tabular-nums" style={{ color: subColor || '#9ca3af' }}>
                     {sub}

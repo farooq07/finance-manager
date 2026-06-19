@@ -19,6 +19,11 @@ const TOOL_LABELS = {
   getStockPortfolio:       '📉 Stock portfolio',
   getDuesList:             '📋 Dues list',
   getWalletSummary:        '👛 Wallet summary',
+  getFinancialOverview:    '🧭 Net-worth overview',
+  getZakatSummary:         '🕌 Zakat summary',
+  getGoldSummary:          '🪙 Gold holdings',
+  getDividendSummary:      '💵 Dividends',
+  getDebtSummary:          '🧾 Debt',
 };
 
 const TOOL_FOLLOWUPS = {
@@ -34,6 +39,11 @@ const TOOL_FOLLOWUPS = {
   getStockPortfolio:       ['Show mutual fund performance', 'What are my total assets?', 'Income vs expenses'],
   getDuesList:             ['Show recent transactions', 'What are my account balances?', 'Beneficiary transfer stats'],
   getWalletSummary:        ['Show income vs expenses', 'What did I spend last month?', 'Show top spending merchants'],
+  getFinancialOverview:    ['How much zakat do I owe?', 'Show my stock portfolio', 'What did I spend this month?'],
+  getZakatSummary:         ['What is my total net worth?', 'What is my gold worth?', 'Show my account balances'],
+  getGoldSummary:          ['How much zakat do I owe?', 'What is my total net worth?', 'Show my assets'],
+  getDividendSummary:      ['Show my stock portfolio', 'What is my total net worth?', 'How are my mutual funds performing?'],
+  getDebtSummary:          ['What is my total net worth?', 'Show my dues and receivables', 'Show my account balances'],
 };
 
 // Columns that contain PKR monetary values
@@ -43,6 +53,20 @@ const PKR_KEYS = new Set([
   'running_total', 'total_sent', 'total_received', 'total_pkr', 'current_value',
   'total_invested', 'total_current', 'total_pnl', 'total_gain', 'pnl', 'cost',
   'avg_cost', 'current_price',
+  // Overview / net worth
+  'net_worth', 'total_bank', 'total_wallet', 'total_investments', 'mutual_fund_value',
+  'stock_value', 'gold_value', 'asset_value', 'rent_balance', 'debt', 'current_month_expenses',
+  // Stocks — today's change
+  'today_change_value',
+  // Zakat
+  'zakat_given_this_year', 'zakat_due_estimate', 'given_this_year', 'given_all_time',
+  'estimated_due', 'zakatable_net_worth', 'gold_zakat_due',
+  // Gold
+  'total_value', 'price_per_gram_24k',
+  // Dividends
+  'gross', 'total_gross', 'total_net', 'net_dividend',
+  // Debt
+  'total_outstanding', 'outstanding', 'principal', 'minimum_payment',
 ]);
 
 // ------- Markdown renderer -------
@@ -250,6 +274,10 @@ export default function AssistantBubble({ content, toolName, toolData, showAvata
     if (toolData?.stocks?.length >= 1)     return toolData.stocks;
     if (toolData?.assets?.length >= 1)     return toolData.assets;
     if (toolData?.accounts?.length >= 1)   return toolData.accounts;
+    if (toolData?.securities?.length >= 1) return toolData.securities;
+    if (toolData?.debts?.length >= 1)      return toolData.debts;
+    if (toolData?.items?.length >= 1)      return toolData.items;
+    if (toolData?.entries?.length >= 1)    return toolData.entries;
     return null;
   })();
 

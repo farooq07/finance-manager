@@ -4,7 +4,8 @@ import ReactECharts from 'echarts-for-react';
 import { toast } from 'sonner';
 import {
     Plus, Pencil, Trash2, ChevronLeft, ChevronRight, Receipt, X, ArrowRight,
-    TrendingDown, TrendingUp, Calendar, Sparkles,
+    TrendingDown, TrendingUp, Calendar, Sparkles, ArrowUpRight, ArrowDownRight,
+    AlertTriangle, Landmark, Wallet, NotebookPen,
 } from 'lucide-react';
 import api from '../services/api';
 import { useBanks } from '../hooks/useBanks';
@@ -257,16 +258,119 @@ function Story({ insights, period }) {
     return (
         <div className="space-y-8">
             <StatsRow data={insights.data} period={period} />
+            <InsightsStrip callouts={insights.data.callouts} period={period} />
             <SectionDivider label="The story" />
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                <DailyTrend data={insights.data.dailyTrend} className="lg:col-span-7" />
+                <DailyTrend data={insights.data.dailyTrend} mtd={insights.data.mtd} asOf={insights.data.asOf} className="lg:col-span-7" />
                 <CategoryBreakdown data={insights.data.categoryBreakdown} className="lg:col-span-5" />
             </div>
+            <SourceBreakdown data={insights.data.sourceBreakdown} />
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                 <TopDestinations data={insights.data.topMerchants} className="lg:col-span-5" />
                 <WeekdayRhythm data={insights.data.weekdayPattern} className="lg:col-span-7" />
             </div>
         </div>
+    );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Insights strip — auto-generated callouts from the backend
+// ─────────────────────────────────────────────────────────────────────────────
+
+function calloutContent(c, period) {
+    switch (c.kind) {
+        case 'net_negative':
+            return { tone: 'warn', icon: AlertTriangle, text: `Net negative this ${period} — you spent ${fmtPKR(Math.abs(c.value))} more than you earned.` };
+        case 'category_spike':
+            return { tone: 'warn', icon: TrendingUp, text: `${c.category} is ${c.multiplier.toFixed(1)}× vs last ${period} (${fmtPKR(c.value)}).` };
+        case 'new_category':
+            return { tone: 'info', icon: Sparkles, text: `New this ${period}: ${c.category} — ${fmtPKR(c.value)}.` };
+        case 'top_category':
+            return { tone: 'info', icon: Sparkles, text: `${c.category} is your biggest category at ${c.share.toFixed(0)}% of spend.` };
+        default:
+            return null;
+    }
+}
+
+function InsightsStrip({ callouts, period }) {
+    if (!callouts || callouts.length === 0) return null;
+    const items = callouts.map((c) => calloutContent(c, PERIOD_NOUN[period] || period)).filter(Boolean);
+    if (items.length === 0) return null;
+
+    const toneCls = {
+        warn: 'border-amber-200 dark:border-amber-900/50 bg-amber-50/70 dark:bg-amber-950/20 text-amber-800 dark:text-amber-300',
+        info: 'border-gray-200 dark:border-neutral-800 bg-gray-50/70 dark:bg-neutral-900/40 text-gray-700 dark:text-gray-300',
+    };
+    const iconCls = { warn: 'text-amber-500 dark:text-amber-400', info: 'text-emerald-500 dark:text-emerald-400' };
+
+    return (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {items.map((it, i) => (
+                <div key={i} className={`flex items-start gap-2.5 rounded-xl border px-3.5 py-2.5 ${toneCls[it.tone]}`}>
+                    <it.icon className={`w-4 h-4 mt-0.5 shrink-0 ${iconCls[it.tone]}`} />
+                    <p className="text-[13px] leading-snug">{it.text}</p>
+                </div>
+            ))}
+        </div>
+    );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Source breakdown — delivers on the "bank + wallet + manual" subtitle promise
+// ─────────────────────────────────────────────────────────────────────────────
+
+const SOURCE_META = {
+    bank:   { icon: Landmark,    color: '#0a5c3b', tint: 'text-emerald-700 dark:text-emerald-400' },
+    wallet: { icon: Wallet,      color: '#52A397', tint: 'text-teal-700 dark:text-teal-400' },
+    manual: { icon: NotebookPen, color: '#c75a2f', tint: 'text-orange-700 dark:text-orange-400' },
+};
+
+function SourceBreakdown({ data }) {
+    if (!data || data.length === 0) return null;
+    const total = data.reduce((s, d) => s + Number(d.total || 0), 0);
+    if (total <= 0) return null;
+
+    return (
+        <Card className="p-5">
+            <div className="flex items-center justify-between mb-3 gap-3">
+                <div>
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Where this data came from</h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Spend split across your connected sources</p>
+                </div>
+                <MaskedBalance value={total} className="text-sm font-semibold text-gray-900 dark:text-gray-100 tabular-nums" />
+            </div>
+
+            {/* Single stacked bar */}
+            <div className="flex h-2.5 rounded-full overflow-hidden bg-gray-100 dark:bg-neutral-800">
+                {data.map((d) => (
+                    <div
+                        key={d.source}
+                        className="h-full first:rounded-l-full last:rounded-r-full"
+                        style={{ width: `${(d.total / total) * 100}%`, backgroundColor: (SOURCE_META[d.source] || {}).color }}
+                        title={`${d.label}: ${fmtPKR(d.total)}`}
+                    />
+                ))}
+            </div>
+
+            <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {data.map((d) => {
+                    const meta = SOURCE_META[d.source] || {};
+                    const Icon = meta.icon || Receipt;
+                    const pct = (d.total / total) * 100;
+                    return (
+                        <div key={d.source} className="flex items-center gap-2.5 rounded-lg border border-gray-100 dark:border-neutral-800 px-3 py-2">
+                            <Icon className={`w-4 h-4 shrink-0 ${meta.tint || 'text-gray-400'}`} />
+                            <div className="min-w-0">
+                                <p className="text-[12px] font-medium text-gray-800 dark:text-gray-200 truncate">{d.label}</p>
+                                <p className="text-[11px] text-gray-500 dark:text-gray-400 tabular-nums">
+                                    {fmtPKR(d.total)} · {pct.toFixed(0)}%
+                                </p>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        </Card>
     );
 }
 
@@ -300,9 +404,13 @@ function SectionDivider({ label }) {
 const PERIOD_NOUN = { month: 'month', quarter: 'quarter', year: 'year' };
 
 function StatsRow({ data, period }) {
-    const { totals } = data;
-    const spendDelta = totals.spendDelta;
-    const incomeDelta = totals.incomeDelta;
+    const { totals, mtd, asOf } = data;
+    const noun = PERIOD_NOUN[period] || period;
+    // When viewing the in-progress period the figures are month-to-date and the
+    // delta is aligned to the same point last period — say so, honestly.
+    const scopeLabel = mtd ? `${noun}-to-date` : `this ${noun}`;
+    const vsLabel = mtd ? `vs same point last ${noun}` : `vs last ${noun}`;
+    const asOfLabel = mtd && asOf ? `as of ${fmtDate(asOf)}` : null;
 
     return (
         <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
@@ -313,44 +421,53 @@ function StatsRow({ data, period }) {
                     <div className="flex items-center gap-2 mb-2">
                         <TrendingDown className="w-4 h-4 text-rose-500 dark:text-rose-400" />
                         <p className="text-[11px] uppercase tracking-[0.14em] text-gray-500 dark:text-gray-400 font-semibold">Spent</p>
+                        {mtd && (
+                            <span className="text-[9px] font-bold uppercase tracking-[0.1em] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-neutral-800 text-gray-500 dark:text-gray-400">
+                                MTD
+                            </span>
+                        )}
                     </div>
                     <MaskedBalance
                         value={totals.currentSpend}
                         className="text-4xl md:text-5xl font-bold text-rose-600 dark:text-rose-400 tracking-tight tabular-nums"
                     />
-                    <div className="mt-3 flex items-center gap-1.5 text-[10px] uppercase tracking-[0.1em] text-gray-500 dark:text-gray-400">
-                        <span>this {PERIOD_NOUN[period]}</span>
-                        <DeltaPill delta={spendDelta} inverted />
-                        <span>vs last {PERIOD_NOUN[period]}</span>
+                    <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[10px] uppercase tracking-[0.1em] text-gray-500 dark:text-gray-400">
+                        <span>{scopeLabel}</span>
+                        <DeltaPill delta={totals.spendDelta} inverted />
+                        <span>{vsLabel}</span>
+                        {asOfLabel && <span className="normal-case tracking-normal text-gray-400 dark:text-neutral-500">· {asOfLabel}</span>}
                     </div>
                 </div>
             </Card>
 
-            {/* Earned */}
+            {/* Earned — higher is better, so not inverted */}
             <SecondaryStat
                 className="md:col-span-3"
                 icon={TrendingUp}
                 label="Earned"
                 value={totals.currentIncome}
                 tint="emerald"
-                delta={incomeDelta}
-                period={period}
+                delta={totals.incomeDelta}
+                inverted={false}
+                scopeLabel={scopeLabel}
             />
 
-            {/* Net */}
+            {/* Net — higher net is better; delta swings positive when net improves */}
             <SecondaryStat
                 className="md:col-span-3"
                 icon={Calendar}
                 label="Net"
                 value={totals.net}
                 tint={totals.net >= 0 ? 'emerald' : 'rose'}
-                period={period}
+                delta={totals.netDelta}
+                inverted={false}
+                scopeLabel={scopeLabel}
             />
         </div>
     );
 }
 
-function SecondaryStat({ className = '', icon: Icon, label, value, tint, delta, period }) {
+function SecondaryStat({ className = '', icon: Icon, label, value, tint, delta, inverted, scopeLabel }) {
     const colorMap = {
         emerald: 'text-emerald-600 dark:text-emerald-400',
         rose: 'text-rose-600 dark:text-rose-400',
@@ -363,28 +480,28 @@ function SecondaryStat({ className = '', icon: Icon, label, value, tint, delta, 
             </div>
             <MaskedBalance value={value} className={`text-2xl font-semibold tabular-nums ${colorMap[tint]}`} />
             <div className="mt-2 flex items-center gap-1.5 text-[10px] uppercase tracking-[0.1em] text-gray-500 dark:text-gray-400">
-                <span>this {PERIOD_NOUN[period]}</span>
-                {delta !== null && delta !== undefined && (
-                    <>
-                        <DeltaPill delta={delta} inverted={false} />
-                    </>
-                )}
+                <span>{scopeLabel}</span>
+                {delta !== null && delta !== undefined && <DeltaPill delta={delta} inverted={inverted} />}
             </div>
         </Card>
     );
 }
 
+// The arrow shows which way the number moved; the colour shows whether that move
+// is good or bad FOR THIS METRIC. Spending down (↓) is good/green; earning down
+// (↓) is bad/red — so the two never render the same way for the same sign.
 function DeltaPill({ delta, inverted }) {
     if (delta === null || delta === undefined) return null;
-    const positive = delta >= 0;
-    const isGood = inverted ? !positive : positive;
-    const sign = positive ? '+' : '';
+    const up = delta >= 0;
+    const isGood = inverted ? !up : up;
+    const Arrow = up ? ArrowUpRight : ArrowDownRight;
     const tint = isGood
         ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40'
         : 'text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40';
     return (
-        <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[10px] font-semibold tabular-nums ${tint}`}>
-            {sign}{delta.toFixed(1)}%
+        <span className={`inline-flex items-center gap-0.5 pl-1 pr-1.5 py-0.5 rounded-md text-[10px] font-semibold tabular-nums ${tint}`}>
+            <Arrow className="w-3 h-3" />
+            {up ? '+' : '−'}{Math.abs(delta).toFixed(1)}%
         </span>
     );
 }
@@ -408,14 +525,17 @@ function ChartCard({ title, subtitle, children, className = '', height = 280, ac
 
 const CATEGORY_COLORS = ['#0a5c3b', '#52A397', '#71B7AC', '#9BCDC5', '#c75a2f', '#fbbf24', '#f87171', '#a78bfa', '#34d399', '#60a5fa', '#fb7185', '#94a3b8'];
 
-function DailyTrend({ data, className }) {
-    if (!data || data.length === 0) {
+function DailyTrend({ data, mtd, asOf, className }) {
+    if (!data || data.length === 0 || data.every((d) => d.total === 0)) {
         return <ChartCard title="Day by day" subtitle="No spending in this period" className={className}><Empty /></ChartCard>;
     }
+    const daysWithSpend = data.filter((d) => d.total > 0).length;
+    // Bars (not a line): every calendar day is present including zeros, so days
+    // without spending read as gaps instead of being smoothed into a fake slope.
     const option = {
         backgroundColor: 'transparent',
         tooltip: {
-            trigger: 'axis',
+            trigger: 'axis', axisPointer: { type: 'shadow' },
             backgroundColor: '#1f2937', borderColor: '#374151',
             textStyle: { color: '#f9fafb', fontSize: 12 },
             valueFormatter: (v) => fmtPKR(v),
@@ -424,7 +544,8 @@ function DailyTrend({ data, className }) {
         xAxis: {
             type: 'category',
             data: data.map((d) => d.day.slice(5)),
-            axisLabel: { color: '#9ca3af', fontSize: 10, interval: Math.max(0, Math.floor(data.length / 8) - 1) },
+            axisTick: { alignWithLabel: true },
+            axisLabel: { color: '#9ca3af', fontSize: 10, interval: Math.max(0, Math.floor(data.length / 10) - 1) },
             axisLine: { lineStyle: { color: '#374151' } },
         },
         yAxis: {
@@ -433,23 +554,15 @@ function DailyTrend({ data, className }) {
             splitLine: { lineStyle: { color: '#374151', type: 'dashed' } },
         },
         series: [{
-            type: 'line',
+            type: 'bar',
             data: data.map((d) => d.total),
-            smooth: true, symbol: 'circle', symbolSize: 4,
-            itemStyle: { color: '#0a5c3b' },
-            lineStyle: { width: 2 },
-            areaStyle: {
-                color: {
-                    type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [
-                        { offset: 0, color: 'rgba(10,92,59,0.35)' },
-                        { offset: 1, color: 'transparent' },
-                    ]
-                },
-            },
+            barWidth: data.length > 40 ? '70%' : '55%',
+            itemStyle: { color: '#0a5c3b', borderRadius: [3, 3, 0, 0] },
         }],
     };
+    const subtitle = `${daysWithSpend} day${daysWithSpend === 1 ? '' : 's'} with spending${mtd && asOf ? ` · through ${fmtDate(asOf)}` : ''}`;
     return (
-        <ChartCard title="Day by day" subtitle="Daily spend across the period" className={className}>
+        <ChartCard title="Day by day" subtitle={subtitle} className={className}>
             <ReactECharts option={option} style={{ height: '100%' }} opts={{ renderer: 'canvas' }} />
         </ChartCard>
     );
@@ -459,6 +572,10 @@ function CategoryBreakdown({ data, className }) {
     if (!data || data.length === 0) {
         return <ChartCard title="By category" subtitle="No spending in this period" className={className}><Empty /></ChartCard>;
     }
+    const total = data.reduce((s, d) => s + Number(d.total || 0), 0);
+    const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
+    const pctOf = (v) => (total > 0 ? ((v / total) * 100).toFixed(0) : '0');
+
     const option = {
         backgroundColor: 'transparent',
         tooltip: {
@@ -467,21 +584,39 @@ function CategoryBreakdown({ data, className }) {
             backgroundColor: '#1f2937', borderColor: '#374151',
             textStyle: { color: '#f9fafb', fontSize: 12 },
         },
-        legend: { type: 'scroll', bottom: 0, textStyle: { color: '#9ca3af', fontSize: 11 }, icon: 'circle', itemWidth: 8, itemHeight: 8 },
+        // Total in the centre so the donut reads as a quantity, not just colours.
+        title: {
+            text: fmtPKR(total),
+            subtext: 'Total spend',
+            left: 'center',
+            top: '33%',
+            textAlign: 'center',
+            textStyle: { fontSize: 15, fontWeight: 'bold', color: isDark ? '#e5e7eb' : '#111827' },
+            subtextStyle: { fontSize: 10, color: '#9ca3af' },
+            itemGap: 2,
+        },
+        // Percent inline in the legend so categories are distinguishable without hovering.
+        legend: {
+            type: 'scroll', bottom: 0, textStyle: { color: '#9ca3af', fontSize: 11 }, icon: 'circle', itemWidth: 8, itemHeight: 8,
+            formatter: (name) => {
+                const item = data.find((d) => d.category === name);
+                return item ? `${name} · ${pctOf(item.total)}%` : name;
+            },
+        },
         color: CATEGORY_COLORS,
         series: [{
             type: 'pie',
-            radius: ['45%', '70%'],
+            radius: ['48%', '72%'],
             center: ['50%', '42%'],
             avoidLabelOverlap: true,
             data: data.map((d) => ({ name: d.category, value: d.total })),
             label: { show: false },
-            emphasis: { label: { show: true, fontSize: 12, fontWeight: 'bold' }, itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0,0,0,0.3)' } },
+            emphasis: { label: { show: false }, itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0,0,0,0.3)' } },
         }],
     };
     return (
         <ChartCard title="By category" subtitle="Where most of it went" className={className}>
-            <ReactECharts option={option} style={{ height: '100%' }} opts={{ renderer: 'canvas' }} />
+            <ReactECharts option={option} style={{ height: '100%' }} opts={{ renderer: 'canvas' }} notMerge />
         </ChartCard>
     );
 }

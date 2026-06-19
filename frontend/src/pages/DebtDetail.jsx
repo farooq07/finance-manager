@@ -7,6 +7,7 @@ import { ArrowLeft, Plus, X, AlertTriangle } from 'lucide-react';
 import api from '../services/api';
 import { fmtPKR } from '../utils/currency';
 import { fmtDateLong } from '../utils/dates';
+import MaskedBalance from '../components/MaskedBalance';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
 
 export default function DebtDetail() {
@@ -76,9 +77,9 @@ export default function DebtDetail() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Stat label="Outstanding"   value={fmtPKR(outstanding)} tone="danger" />
-                <Stat label="Repaid"         value={fmtPKR(paid)} sub={`${paidPct.toFixed(1)}% of principal`} tone="positive" />
-                <Stat label="Original principal" value={fmtPKR(principal)} tone="neutral" />
+                <Stat label="Outstanding"   value={fmtPKR(outstanding)} tone="danger" mask />
+                <Stat label="Repaid"         value={fmtPKR(paid)} sub={`${paidPct.toFixed(1)}% of principal`} tone="positive" mask />
+                <Stat label="Original principal" value={fmtPKR(principal)} tone="neutral" mask />
             </div>
 
             <ProjectionPanel projection={projection} debt={debt} />
@@ -98,7 +99,7 @@ export default function DebtDetail() {
     );
 }
 
-function Stat({ label, value, sub, tone }) {
+function Stat({ label, value, sub, tone, mask }) {
     const toneText = {
         neutral:  'text-gray-900 dark:text-gray-100',
         positive: 'text-emerald-600 dark:text-emerald-400',
@@ -107,7 +108,16 @@ function Stat({ label, value, sub, tone }) {
     return (
         <Card className="p-5">
             <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">{label}</p>
-            <p className={`mt-2 text-2xl font-semibold tabular-nums ${toneText}`}>{value}</p>
+            {mask ? (
+                <MaskedBalance
+                    value={value}
+                    isCurrency={false}
+                    className={`mt-2 text-2xl font-semibold tabular-nums ${toneText} inline-block`}
+                    iconClassName="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 ml-1"
+                />
+            ) : (
+                <p className={`mt-2 text-2xl font-semibold tabular-nums ${toneText}`}>{value}</p>
+            )}
             {sub && <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{sub}</p>}
         </Card>
     );

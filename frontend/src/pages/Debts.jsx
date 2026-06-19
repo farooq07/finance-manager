@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { Plus, CreditCard, Car, Home, Wallet, Banknote, X, ArrowRight, Trash2 } from 'lucide-react';
 import api from '../services/api';
 import { fmtPKR } from '../utils/currency';
+import MaskedBalance from '../components/MaskedBalance';
 import { useConfirm } from '../components/ui/confirm-dialog';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
 
@@ -97,9 +98,9 @@ export default function Debts() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <SummaryCard label="Total outstanding" value={fmtPKR(totals.outstanding)} sub={`${totals.activeCount} active debt${totals.activeCount === 1 ? '' : 's'}`} tone="danger" />
-                <SummaryCard label="Repaid so far"     value={fmtPKR(totals.repaid)}      sub={`${totals.repaidPct.toFixed(0)}% of original`} tone="positive" />
-                <SummaryCard label="Minimum monthly"   value={fmtPKR(totals.minMonthly)}  sub="Sum of minimum payments" tone="neutral" />
+                <SummaryCard label="Total outstanding" value={fmtPKR(totals.outstanding)} sub={`${totals.activeCount} active debt${totals.activeCount === 1 ? '' : 's'}`} tone="danger" mask />
+                <SummaryCard label="Repaid so far"     value={fmtPKR(totals.repaid)}      sub={`${totals.repaidPct.toFixed(0)}% of original`} tone="positive" mask />
+                <SummaryCard label="Minimum monthly"   value={fmtPKR(totals.minMonthly)}  sub="Sum of minimum payments" tone="neutral" mask />
             </div>
 
             {isLoading ? (
@@ -128,7 +129,7 @@ export default function Debts() {
     );
 }
 
-function SummaryCard({ label, value, sub, tone }) {
+function SummaryCard({ label, value, sub, tone, mask }) {
     const toneText = {
         neutral:  'text-gray-900 dark:text-gray-100',
         positive: 'text-emerald-600 dark:text-emerald-400',
@@ -137,7 +138,16 @@ function SummaryCard({ label, value, sub, tone }) {
     return (
         <Card className="p-5">
             <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">{label}</p>
-            <p className={`mt-2 text-2xl font-semibold tabular-nums ${toneText}`}>{value}</p>
+            {mask ? (
+                <MaskedBalance
+                    value={value}
+                    isCurrency={false}
+                    className={`mt-2 text-2xl font-semibold tabular-nums ${toneText} inline-block`}
+                    iconClassName="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 ml-1"
+                />
+            ) : (
+                <p className={`mt-2 text-2xl font-semibold tabular-nums ${toneText}`}>{value}</p>
+            )}
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{sub}</p>
         </Card>
     );
@@ -168,7 +178,11 @@ function DebtCard({ debt, onDelete }) {
             </div>
 
             <div className="mt-4 flex items-baseline justify-between gap-3">
-                <p className="text-2xl font-bold text-rose-600 dark:text-rose-400 tabular-nums">{fmtPKR(outstanding)}</p>
+                <MaskedBalance
+                    value={outstanding}
+                    className="text-2xl font-bold text-rose-600 dark:text-rose-400 tabular-nums inline-block"
+                    iconClassName="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 ml-1"
+                />
                 <p className="text-xs text-gray-500 dark:text-gray-400">of {fmtPKR(principal)}</p>
             </div>
 

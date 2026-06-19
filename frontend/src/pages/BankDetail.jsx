@@ -9,6 +9,7 @@ import {
     BarChart3, ChevronRight, MapPin,
 } from 'lucide-react';
 import { Skeleton, TableSkeleton } from '../components/Skeleton';
+import MaskedBalance from '../components/MaskedBalance';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../services/api';
 import { toast } from 'sonner';
@@ -498,9 +499,11 @@ function HeroCard({ bank, change, changePct }) {
                             <p className="text-[10px] tracking-[0.18em] uppercase text-gray-500 dark:text-gray-400 font-semibold mb-1">
                                 Current balance
                             </p>
-                            <p className="text-[34px] font-semibold text-gray-900 dark:text-gray-100 tracking-tight tabular-nums leading-none">
-                                {fmtPKR(bank.current_balance)}
-                            </p>
+                            <MaskedBalance
+                                value={bank.current_balance}
+                                className="text-[34px] font-semibold text-gray-900 dark:text-gray-100 tracking-tight tabular-nums leading-none inline-block"
+                                iconClassName="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 ml-1"
+                            />
                             {change !== 0 && (
                                 <div className="mt-3 flex items-center gap-2 text-[12px]">
                                     <span className={`inline-flex items-center gap-1 font-semibold tabular-nums ${positive ? 'text-success-700 dark:text-success-400' : 'text-error-600 dark:text-error-400'}`}>

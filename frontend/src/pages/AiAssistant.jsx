@@ -258,10 +258,10 @@ function DocumentsPanel() {
 
 function EmptyState({ onCreate, creating }) {
   const capabilities = [
-    { emoji: '💸', title: 'Spending analysis',   desc: 'Where is my money going?',                question: 'What did I spend on last month?' },
-    { emoji: '📈', title: 'Investment snapshot',  desc: 'How are my mutual funds performing?',      question: 'How are my mutual funds performing?' },
+    { emoji: '🧭', title: 'Total net worth',      desc: 'Show me everything I own',                 question: 'What is my total net worth right now?' },
     { emoji: '🏦', title: 'Account balances',     desc: "What's my total balance?",                 question: 'What is my total balance across all accounts?' },
-    { emoji: '🤝', title: 'Beneficiary stats',    desc: 'How much have I sent to someone?',         question: 'Show me how much I have sent to each beneficiary' },
+    { emoji: '📈', title: 'Investment snapshot',  desc: 'Stocks & mutual funds today',              question: 'What is my stock portfolio value and today\'s change?' },
+    { emoji: '🕌', title: 'Zakat',                desc: 'Given and still to pay',                   question: 'How much zakat have I given this year and how much do I owe?' },
   ];
 
   return (

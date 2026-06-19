@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import Button from '../components/Button';
 import { TableSkeleton } from '../components/Skeleton';
 import Modal from '../components/Modal';
+import MaskedBalance from '../components/MaskedBalance';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -149,7 +150,12 @@ export default function RentTracker() {
                             <Banknote className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
                         </div>
                     </div>
-                    <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">PKR {formatPKR(data.totalReceived)}</div>
+                    <MaskedBalance
+                        value={`PKR ${formatPKR(data.totalReceived)}`}
+                        isCurrency={false}
+                        className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 inline-block"
+                        iconClassName="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 ml-1"
+                    />
                     <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{data.entries.length} total payments</p>
                 </Card>
 
@@ -160,7 +166,12 @@ export default function RentTracker() {
                             <Calendar className="w-4 h-4 text-blue-500 dark:text-blue-400" />
                         </div>
                     </div>
-                    <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">PKR {formatPKR(yearTotal)}</div>
+                    <MaskedBalance
+                        value={`PKR ${formatPKR(yearTotal)}`}
+                        isCurrency={false}
+                        className="text-2xl font-bold text-blue-600 dark:text-blue-400 inline-block"
+                        iconClassName="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 ml-1"
+                    />
                     <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{yearEntries.length} payments this year</p>
                 </Card>
 

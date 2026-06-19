@@ -8,6 +8,7 @@ import {
     useRescanBeneficiary,
 } from '../hooks/useBeneficiaries';
 import { fmtPKR } from '../utils/currency';
+import MaskedBalance from '../components/MaskedBalance';
 import { TableSkeleton } from '../components/Skeleton';
 import Modal from '../components/Modal';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
@@ -141,11 +142,19 @@ export default function BeneficiaryDetail() {
                 </Card>
                 <Card className="p-4">
                     <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Received from them</p>
-                    <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{fmtPKR(totalIn)}</p>
+                    <MaskedBalance
+                        value={totalIn}
+                        className="text-lg font-bold text-emerald-600 dark:text-emerald-400 inline-block"
+                        iconClassName="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 ml-1"
+                    />
                 </Card>
                 <Card className="p-4">
                     <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Sent to them</p>
-                    <p className="text-lg font-bold text-red-500">{fmtPKR(totalOut)}</p>
+                    <MaskedBalance
+                        value={totalOut}
+                        className="text-lg font-bold text-red-500 inline-block"
+                        iconClassName="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 ml-1"
+                    />
                 </Card>
             </div>
 
