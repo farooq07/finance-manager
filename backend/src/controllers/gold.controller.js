@@ -2,35 +2,19 @@ import bcrypt from 'bcrypt';
 import prisma from '../utils/prisma.js';
 import logger from '../utils/logger.js';
 import { syncGoldPrice } from '../services/goldScraper.service.js';
+import {
+    NISAB_GRAMS,
+    ZAKAT_RATE,
+    GRAMS_PER_TOLA,
+    valueForItem,
+    purchaseValueForItem,
+    equivalent24kGrams,
+    getLatestPriceRow,
+} from '../services/goldValuation.service.js';
 
 const VALID_TYPES   = new Set(['ring', 'set', 'chain', 'bangle', 'earring', 'other']);
 const VALID_CARATS  = new Set([18, 20, 21, 22, 24]);
-const NISAB_GRAMS   = 85;   // 24K-equivalent grams that trigger Zakat
-const ZAKAT_RATE    = 0.025;
-const GRAMS_PER_TOLA = 11.664;
 const PIN_MIN_DIGITS = 6;
-
-function valueForItem(item, pricePerGram24k) {
-    if (!pricePerGram24k) return 0;
-    const grams = Number(item.weight_grams);
-    const purityFactor = Number(item.carats) / 24;
-    return Number((grams * Number(pricePerGram24k) * purityFactor).toFixed(2));
-}
-
-function purchaseValueForItem(item) {
-    if (!item.purchase_price_per_gram) return null;
-    const grams = Number(item.weight_grams);
-    const purityFactor = Number(item.carats) / 24;
-    return Number((grams * Number(item.purchase_price_per_gram) * purityFactor).toFixed(2));
-}
-
-function equivalent24kGrams(item) {
-    return Number(item.weight_grams) * (Number(item.carats) / 24);
-}
-
-async function getLatestPriceRow() {
-    return prisma.goldPriceHistory.findFirst({ orderBy: { date: 'desc' } });
-}
 
 function validateItemPayload(body, { partial = false } = {}) {
     const errors = [];

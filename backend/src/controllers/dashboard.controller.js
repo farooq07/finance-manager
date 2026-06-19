@@ -118,14 +118,29 @@ export const fetchDashboardData = async (userId) => {
         const monthlyExpenses = Array(12).fill(0);
         let currentMonthExpenses = 0;
 
+        // Previous calendar month (handles the Jan → Dec-last-year boundary correctly).
+        const prevMonthRef = new Date(currentYear, currentMonth - 1, 1);
+        const prevMonth = prevMonthRef.getMonth();
+        const prevMonthYear = prevMonthRef.getFullYear();
+        let lastMonthExpenses = 0;
+
+        // Spend grouped by category for the current month — powers the breakdown donut.
+        const currentMonthCategoryTotals = {};
+
         expenses.forEach(exp => {
             const date = new Date(exp.expense_date);
+            const amount = Number(exp.amount);
             if (date.getFullYear() === currentYear) {
                 const monthIdx = date.getMonth();
-                monthlyExpenses[monthIdx] += Number(exp.amount);
+                monthlyExpenses[monthIdx] += amount;
                 if (monthIdx === currentMonth) {
-                    currentMonthExpenses += Number(exp.amount);
+                    currentMonthExpenses += amount;
+                    const cat = exp.category || 'Uncategorised';
+                    currentMonthCategoryTotals[cat] = (currentMonthCategoryTotals[cat] || 0) + amount;
                 }
+            }
+            if (date.getFullYear() === prevMonthYear && date.getMonth() === prevMonth) {
+                lastMonthExpenses += amount;
             }
         });
 
@@ -133,6 +148,18 @@ export const fetchDashboardData = async (userId) => {
             month: new Date(0, index).toLocaleString('default', { month: 'short' }),
             amount
         }));
+
+        const currentMonthCategories = Object.entries(currentMonthCategoryTotals)
+            .map(([name, value]) => ({ name, value }))
+            .sort((a, b) => b.value - a.value);
+
+        // Average spend across completed months this year — the baseline for the
+        // "are you spending faster than usual?" pace indicator (excludes the
+        // partial current month so the comparison is fair).
+        const completedMonths = monthlyExpenses.slice(0, currentMonth).filter(v => v > 0);
+        const avgMonthlyExpenses = completedMonths.length
+            ? completedMonths.reduce((s, v) => s + v, 0) / completedMonths.length
+            : 0;
 
         // 6. Rent Entries
         const rentEntries = await prisma.rentEntry.findMany({ where: { user_id: userId } });
@@ -157,6 +184,14 @@ export const fetchDashboardData = async (userId) => {
     const netWorth = totalBankBalance + totalWalletBalance + totalInvestments + totalRentBalance;
 
     return {
+        generatedAt: new Date().toISOString(),
+        // Per-source freshness for the trust strip. `null` means the user has
+        // never imported that source (so the UI shows "not connected" rather
+        // than a stale warning).
+        sources: {
+            psxSyncedAt: latestPsx?.snapshot_date ?? null,
+            mutualFundsSyncedAt: latestMfSnapshot?.upload_date ?? null,
+        },
         metrics: {
             netWorth,
             totalBankBalance,
@@ -170,12 +205,15 @@ export const fetchDashboardData = async (userId) => {
             totalPayable,
             totalExpenses,
             currentMonthExpenses,
+            lastMonthExpenses,
+            avgMonthlyExpenses,
             totalAssetValue,
             totalRentBalance,
             totalDebt,
         },
         charts: {
             monthlyExpenses: chartData,
+            currentMonthCategories,
             investmentDistribution: [
                 { name: 'Mutual Funds', value: mfCurrentValue },
                 { name: 'Stocks', value: stockCurrentValue }

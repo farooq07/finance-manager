@@ -1,4 +1,52 @@
 import prisma from '../utils/prisma.js';
+import { fetchDashboardData } from '../controllers/dashboard.controller.js';
+import {
+  NISAB_GRAMS,
+  ZAKAT_RATE,
+  valueForItem,
+  equivalent24kGrams,
+  getLatestPriceRow,
+} from './goldValuation.service.js';
+
+const ZAKAT_RATE_NETWORTH = 0.025; // 2.5% of zakatable net worth (mirrors Zakat.jsx)
+
+// Shared gold aggregation used by the gold, zakat and overview tools.
+async function computeGoldTotals(userId) {
+  const [items, priceRow] = await Promise.all([
+    prisma.goldItem.findMany({ where: { user_id: userId } }),
+    getLatestPriceRow(),
+  ]);
+
+  const perGram = priceRow ? Number(priceRow.price_24k_per_gram) : 0;
+  let total24kGrams = 0;
+  let totalValue = 0;
+
+  const rows = items.map((i) => {
+    total24kGrams += equivalent24kGrams(i);
+    const cur = valueForItem(i, perGram);
+    totalValue += cur;
+    return {
+      name: i.name,
+      type: i.type,
+      weight_grams: Number(i.weight_grams),
+      carats: i.carats,
+      current_value: Math.round(cur),
+    };
+  });
+
+  const isNisabMet = total24kGrams >= NISAB_GRAMS;
+
+  return {
+    item_count: items.length,
+    total_value: Math.round(totalValue),
+    total_24k_grams: Number(total24kGrams.toFixed(3)),
+    is_nisab_met: isNisabMet,
+    gold_zakat_due: Math.round(isNisabMet ? totalValue * ZAKAT_RATE : 0),
+    price_per_gram_24k: perGram ? Math.round(perGram) : 0,
+    price_date: priceRow?.date || null,
+    items: rows,
+  };
+}
 
 // Gemini format — used by ragEngine when provider = 'gemini'
 export const TOOL_DEFINITIONS = [
@@ -140,7 +188,56 @@ export const TOOL_DEFINITIONS = [
   },
   {
     name: 'getWalletSummary',
-    description: 'Get current wallet and bank account balances. Use for "what is my balance?" or "how much money do I have?" or "show my accounts".',
+    description: 'Get current wallet and bank account balances. Use for "what is my balance?" or "how much money do I have?" or "show my accounts". Returns each account by name (e.g. Standard Chartered, Habib) so you can answer about a specific account too.',
+    parameters: {
+      type: 'object',
+      properties: {},
+      required: []
+    }
+  },
+  {
+    name: 'getFinancialOverview',
+    description: 'Get a complete net-worth snapshot covering EVERY area at once: total/net worth plus bank balances, wallet balances, investments (stocks + mutual funds), gold value, physical assets, rent balance, receivables, payables, debt, this month\'s expenses, zakat given this year and estimated zakat due. Use for broad questions like "what is my total worth / net worth?", "give me a full snapshot", "show me everything", "how am I doing overall?".',
+    parameters: {
+      type: 'object',
+      properties: {},
+      required: []
+    }
+  },
+  {
+    name: 'getZakatSummary',
+    description: 'Get zakat details: total zakat already given (this year and all-time), recent zakat payments, and the estimated zakat still to pay (2.5% of net worth minus receivables, plus zakat due on gold when nisab is met). Use for "how much zakat have I given/paid?" or "how much zakat do I owe / have to pay?".',
+    parameters: {
+      type: 'object',
+      properties: {
+        year: { type: 'number', description: 'Calendar year for the "given" totals (e.g. 2026). Default is the current year.' }
+      },
+      required: []
+    }
+  },
+  {
+    name: 'getGoldSummary',
+    description: 'Get gold holdings with their current PKR value at the latest gold price, total weight, total current value, and gold zakat due. Use for "what is my gold worth?", "how much gold do I have?", "gold value today".',
+    parameters: {
+      type: 'object',
+      properties: {},
+      required: []
+    }
+  },
+  {
+    name: 'getDividendSummary',
+    description: 'Get dividend income received, grouped by security, with total gross and net amounts. Use for "how much dividend did I earn?" or "show my dividend income".',
+    parameters: {
+      type: 'object',
+      properties: {
+        year: { type: 'number', description: 'Filter to dividends paid in this calendar year. Omit for all-time.' }
+      },
+      required: []
+    }
+  },
+  {
+    name: 'getDebtSummary',
+    description: 'Get outstanding institutional debt (loans, credit cards) that is still active, with total outstanding and a per-debt breakdown. Use for "what debt do I have?" or "how much do I owe on loans?".',
     parameters: {
       type: 'object',
       properties: {},
@@ -483,10 +580,52 @@ export async function executeTool(toolName, args, userId) {
       const totalInvested = rows.reduce((s, r) => s + r.avg_cost * r.qty, 0);
       const totalCurrent = rows.reduce((s, r) => s + r.current_value, 0);
 
+      // Best-effort "today's change": join the user's latest PSX holdings to the
+      // live scraped daily prices (psx_stocks). Coverage is partial — only tickers
+      // that are both held and present in the scraped set get a day change.
+      let todayChangeValue = 0;
+      let matched = 0;
+      let unmatched = 0;
+      try {
+        const latestPsx = await prisma.psxSnapshot.findFirst({
+          where: { user_id: userId },
+          orderBy: { snapshot_date: 'desc' },
+          select: { holdings_data: true }
+        });
+        const holdings = Array.isArray(latestPsx?.holdings_data) ? latestPsx.holdings_data : [];
+
+        if (holdings.length > 0) {
+          const symbols = [...new Set(holdings.map(h => String(h.symbol || h.ticker || '').toUpperCase()).filter(Boolean))];
+          const liveRows = await prisma.psxStock.findMany({
+            where: { ticker: { in: symbols } },
+            select: { ticker: true, change: true }
+          });
+          const changeByTicker = Object.fromEntries(liveRows.map(r => [r.ticker.toUpperCase(), Number(r.change)]));
+
+          for (const h of holdings) {
+            const ticker = String(h.symbol || h.ticker || '').toUpperCase();
+            const qty = Number(h.holding ?? h.quantity ?? 0);
+            if (ticker in changeByTicker) {
+              todayChangeValue += qty * changeByTicker[ticker];
+              matched += 1;
+            } else {
+              unmatched += 1;
+            }
+          }
+        }
+      } catch {
+        // No PSX snapshot / live prices — skip today's change silently.
+      }
+
+      const todayPct = totalCurrent > 0 ? Math.round((todayChangeValue / totalCurrent) * 10000) / 100 : 0;
+
       return {
         total_invested: Math.round(totalInvested),
         total_current: Math.round(totalCurrent),
         total_pnl: Math.round(totalCurrent - totalInvested),
+        today_change_value: Math.round(todayChangeValue),
+        today_change_pct: todayPct,
+        today_coverage: { matched, unmatched },
         stocks: rows.filter(r => r.qty > 0)
       };
     }
@@ -541,6 +680,151 @@ export async function executeTool(toolName, args, userId) {
       const totalPKR = accounts.filter(a => a.currency === 'PKR').reduce((s, a) => s + a.balance, 0);
 
       return { total_pkr: totalPKR, accounts };
+    }
+
+    case 'getFinancialOverview': {
+      const [data, gold] = await Promise.all([
+        fetchDashboardData(userId),
+        computeGoldTotals(userId)
+      ]);
+      const m = data.metrics;
+
+      const yearStart = new Date(new Date().getFullYear(), 0, 1);
+      const zakatGiven = await prisma.zakat.aggregate({
+        where: { user_id: userId, date: { gte: yearStart } },
+        _sum: { amount: true }
+      });
+
+      // Zakat due mirrors the Zakat page: 2.5% of (net worth − receivables).
+      const zakatableBase = Math.max(0, Number(m.netWorth) - Number(m.totalReceivable));
+
+      return {
+        // net_worth matches the Dashboard card (gold is surfaced separately, as on the dashboard)
+        net_worth: Math.round(Number(m.netWorth)),
+        total_bank: Math.round(Number(m.totalBankBalance)),
+        total_wallet: Math.round(Number(m.totalWalletBalance)),
+        total_investments: Math.round(Number(m.totalInvestments)),
+        mutual_fund_value: Math.round(Number(m.mutualFundValue)),
+        stock_value: Math.round(Number(m.stockValue)),
+        gold_value: gold.total_value,
+        asset_value: Math.round(Number(m.totalAssetValue)),
+        rent_balance: Math.round(Number(m.totalRentBalance)),
+        receivable: Math.round(Number(m.totalReceivable)),
+        payable: Math.round(Number(m.totalPayable)),
+        debt: Math.round(Number(m.totalDebt)),
+        current_month_expenses: Math.round(Number(m.currentMonthExpenses)),
+        zakat_given_this_year: Math.round(Number(zakatGiven._sum.amount || 0)),
+        zakat_due_estimate: Math.round(zakatableBase * ZAKAT_RATE_NETWORTH)
+      };
+    }
+
+    case 'getZakatSummary': {
+      const year = args.year || new Date().getFullYear();
+      const yStart = new Date(year, 0, 1);
+      const yEnd = new Date(year, 11, 31, 23, 59, 59);
+
+      const [yearAgg, allAgg, entries, data, gold] = await Promise.all([
+        prisma.zakat.aggregate({ where: { user_id: userId, date: { gte: yStart, lte: yEnd } }, _sum: { amount: true } }),
+        prisma.zakat.aggregate({ where: { user_id: userId }, _sum: { amount: true } }),
+        prisma.zakat.findMany({
+          where: { user_id: userId },
+          orderBy: { date: 'desc' },
+          take: 10,
+          select: { date: true, amount: true, description: true }
+        }),
+        fetchDashboardData(userId),
+        computeGoldTotals(userId)
+      ]);
+
+      const m = data.metrics;
+      const zakatableBase = Math.max(0, Number(m.netWorth) - Number(m.totalReceivable));
+
+      return {
+        year,
+        given_this_year: Math.round(Number(yearAgg._sum.amount || 0)),
+        given_all_time: Math.round(Number(allAgg._sum.amount || 0)),
+        estimated_due: Math.round(zakatableBase * ZAKAT_RATE_NETWORTH),
+        zakatable_net_worth: Math.round(zakatableBase),
+        gold_zakat_due: gold.gold_zakat_due,
+        is_nisab_met: gold.is_nisab_met,
+        entries: entries.map(e => ({
+          date: e.date,
+          amount: Math.round(Number(e.amount)),
+          description: e.description
+        }))
+      };
+    }
+
+    case 'getGoldSummary': {
+      const gold = await computeGoldTotals(userId);
+      return {
+        item_count: gold.item_count,
+        total_value: gold.total_value,
+        total_24k_grams: gold.total_24k_grams,
+        price_per_gram_24k: gold.price_per_gram_24k,
+        price_date: gold.price_date,
+        gold_zakat_due: gold.gold_zakat_due,
+        is_nisab_met: gold.is_nisab_met,
+        items: gold.items
+      };
+    }
+
+    case 'getDividendSummary': {
+      const where = { user_id: userId };
+      if (args.year) {
+        const yStart = new Date(args.year, 0, 1);
+        const yEnd = new Date(args.year, 11, 31, 23, 59, 59);
+        where.payment_date = { gte: yStart, lte: yEnd };
+      }
+
+      const dividends = await prisma.dividend.findMany({
+        where,
+        select: { security_symbol: true, security_name: true, gross_dividend_amount: true, net_dividend_amount: true }
+      });
+
+      const bySecurity = {};
+      for (const d of dividends) {
+        const key = d.security_symbol;
+        if (!bySecurity[key]) bySecurity[key] = { security: key, name: d.security_name, gross: 0, net: 0, count: 0 };
+        bySecurity[key].gross += Number(d.gross_dividend_amount);
+        bySecurity[key].net += Number(d.net_dividend_amount);
+        bySecurity[key].count += 1;
+      }
+
+      const rows = Object.values(bySecurity)
+        .map(s => ({ ...s, gross: Math.round(s.gross), net: Math.round(s.net) }))
+        .sort((a, b) => b.net - a.net);
+
+      return {
+        year: args.year || 'all-time',
+        total_gross: rows.reduce((s, r) => s + r.gross, 0),
+        total_net: rows.reduce((s, r) => s + r.net, 0),
+        count: dividends.length,
+        securities: rows
+      };
+    }
+
+    case 'getDebtSummary': {
+      const debts = await prisma.debt.findMany({
+        where: { user_id: userId, is_active: true },
+        orderBy: { outstanding: 'desc' },
+        select: { name: true, debt_type: true, principal: true, outstanding: true, interest_rate: true, minimum_payment: true }
+      });
+
+      const totalOutstanding = debts.reduce((s, d) => s + Number(d.outstanding), 0);
+
+      return {
+        total_outstanding: Math.round(totalOutstanding),
+        count: debts.length,
+        debts: debts.map(d => ({
+          name: d.name,
+          type: d.debt_type,
+          principal: Math.round(Number(d.principal)),
+          outstanding: Math.round(Number(d.outstanding)),
+          interest_rate: d.interest_rate != null ? Number(d.interest_rate) : null,
+          minimum_payment: d.minimum_payment != null ? Math.round(Number(d.minimum_payment)) : null
+        }))
+      };
     }
 
     default:

@@ -1,6 +1,7 @@
 import express from 'express';
 import multer from 'multer';
 import path from 'path';
+import fs from 'fs';
 import rateLimit from 'express-rate-limit';
 import verifyToken from '../middleware/auth.middleware.js';
 import { createSession, getSessions, getSession, deleteSession, sendMessage, uploadDocument, getDocuments, removeDocument } from '../controllers/chat.controller.js';
@@ -16,8 +17,13 @@ const chatLimiter = rateLimit({
 });
 
 // Multer for document uploads (PDF, TXT, MD, CSV) — stored temporarily
+const CHAT_DOCS_DIR = 'uploads/chat-docs/';
 const docStorage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, 'uploads/chat-docs/'),
+  destination: (req, file, cb) => {
+    // Ensure the upload dir exists — multer errors with a 500 otherwise.
+    fs.mkdirSync(CHAT_DOCS_DIR, { recursive: true });
+    cb(null, CHAT_DOCS_DIR);
+  },
   filename: (req, file, cb) => {
     const suffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
     cb(null, suffix + path.extname(file.originalname));

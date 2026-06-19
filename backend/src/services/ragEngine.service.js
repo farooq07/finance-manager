@@ -39,12 +39,18 @@ function getProvider() {
 
 const TODAY = () => new Date().toLocaleDateString('en-PK', { year: 'numeric', month: 'long', day: 'numeric' });
 
-const BASE_SYSTEM_PROMPT = `You are a personal finance assistant. All monetary amounts are in PKR (Pakistani Rupees) unless stated otherwise. Today is {DATE}.
+const MAX_TOOL_ITERATIONS = 6;
+
+const BASE_SYSTEM_PROMPT = `You are a personal finance assistant for a Pakistani user. All monetary amounts are in PKR (Pakistani Rupees) unless stated otherwise. Today is {DATE}.
+
+You can look up the user's real financial data with tools covering: expenses & transactions, income vs expense / cash flow, account & wallet balances (per account, e.g. specific banks), mutual funds, stocks (including today's change), gold, dividends, institutional debt, dues/receivables, physical assets, zakat (given + estimated due), and a complete net-worth overview (getFinancialOverview) for "total worth" / "show me everything" questions.
 
 RULES:
 - Answer ONLY using the data returned by the tools or the document excerpts provided — never invent or estimate numbers.
+- Call as many tools as needed to fully answer the question. For a broad or compound question (e.g. "give me a full snapshot", "my total worth"), prefer getFinancialOverview, or call several specific tools and combine the results.
 - Always mention the time period the data covers.
 - Format PKR amounts with commas: PKR 1,23,456.
+- If a figure is an estimate (e.g. zakat due, or today's stock change when price coverage is partial), say so.
 - If asked something the tools cannot answer, say so clearly and suggest what the user could do.
 - Keep answers concise. Use bullet points for lists of items.
 - When referencing percentages, round to 2 decimal places.
@@ -59,10 +65,17 @@ function buildSystemPrompt(docContext) {
     .replace('{DOCUMENT_CONTEXT}', contextSection);
 }
 
+// Collect plain text parts from a Gemini response without throwing when the
+// candidate only contains function calls (response.text() throws in that case).
+function extractGeminiText(response) {
+  const parts = response?.candidates?.[0]?.content?.parts || [];
+  return parts.filter(p => typeof p.text === 'string').map(p => p.text).join('').trim();
+}
+
 // ---------------------------------------------------------------------------
-// Gemini provider
+// Gemini provider — multi-tool loop
 // ---------------------------------------------------------------------------
-async function chatWithGemini(history, userMessage, systemPrompt) {
+async function runGeminiLoop(history, userMessage, systemPrompt, userId) {
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
   const model = genAI.getGenerativeModel({
     model: GEMINI_MODEL,
@@ -76,79 +89,90 @@ async function chatWithGemini(history, userMessage, systemPrompt) {
   }));
 
   const session = model.startChat({ history: geminiHistory });
-  const result1 = await session.sendMessage(userMessage);
-  const parts = result1.response.candidates?.[0]?.content?.parts || [];
-  const fnCallPart = parts.find(p => p.functionCall);
+  const toolCalls = [];
 
-  if (!fnCallPart) return { toolName: null, toolArgs: null, rawResult: result1 };
+  let result = await session.sendMessage(userMessage);
 
-  return {
-    toolName: fnCallPart.functionCall.name,
-    toolArgs: fnCallPart.functionCall.args || {},
-    // Pass session so we can do turn 2
-    _session: session
-  };
-}
+  for (let i = 0; i < MAX_TOOL_ITERATIONS; i++) {
+    const parts = result.response.candidates?.[0]?.content?.parts || [];
+    const fnParts = parts.filter(p => p.functionCall);
+    if (fnParts.length === 0) break;
 
-async function geminiTurn2(session, toolName, toolData) {
-  const result2 = await session.sendMessage([{
-    functionResponse: { name: toolName, response: { data: toolData } }
-  }]);
-  return result2.response.text();
+    const responses = [];
+    for (const p of fnParts) {
+      const name = p.functionCall.name;
+      const fnArgs = p.functionCall.args || {};
+      let data;
+      try {
+        data = await executeTool(name, fnArgs, userId);
+      } catch (err) {
+        data = { error: err.message };
+      }
+      toolCalls.push({ name, data });
+      responses.push({ functionResponse: { name, response: { data } } });
+    }
+
+    result = await session.sendMessage(responses);
+  }
+
+  let answer = extractGeminiText(result.response);
+
+  // Cap reached while still requesting tools — nudge for a final summary.
+  if (!answer && toolCalls.length > 0) {
+    const fallback = await session.sendMessage('Summarise the findings above for the user now, using only the data already retrieved.');
+    answer = extractGeminiText(fallback.response);
+  }
+
+  return { answer, toolCalls };
 }
 
 // ---------------------------------------------------------------------------
-// Groq / OpenAI-compatible provider (same code path, different client)
+// Groq / OpenAI-compatible provider — multi-tool loop (same code path)
 // ---------------------------------------------------------------------------
-async function chatWithOpenAICompat(client, model, history, userMessage, systemPrompt) {
+async function runOpenAICompatLoop(client, model, history, userMessage, systemPrompt, userId) {
   const messages = [
     { role: 'system', content: systemPrompt },
     ...history.map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content })),
     { role: 'user', content: userMessage }
   ];
 
-  const response = await client.chat.completions.create({
-    model,
-    messages,
-    tools: GROQ_TOOL_DEFINITIONS,
-    tool_choice: 'auto',
-    temperature: 0.3
-  });
+  const toolCalls = [];
 
-  const msg = response.choices[0].message;
-  if (!msg.tool_calls?.length) return { toolName: null, toolArgs: null, answer: msg.content };
+  for (let i = 0; i < MAX_TOOL_ITERATIONS; i++) {
+    const response = await client.chat.completions.create({
+      model,
+      messages,
+      tools: GROQ_TOOL_DEFINITIONS,
+      tool_choice: 'auto',
+      temperature: 0.3
+    });
 
-  const call = msg.tool_calls[0];
-  return {
-    toolName: call.function.name,
-    toolArgs: JSON.parse(call.function.arguments || '{}'),
-    _messages: messages,
-    _toolCallId: call.id,
-    _client: client,
-    _model: model,
-    _assistantMsg: msg
-  };
-}
+    const msg = response.choices[0].message;
 
-async function openAICompatTurn2(ctx, toolName, toolData) {
-  const { _messages, _toolCallId, _client, _model, _assistantMsg } = ctx;
-  const messages = [
-    ..._messages,
-    _assistantMsg,
-    {
-      role: 'tool',
-      tool_call_id: _toolCallId,
-      content: JSON.stringify(toolData)
+    if (!msg.tool_calls?.length) {
+      return { answer: msg.content || '', toolCalls };
     }
-  ];
 
-  const result2 = await _client.chat.completions.create({
-    model: _model,
-    messages,
-    temperature: 0.3
-  });
+    messages.push(msg);
 
-  return result2.choices[0].message.content;
+    for (const call of msg.tool_calls) {
+      const name = call.function.name;
+      let fnArgs = {};
+      try { fnArgs = JSON.parse(call.function.arguments || '{}'); } catch { /* malformed args → empty */ }
+      let data;
+      try {
+        data = await executeTool(name, fnArgs, userId);
+      } catch (err) {
+        data = { error: err.message };
+      }
+      toolCalls.push({ name, data });
+      messages.push({ role: 'tool', tool_call_id: call.id, content: JSON.stringify(data) });
+    }
+  }
+
+  // Cap reached — force one final answer without tools.
+  const final = await client.chat.completions.create({ model, messages, temperature: 0.3 });
+  return { answer: final.choices[0].message.content || '', toolCalls };
 }
 
 // ---------------------------------------------------------------------------
@@ -184,38 +208,26 @@ export async function chat(userId, sessionId, userMessage) {
 
   const systemPrompt = buildSystemPrompt(docContext);
 
-  let turn1;
+  let answer = '';
+  let toolCalls = [];
+
   if (provider === 'gemini') {
-    turn1 = await chatWithGemini(history, userMessage, systemPrompt);
+    ({ answer, toolCalls } = await runGeminiLoop(history, userMessage, systemPrompt, userId));
   } else if (provider === 'groq') {
     const client = new Groq({ apiKey: process.env.GROQ_API_KEY });
-    turn1 = await chatWithOpenAICompat(client, GROQ_MODEL, history, userMessage, systemPrompt);
+    ({ answer, toolCalls } = await runOpenAICompatLoop(client, GROQ_MODEL, history, userMessage, systemPrompt, userId));
   } else if (provider === 'openai') {
     // Dynamic import so openai package is optional
     const { default: OpenAI } = await import('openai');
     const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-    turn1 = await chatWithOpenAICompat(client, OPENAI_MODEL, history, userMessage, systemPrompt);
+    ({ answer, toolCalls } = await runOpenAICompatLoop(client, OPENAI_MODEL, history, userMessage, systemPrompt, userId));
   }
 
-  let toolName = turn1.toolName;
-  let toolData = null;
-  let answer = '';
-
-  if (toolName) {
-    try {
-      toolData = await executeTool(toolName, turn1.toolArgs, userId);
-    } catch (err) {
-      toolData = { error: err.message };
-    }
-
-    if (provider === 'gemini') {
-      answer = await geminiTurn2(turn1._session, toolName, toolData);
-    } else {
-      answer = await openAICompatTurn2(turn1, toolName, toolData);
-    }
-  } else {
-    answer = turn1.answer || turn1.rawResult?.response?.text() || '';
-  }
+  // The first tool drives the inline badge / table / chart in the UI. The text
+  // answer already incorporates every tool's data when several were called.
+  const primary = toolCalls[0] || null;
+  const toolName = primary?.name || null;
+  const toolData = primary?.data ?? null;
 
   await prisma.chatMessage.create({
     data: {
@@ -231,5 +243,5 @@ export async function chat(userId, sessionId, userMessage) {
   if (past.length === 0) updateData.title = userMessage.slice(0, 80);
   await prisma.chatSession.update({ where: { id: sessionId }, data: updateData });
 
-  return { answer, toolName, toolData, provider };
+  return { answer, toolName, toolData, toolsUsed: toolCalls.map(t => t.name), provider };
 }

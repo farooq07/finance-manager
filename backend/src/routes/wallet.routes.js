@@ -1,14 +1,18 @@
 import express from 'express';
 import multer from 'multer';
 import path from 'path';
+import fs from 'fs';
 import logger from '../utils/logger.js';
 import { getWallets, createWallet, updateWalletBalance, deleteWallet, uploadStatement, previewStatement, commitStatement, syncStatementBalance, getStatementTransactions, approveTransaction, deleteStatement, getAllTransactions, updateTransactionCategory, deleteTransaction, bulkApproveTransactions } from '../controllers/wallet.controller.js';
 import verifyToken from '../middleware/auth.middleware.js';
 import validate, { walletSchema } from '../middleware/validate.js';
 
+const WALLET_STATEMENTS_DIR = 'uploads/wallet-statements/';
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        cb(null, 'uploads/wallet-statements/');
+        // Ensure the upload dir exists — multer errors with a 500 otherwise.
+        fs.mkdirSync(WALLET_STATEMENTS_DIR, { recursive: true });
+        cb(null, WALLET_STATEMENTS_DIR);
     },
     filename: (req, file, cb) => {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);

@@ -1,6 +1,7 @@
 import express from 'express';
 import multer from 'multer';
 import path from 'path';
+import fs from 'fs';
 import verifyToken from '../middleware/auth.middleware.js';
 import logger from '../utils/logger.js';
 import validate, { bankSchema } from '../middleware/validate.js';
@@ -26,9 +27,12 @@ import {
 } from '../controllers/bank.controller.js';
 
 // Multer config for PDF uploads
+const STATEMENTS_DIR = 'uploads/statements/';
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        cb(null, 'uploads/statements/');
+        // Ensure the upload dir exists — multer errors with a 500 otherwise.
+        fs.mkdirSync(STATEMENTS_DIR, { recursive: true });
+        cb(null, STATEMENTS_DIR);
     },
     filename: (req, file, cb) => {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);

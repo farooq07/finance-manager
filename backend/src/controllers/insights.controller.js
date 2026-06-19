@@ -187,8 +187,19 @@ export const getInsights = async (req, res) => {
         const userId = req.user.id;
         const { currentStart, currentEnd, previousStart, previousEnd } = getRanges(period, anchor);
 
+        // When the user is looking at the in-progress period, only compare against
+        // the SAME elapsed span of the previous period (month-to-date vs the same
+        // point last month). Otherwise a partial current period always looks like a
+        // collapse against a full prior one — the bug that made spend read "-93%".
+        const now = new Date();
+        const isCurrent = now >= currentStart && now < currentEnd;
+        const asOf = isCurrent ? now : new Date(currentEnd.getTime() - 1);
+        const prevCompareEnd = isCurrent
+            ? new Date(previousStart.getTime() + (now.getTime() - currentStart.getTime()))
+            : previousEnd;
+
         const current  = await loadCategorizedFlows(userId, currentStart,  currentEnd);
-        const previous = await loadCategorizedFlows(userId, previousStart, previousEnd);
+        const previous = await loadCategorizedFlows(userId, previousStart, prevCompareEnd);
 
         // Totals
         const currentSpend =
@@ -210,15 +221,60 @@ export const getInsights = async (req, res) => {
         const spendDelta  = previousSpend  > 0 ? ((currentSpend  - previousSpend)  / previousSpend)  * 100 : null;
         const incomeDelta = previousIncome > 0 ? ((currentIncome - previousIncome) / previousIncome) * 100 : null;
 
-        // Category breakdown (spend only)
+        // Net delta — higher net is better, so this is NOT inverted on the client.
+        // Denominator is the magnitude of previous net so a swing from negative to
+        // positive reads as a positive (good) change.
+        const currentNet  = currentIncome - currentSpend;
+        const previousNet  = previousIncome - previousSpend;
+        const netDelta = previousNet !== 0
+            ? ((currentNet - previousNet) / Math.abs(previousNet)) * 100
+            : null;
+
+        // Category breakdown (spend only) — current and the same-span previous,
+        // the latter powering the "X× vs last period" callouts.
         const merged = mergeBuckets(
             bucketByCategory(current.bankRows,    (r) => Number(r.debit  || 0)),
             bucketByCategory(current.walletRows,  (r) => Number(r.debit  || 0)),
             bucketByCategory(current.expenseRows, (r) => Number(r.amount || 0)),
         );
+        const prevMerged = mergeBuckets(
+            bucketByCategory(previous.bankRows,    (r) => Number(r.debit  || 0)),
+            bucketByCategory(previous.walletRows,  (r) => Number(r.debit  || 0)),
+            bucketByCategory(previous.expenseRows, (r) => Number(r.amount || 0)),
+        );
         const categoryBreakdown = Array.from(merged, ([category, total]) => ({ category, total }))
             .sort((a, b) => b.total - a.total)
             .slice(0, 12);
+
+        // Source split — delivers on the "bank + wallet + manual" promise in the
+        // page subtitle by showing where each rupee of spend was recorded.
+        const sourceBreakdown = [
+            { source: 'bank',   label: 'Bank statements',    total: sumDebits(current.bankRows) },
+            { source: 'wallet', label: 'Wallet transactions', total: sumDebits(current.walletRows) },
+            { source: 'manual', label: 'Manual & journal',   total: sumAmounts(current.expenseRows) },
+        ].filter((s) => s.total > 0);
+
+        // Auto callouts — structured so the client owns currency formatting.
+        const callouts = [];
+        if (currentNet < 0) callouts.push({ kind: 'net_negative', value: currentNet });
+        const spikeFloor = currentSpend * 0.03; // ignore trivial categories
+        const spikes = [];
+        for (const [category, cur] of merged) {
+            if (cur < spikeFloor) continue;
+            const prev = prevMerged.get(category) || 0;
+            if (prev > 0 && cur >= prev * 1.8) {
+                spikes.push({ kind: 'category_spike', category, value: cur, multiplier: cur / prev });
+            } else if (prev === 0) {
+                spikes.push({ kind: 'new_category', category, value: cur });
+            }
+        }
+        spikes.sort((a, b) => b.value - a.value);
+        callouts.push(...spikes.slice(0, 2));
+        if (categoryBreakdown.length && currentSpend > 0) {
+            const top = categoryBreakdown[0];
+            callouts.push({ kind: 'top_category', category: top.category, value: top.total, share: (top.total / currentSpend) * 100 });
+        }
+        const trimmedCallouts = callouts.slice(0, 3);
 
         // Top destinations — bank/wallet transaction descriptions are noisy
         // (account codes, running balances, dates). Clean them, bucket
@@ -254,8 +310,17 @@ export const getInsights = async (req, res) => {
         current.bankRows.forEach(r    => addDaily(r.transaction_date, Number(r.debit  || 0)));
         current.walletRows.forEach(r  => addDaily(r.transaction_date, Number(r.debit  || 0)));
         current.expenseRows.forEach(r => addDaily(r.expense_date,     Number(r.amount || 0)));
-        const dailyTrend = Array.from(dayMap, ([day, total]) => ({ day, total }))
-            .sort((a, b) => a.day.localeCompare(b.day));
+        // Fill EVERY calendar day in the period (up to "as of") with zeros so a
+        // month with three spending days reads as three bars on an empty axis —
+        // not a smooth line implying a trend across days that have no data.
+        const dailyTrend = [];
+        const cursor = new Date(currentStart);
+        const lastDay = new Date(Math.min(asOf.getTime(), currentEnd.getTime() - 1));
+        while (cursor <= lastDay) {
+            const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`;
+            dailyTrend.push({ day: key, total: dayMap.get(key) || 0 });
+            cursor.setDate(cursor.getDate() + 1);
+        }
 
         // Weekday pattern (Sun=0..Sat=6)
         const weekdayTotals = Array(7).fill(0);
@@ -279,16 +344,22 @@ export const getInsights = async (req, res) => {
         res.json({
             period,
             range: { start: currentStart, end: currentEnd },
+            mtd: isCurrent,        // true when the comparison is month-to-date vs same-point-last
+            asOf,                  // the effective "up to" date the figures cover
             totals: {
                 currentSpend,
                 currentIncome,
-                net: currentIncome - currentSpend,
+                net: currentNet,
                 previousSpend,
                 previousIncome,
-                spendDelta,   // % change vs previous period
+                previousNet,
+                spendDelta,   // % change vs previous period (same-span when mtd)
                 incomeDelta,
+                netDelta,
             },
             categoryBreakdown,
+            sourceBreakdown,
+            callouts: trimmedCallouts,
             topMerchants,
             dailyTrend,
             weekdayPattern,
