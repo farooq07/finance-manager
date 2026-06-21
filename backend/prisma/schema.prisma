@@ -29,6 +29,10 @@ model User {
   auth_provider       String?             @db.VarChar(20)   // 'google' | 'apple' | null (password)
   provider_id         String?             @db.VarChar(255)  // sub/uid from provider
   avatar_url          String?             @db.VarChar(512)
+  // Soft delete — admins "request" deletion (deactivates login); super.admin reviews → restore or hard-delete
+  deleted_at            DateTime?         @db.Timestamptz(6)
+  deletion_requested_by String?           @db.Uuid
+  deletion_requested_at DateTime?         @db.Timestamptz(6)
   created_at          DateTime            @default(now()) @db.Timestamptz(6)
   expenses            Expense[]
   mutual_funds        MutualFund[]
@@ -60,6 +64,7 @@ model User {
   gold_pin            GoldPin?
   feedback            Feedback[]
 
+  @@index([deleted_at])
   @@map("users")
 }
 
@@ -238,8 +243,12 @@ model MenuVisibility {
   icon             String   @db.VarChar(40)
   visible_to_roles String[] @default(["user", "admin", "super.admin"])
   sort_order       Int      @default(0)
+  // Non-null for sub-sections (e.g. "/personal#gold" → parent "/personal").
+  // Sub-rows are excluded from the sidebar and gate page tabs instead.
+  parent_path      String?  @db.VarChar(100)
   updated_at       DateTime @updatedAt
 
+  @@index([parent_path])
   @@map("menu_visibility")
 }
 

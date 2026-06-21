@@ -4,6 +4,7 @@ import Zakat from './Zakat';
 import RentTracker from './RentTracker';
 import Assets from './Assets';
 import Gold from './Gold';
+import { useMenuAccess } from '../hooks/useMenuAccess';
 
 const TABS = [
     { key: 'zakat', label: 'Zakat', icon: HeartHandshake },
@@ -12,12 +13,16 @@ const TABS = [
     { key: 'gold', label: 'Gold', icon: Gem },
 ];
 
-const VALID_TABS = TABS.map((t) => t.key);
-
 export default function Personal() {
     const [searchParams, setSearchParams] = useSearchParams();
+    const { canSee } = useMenuAccess();
+
+    // Only the tabs this role is allowed to see (super admin controls these).
+    const tabs = TABS.filter((t) => canSee(`/personal#${t.key}`));
+    const validTabs = tabs.map((t) => t.key);
+
     const requested = searchParams.get('tab');
-    const active = VALID_TABS.includes(requested) ? requested : 'zakat';
+    const active = validTabs.includes(requested) ? requested : (validTabs[0] || null);
 
     const setTab = (key) => setSearchParams({ tab: key }, { replace: true });
 
@@ -31,7 +36,7 @@ export default function Personal() {
 
             {/* Tab bar */}
             <div className="flex gap-1 bg-gray-100 dark:bg-neutral-800/60 p-1 rounded-xl w-fit">
-                {TABS.map(({ key, label, icon: Icon }) => (
+                {tabs.map(({ key, label, icon: Icon }) => (
                     <button
                         key={key}
                         onClick={() => setTab(key)}
@@ -53,6 +58,11 @@ export default function Personal() {
                 {active === 'rent' && <RentTracker />}
                 {active === 'assets' && <Assets />}
                 {active === 'gold' && <Gold />}
+                {!active && (
+                    <div className="py-16 text-center text-sm text-gray-500 dark:text-gray-400">
+                        You don't have access to any sections here.
+                    </div>
+                )}
             </div>
         </div>
     );

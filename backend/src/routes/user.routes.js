@@ -1,11 +1,17 @@
 import express from 'express';
-import { getAllUsers, getUserById, updateUserRole, deleteUser, createUser, resetUserPassword } from '../controllers/user.controller.js';
+import {
+    getAllUsers, getUserById, updateUserRole, updateUser, deleteUser,
+    softDeleteUser, getDeletionRequests, restoreUser, createUser, resetUserPassword
+} from '../controllers/user.controller.js';
 import verifyToken from '../middleware/auth.middleware.js';
 
 const router = express.Router();
 
-// Get all users
+// Get all users (active only)
 router.get('/', verifyToken, getAllUsers);
+
+// Super-admin review list of soft-deleted users — must be before '/:id'
+router.get('/deletion-requests', verifyToken, getDeletionRequests);
 
 // Get user by ID
 router.get('/:id', verifyToken, getUserById);
@@ -13,13 +19,22 @@ router.get('/:id', verifyToken, getUserById);
 // Create new user
 router.post('/', verifyToken, createUser);
 
-// Update user role
+// Update user profile (name / email)
+router.put('/:id', verifyToken, updateUser);
+
+// Update user role (super.admin only)
 router.put('/:id/role', verifyToken, updateUserRole);
 
-// Reset user password (super.admin only)
+// Reset user password
 router.put('/:id/password', verifyToken, resetUserPassword);
 
-// Delete user
+// Soft delete (request deletion + deactivate) — admin or super.admin
+router.post('/:id/soft-delete', verifyToken, softDeleteUser);
+
+// Restore a soft-deleted user — super.admin only
+router.post('/:id/restore', verifyToken, restoreUser);
+
+// Hard delete — super.admin only
 router.delete('/:id', verifyToken, deleteUser);
 
 export default router;

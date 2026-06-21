@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Settings as SettingsIcon, Building, CreditCard, Banknote, Plus, Trash2, ShieldAlert, Users, Tags, FileText, ChevronRight, Lock, Briefcase, Loader2, ArrowRight, Shield, Mail, Calendar, Eye, EyeOff, Menu, Save, RotateCcw, Download } from 'lucide-react';
+import { Settings as SettingsIcon, Building, CreditCard, Banknote, Plus, Trash2, ShieldAlert, Users, Tags, FileText, ChevronRight, Lock, Briefcase, Loader2, ArrowRight, Shield, Mail, Calendar, Eye, EyeOff, Menu, Save, RotateCcw, Download, Pencil, Key, RotateCcw as Restore } from 'lucide-react';
 import { useInstitutions, useCreateInstitution, useDeleteInstitution, useSeedInstitutions } from '../hooks/useInstitutions';
 import { useBrokerAccounts, useCreateBrokerAccount, useDeleteBrokerAccount } from '../hooks/useBrokerAccounts';
 import { usePin } from '../context/PinContext';
@@ -16,6 +16,9 @@ import TextInput from '../components/TextInput';
 export default function Settings() {
     const { user: currentUser } = useAuth();
     const isSuperAdmin = currentUser?.role === 'super.admin';
+    const isAdmin = currentUser?.role === 'admin';
+    // Mirror of the backend rule: super.admin can act on anyone; admin only on regular users.
+    const canManage = (target) => isSuperAdmin || (isAdmin && target?.role === 'user');
     const [activeTab, setActiveTab] = useState('institutions');
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [isAddBrokerModalOpen, setIsAddBrokerModalOpen] = useState(false);
@@ -56,9 +59,30 @@ export default function Settings() {
     // Users management states
     const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
     const [deleteUserModal, setDeleteUserModal] = useState({ isOpen: false, id: null, name: '' });
+    const [softDeleteModal, setSoftDeleteModal] = useState({ isOpen: false, id: null, name: '' });
+    const [editUserModal, setEditUserModal] = useState({ isOpen: false, id: null, name: '', email: '' });
+    const [resetPwModal, setResetPwModal] = useState({ isOpen: false, id: null, email: '' });
+    const [newUserPassword, setNewUserPassword] = useState('');
     const [editingUserId, setEditingUserId] = useState(null);
     const [selectedRole, setSelectedRole] = useState(null);
     const [userFormData, setUserFormData] = useState({ name: '', email: '', password: '', role: 'user' });
+
+    // Add-role control lifted into the Roles tab header (see RolesManagement)
+    const [isAddRoleOpen, setIsAddRoleOpen] = useState(false);
+
+    // Segmented sub-tab inside the unified Access Control page
+    const [accessTab, setAccessTab] = useState('users');
+
+    // Deletion requests (super.admin review queue)
+    const { data: deletionData } = useQuery({
+        queryKey: ['deletion-requests'],
+        enabled: isSuperAdmin && activeTab === 'deletion_requests',
+        queryFn: async () => {
+            const { data } = await api.get('/users/deletion-requests');
+            return data;
+        }
+    });
+    const deletionRequests = deletionData?.requests || [];
 
     // Fetch users
     const { data: usersData, isLoading: isLoadingUsers, error: usersError } = useQuery({
@@ -126,6 +150,65 @@ export default function Settings() {
         }
     });
 
+    const softDeleteUserMutation = useMutation({
+        mutationFn: async (userId) => {
+            await api.post(`/users/${userId}/soft-delete`);
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries(['users']);
+            queryClient.invalidateQueries(['deletion-requests']);
+            setSoftDeleteModal({ isOpen: false, id: null, name: '' });
+            setFeedbackModal({ isOpen: true, title: 'Submitted', message: 'User deactivated and sent to a Super Admin for review.', type: 'success' });
+        },
+        onError: (error) => {
+            setFeedbackModal({ isOpen: true, title: 'Error', message: error.response?.data?.message || 'Failed to delete user.', type: 'danger' });
+        }
+    });
+
+    const updateUserMutation = useMutation({
+        mutationFn: async ({ userId, name, email }) => {
+            const { data } = await api.put(`/users/${userId}`, { name, email });
+            return data;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries(['users']);
+            setEditUserModal({ isOpen: false, id: null, name: '', email: '' });
+            setFeedbackModal({ isOpen: true, title: 'Success', message: 'User updated successfully.', type: 'success' });
+        },
+        onError: (error) => {
+            setFeedbackModal({ isOpen: true, title: 'Error', message: error.response?.data?.message || 'Failed to update user.', type: 'danger' });
+        }
+    });
+
+    const resetPasswordMutation = useMutation({
+        mutationFn: async ({ userId, password }) => {
+            const { data } = await api.put(`/users/${userId}/password`, { newPassword: password });
+            return data;
+        },
+        onSuccess: () => {
+            setResetPwModal({ isOpen: false, id: null, email: '' });
+            setNewUserPassword('');
+            setFeedbackModal({ isOpen: true, title: 'Success', message: 'Password reset successfully.', type: 'success' });
+        },
+        onError: (error) => {
+            setFeedbackModal({ isOpen: true, title: 'Error', message: error.response?.data?.message || 'Failed to reset password.', type: 'danger' });
+        }
+    });
+
+    const restoreUserMutation = useMutation({
+        mutationFn: async (userId) => {
+            await api.post(`/users/${userId}/restore`);
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries(['users']);
+            queryClient.invalidateQueries(['deletion-requests']);
+            setFeedbackModal({ isOpen: true, title: 'Restored', message: 'User restored and re-activated.', type: 'success' });
+        },
+        onError: (error) => {
+            setFeedbackModal({ isOpen: true, title: 'Error', message: error.response?.data?.message || 'Failed to restore user.', type: 'danger' });
+        }
+    });
+
     const handleCreate = async (e) => {
         e.preventDefault();
         try {
@@ -164,6 +247,28 @@ export default function Settings() {
         }
     };
 
+    const handleSoftDeleteUser = async () => {
+        if (softDeleteModal.id) {
+            await softDeleteUserMutation.mutateAsync(softDeleteModal.id);
+        }
+    };
+
+    const handleUpdateUser = async () => {
+        if (!editUserModal.name?.trim() || !editUserModal.email?.trim()) {
+            setFeedbackModal({ isOpen: true, title: 'Validation Error', message: 'Name and email are required.', type: 'warning' });
+            return;
+        }
+        await updateUserMutation.mutateAsync({ userId: editUserModal.id, name: editUserModal.name, email: editUserModal.email });
+    };
+
+    const handleResetPassword = async () => {
+        if (!newUserPassword || newUserPassword.length < 6) {
+            setFeedbackModal({ isOpen: true, title: 'Validation Error', message: 'Password must be at least 6 characters long.', type: 'warning' });
+            return;
+        }
+        await resetPasswordMutation.mutateAsync({ userId: resetPwModal.id, password: newUserPassword });
+    };
+
     const getRoleBadgeColor = (role) => {
         if (role === 'super.admin') {
             return 'bg-purple-50 text-purple-700 dark:bg-purple-900/20 dark:text-purple-400';
@@ -200,10 +305,9 @@ export default function Settings() {
         {
             title: "System",
             items: [
-                { id: 'users', label: 'Users', icon: Users },
-                { id: 'roles', label: 'Roles', icon: Shield },
+                { id: 'access', label: 'Access Control', icon: Shield },
+                ...(isSuperAdmin ? [{ id: 'deletion_requests', label: 'Deletion Requests', icon: Trash2 }] : []),
                 { id: 'security', label: 'Security & PIN', icon: ShieldAlert },
-                ...(isSuperAdmin ? [{ id: 'menu_access', label: 'Menu Access', icon: Menu }] : []),
             ]
         },
         {
@@ -486,21 +590,44 @@ export default function Settings() {
                     </div>
                 )}
 
-                {activeTab === 'users' && (
+                {activeTab === 'access' && (
                     <div className="flex-1 flex flex-col h-full overflow-hidden">
-                        {/* Header Toolbar */}
-                        <div className="px-8 py-5 border-b border-gray-200 dark:border-neutral-800 flex justify-between items-center bg-white dark:bg-neutral-900 shrink-0 transition-colors">
-                            <div>
-                                <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Users & Roles</h2>
-                                <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Manage user accounts and assign roles.</p>
+                        {/* Header: title + segmented sub-tabs + contextual action */}
+                        <div className="px-8 py-5 border-b border-gray-200 dark:border-neutral-800 flex flex-wrap gap-3 justify-between items-center bg-white dark:bg-neutral-900 shrink-0 transition-colors">
+                            <div className="flex items-center gap-5">
+                                <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Access Control</h2>
+                                <div className="inline-flex gap-1 bg-gray-100 dark:bg-neutral-800/60 p-1 rounded-xl">
+                                    {[
+                                        { id: 'users', label: 'Users' },
+                                        { id: 'roles', label: 'Roles' },
+                                        ...(isSuperAdmin ? [{ id: 'visibility', label: 'Visibility' }] : []),
+                                    ].map((t) => (
+                                        <button
+                                            key={t.id}
+                                            onClick={() => setAccessTab(t.id)}
+                                            className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition-colors ${accessTab === t.id
+                                                ? 'bg-white dark:bg-neutral-900 text-gray-900 dark:text-gray-100 shadow-sm'
+                                                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}
+                                        >
+                                            {t.label}
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
-                            <Button color="blue" onClick={() => setIsAddUserModalOpen(true)}>
-                                <Plus className="w-4 h-4 mr-2" />
-                                Add User
-                            </Button>
+                            {accessTab === 'users' && (
+                                <Button color="blue" onClick={() => setIsAddUserModalOpen(true)}>
+                                    <Plus className="w-4 h-4 mr-2" /> Add User
+                                </Button>
+                            )}
+                            {accessTab === 'roles' && (
+                                <Button color="blue" onClick={() => setIsAddRoleOpen(true)}>
+                                    <Plus className="w-4 h-4 mr-2" /> Add Role
+                                </Button>
+                            )}
                         </div>
 
-                        {/* Data Table Area */}
+                        {/* Users sub-tab */}
+                        {accessTab === 'users' && (
                         <div className="flex-1 overflow-auto p-8 bg-gray-50/30 dark:bg-neutral-900/50 transition-colors">
                             {isLoadingUsers ? (
                                 <div className="p-6"><TableSkeleton rows={4} /></div>
@@ -545,7 +672,7 @@ export default function Settings() {
                                                     </div>
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap">
-                                                    {editingUserId === user.id ? (
+                                                    {isSuperAdmin && editingUserId === user.id ? (
                                                         <div className="flex items-center gap-2">
                                                             <select
                                                                 value={selectedRole || user.role}
@@ -573,17 +700,19 @@ export default function Settings() {
                                                     ) : (
                                                         <div className="flex items-center gap-2">
                                                             <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium gap-1 ${getRoleBadgeColor(user.role)}`}>
-                                                                {user.role === 'super.admin' && <Shield className="w-3 h-3" />}
-                                                                {user.role === 'admin' && <Shield className="w-3 h-3" />}
+                                                                {(user.role === 'super.admin' || user.role === 'admin') && <Shield className="w-3 h-3" />}
                                                                 {user.role === 'super.admin' ? 'Super Admin' : user.role === 'admin' ? 'Admin' : 'User'}
                                                             </span>
-                                                            <button
-                                                                onClick={() => setEditingUserId(user.id)}
-                                                                className="text-gray-400 hover:text-emerald-600 p-1 rounded hover:bg-gray-100 dark:hover:bg-neutral-800"
-                                                                title="Edit role"
-                                                            >
-                                                                <ChevronRight className="w-4 h-4" />
-                                                            </button>
+                                                            {/* Only super admins can change roles */}
+                                                            {isSuperAdmin && (
+                                                                <button
+                                                                    onClick={() => setEditingUserId(user.id)}
+                                                                    className="text-gray-400 hover:text-emerald-600 p-1 rounded hover:bg-gray-100 dark:hover:bg-neutral-800"
+                                                                    title="Edit role"
+                                                                >
+                                                                    <ChevronRight className="w-4 h-4" />
+                                                                </button>
+                                                            )}
                                                         </div>
                                                     )}
                                                 </td>
@@ -594,18 +723,47 @@ export default function Settings() {
                                                     </div>
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                                    <button
-                                                        onClick={() => setDeleteUserModal({
-                                                            isOpen: true,
-                                                            id: user.id,
-                                                            name: user.name
-                                                        })}
-                                                        disabled={deleteUserMutation.isPending}
-                                                        className="text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 transition-colors"
-                                                        title="Delete user"
-                                                    >
-                                                        <Trash2 className="w-5 h-5" />
-                                                    </button>
+                                                    <div className="flex items-center justify-end gap-1">
+                                                        {canManage(user) && (
+                                                            <>
+                                                                <button
+                                                                    onClick={() => setEditUserModal({ isOpen: true, id: user.id, name: user.name, email: user.email })}
+                                                                    className="text-gray-400 dark:text-gray-500 hover:text-emerald-600 dark:hover:text-emerald-400 p-1.5 rounded transition-colors"
+                                                                    title="Edit name & email"
+                                                                >
+                                                                    <Pencil className="w-4 h-4" />
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => { setResetPwModal({ isOpen: true, id: user.id, email: user.email }); setNewUserPassword(''); }}
+                                                                    className="text-gray-400 dark:text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 p-1.5 rounded transition-colors"
+                                                                    title="Reset password"
+                                                                >
+                                                                    <Key className="w-4 h-4" />
+                                                                </button>
+                                                            </>
+                                                        )}
+                                                        {/* Super admin → permanent delete (not self). Admin → soft-delete a regular user. */}
+                                                        {isSuperAdmin && user.id !== currentUser?.id && (
+                                                            <button
+                                                                onClick={() => setDeleteUserModal({ isOpen: true, id: user.id, name: user.name })}
+                                                                disabled={deleteUserMutation.isPending}
+                                                                className="text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 p-1.5 rounded transition-colors"
+                                                                title="Delete user permanently"
+                                                            >
+                                                                <Trash2 className="w-4 h-4" />
+                                                            </button>
+                                                        )}
+                                                        {isAdmin && user.role === 'user' && (
+                                                            <button
+                                                                onClick={() => setSoftDeleteModal({ isOpen: true, id: user.id, name: user.name })}
+                                                                disabled={softDeleteUserMutation.isPending}
+                                                                className="text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 p-1.5 rounded transition-colors"
+                                                                title="Request deletion (deactivates user)"
+                                                            >
+                                                                <Trash2 className="w-4 h-4" />
+                                                            </button>
+                                                        )}
+                                                    </div>
                                                 </td>
                                             </tr>
                                         ))}
@@ -613,6 +771,19 @@ export default function Settings() {
                                 </table>
                             )}
                         </div>
+                        )}
+
+                        {/* Roles sub-tab */}
+                        {accessTab === 'roles' && (
+                            <div className="flex-1 overflow-auto p-8 bg-gray-50/30 dark:bg-neutral-900/50">
+                                <RolesManagement addOpen={isAddRoleOpen} onAddOpenChange={setIsAddRoleOpen} hideInternalAddButton />
+                            </div>
+                        )}
+
+                        {/* Visibility sub-tab (super admin only) */}
+                        {accessTab === 'visibility' && isSuperAdmin && (
+                            <MenuAccessView setFeedbackModal={setFeedbackModal} canEdit={isSuperAdmin} />
+                        )}
                     </div>
                 )}
 
@@ -631,21 +802,69 @@ export default function Settings() {
                     </div>
                 )}
 
-                {activeTab === 'roles' && (
+                {activeTab === 'deletion_requests' && isSuperAdmin && (
                     <div className="flex-1 flex flex-col h-full overflow-hidden">
                         <div className="px-8 py-5 border-b border-gray-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 shrink-0">
-                            <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Roles</h2>
-                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Manage role definitions used across the application.</p>
+                            <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Deletion Requests</h2>
+                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Users an admin has deactivated and submitted for permanent deletion. Restore or delete permanently.</p>
                         </div>
                         <div className="flex-1 overflow-auto p-8 bg-gray-50/30 dark:bg-neutral-900/50">
-                            <RolesManagement />
+                            {deletionRequests.length === 0 ? (
+                                <div className="p-12 text-center flex flex-col items-center">
+                                    <Trash2 className="w-12 h-12 text-gray-300 dark:text-gray-600 mb-4" />
+                                    <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">No pending requests</h3>
+                                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 max-w-sm">When an admin requests a user deletion, it will appear here for review.</p>
+                                </div>
+                            ) : (
+                                <table className="min-w-full divide-y divide-gray-200 dark:divide-neutral-800">
+                                    <thead className="bg-white dark:bg-neutral-900">
+                                        <tr>
+                                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">User</th>
+                                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Requested by</th>
+                                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">When</th>
+                                            <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-100 dark:divide-neutral-800 bg-white dark:bg-neutral-900">
+                                        {deletionRequests.map((req) => (
+                                            <tr key={req.id} className="hover:bg-gray-50/50 dark:hover:bg-neutral-800/50 transition-colors">
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{req.name}</div>
+                                                    <div className="text-xs text-gray-500 dark:text-gray-400">{req.email}</div>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">
+                                                    {req.requestedBy ? `${req.requestedBy.name} (${req.requestedBy.email})` : 'Unknown'}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                                                    {req.deletion_requested_at ? new Date(req.deletion_requested_at).toLocaleString('en-PK', { dateStyle: 'medium', timeStyle: 'short' }) : '—'}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-right">
+                                                    <div className="flex items-center justify-end gap-2">
+                                                        <button
+                                                            onClick={() => restoreUserMutation.mutate(req.id)}
+                                                            disabled={restoreUserMutation.isPending}
+                                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-300 dark:border-neutral-700 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors disabled:opacity-50"
+                                                        >
+                                                            <Restore className="w-3.5 h-3.5" /> Restore
+                                                        </button>
+                                                        <button
+                                                            onClick={() => setDeleteUserModal({ isOpen: true, id: req.id, name: req.name })}
+                                                            disabled={deleteUserMutation.isPending}
+                                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-50"
+                                                        >
+                                                            <Trash2 className="w-3.5 h-3.5" /> Delete permanently
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            )}
                         </div>
                     </div>
                 )}
 
-                {activeTab === 'menu_access' && (
-                    <MenuAccessView setFeedbackModal={setFeedbackModal} canEdit={isSuperAdmin} />
-                )}
 
                 {activeTab === 'export' && <ExportDataView />}
 
@@ -867,6 +1086,80 @@ export default function Settings() {
                         disabled: deleteUserMutation.isPending,
                     }}
                 />
+
+                {/* Soft Delete (request) Modal */}
+                <Modal
+                    isOpen={softDeleteModal.isOpen}
+                    onClose={() => setSoftDeleteModal({ isOpen: false, id: null, name: '' })}
+                    title="Request user deletion"
+                    description={`This deactivates ${softDeleteModal.name} (they can no longer log in) and sends the request to a Super Admin for review.`}
+                    type="warning"
+                    size="md"
+                    primaryAction={{
+                        label: 'Deactivate & request',
+                        onClick: handleSoftDeleteUser,
+                        isLoading: softDeleteUserMutation.isPending,
+                        variant: 'danger',
+                    }}
+                    secondaryAction={{
+                        label: 'Cancel',
+                        onClick: () => setSoftDeleteModal({ isOpen: false, id: null, name: '' }),
+                        disabled: softDeleteUserMutation.isPending,
+                    }}
+                />
+
+                {/* Edit User (name / email) Modal */}
+                <Modal
+                    isOpen={editUserModal.isOpen}
+                    onClose={() => setEditUserModal({ isOpen: false, id: null, name: '', email: '' })}
+                    title="Edit User"
+                >
+                    <div className="space-y-4">
+                        <TextInput
+                            label="Full Name"
+                            value={editUserModal.name}
+                            onChange={(e) => setEditUserModal({ ...editUserModal, name: e.target.value })}
+                        />
+                        <TextInput
+                            label="Email"
+                            type="email"
+                            value={editUserModal.email}
+                            onChange={(e) => setEditUserModal({ ...editUserModal, email: e.target.value })}
+                        />
+                        <div className="flex justify-end gap-3 pt-2">
+                            <Button color="light" type="button" onClick={() => setEditUserModal({ isOpen: false, id: null, name: '', email: '' })}>Cancel</Button>
+                            <Button color="blue" type="button" onClick={handleUpdateUser} disabled={updateUserMutation.isPending}>
+                                {updateUserMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                                Save Changes
+                            </Button>
+                        </div>
+                    </div>
+                </Modal>
+
+                {/* Reset Password Modal */}
+                <Modal
+                    isOpen={resetPwModal.isOpen}
+                    onClose={() => { setResetPwModal({ isOpen: false, id: null, email: '' }); setNewUserPassword(''); }}
+                    title="Reset User Password"
+                >
+                    <div className="space-y-4">
+                        <p className="text-sm text-gray-600 dark:text-gray-300">Set a new password for <strong>{resetPwModal.email}</strong>.</p>
+                        <TextInput
+                            label="New Password"
+                            type="password"
+                            placeholder="Min 6 characters"
+                            value={newUserPassword}
+                            onChange={(e) => setNewUserPassword(e.target.value)}
+                        />
+                        <div className="flex justify-end gap-3 pt-2">
+                            <Button color="light" type="button" onClick={() => { setResetPwModal({ isOpen: false, id: null, email: '' }); setNewUserPassword(''); }}>Cancel</Button>
+                            <Button color="blue" type="button" onClick={handleResetPassword} disabled={resetPasswordMutation.isPending}>
+                                {resetPasswordMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                                Reset Password
+                            </Button>
+                        </div>
+                    </div>
+                </Modal>
 
                 {/* Feedback Modal */}
                 <Modal
@@ -1257,6 +1550,24 @@ function MenuAccessView({ setFeedbackModal, canEdit = false }) {
 
     const roleLabel = (r) => r === 'super.admin' ? 'Super' : r.charAt(0).toUpperCase() + r.slice(1);
 
+    // Flatten into parent → children order so sub-sections render indented under their parent.
+    const orderedRows = useMemo(() => {
+        if (!draft) return [];
+        const out = [];
+        const placed = new Set();
+        draft.filter(i => !i.parent_path).forEach(parent => {
+            out.push({ item: parent, isChild: false });
+            placed.add(parent.path);
+            draft.filter(c => c.parent_path === parent.path).forEach(child => {
+                out.push({ item: child, isChild: true });
+                placed.add(child.path);
+            });
+        });
+        // Any orphan rows (parent missing) still get shown.
+        draft.filter(i => !placed.has(i.path)).forEach(i => out.push({ item: i, isChild: !!i.parent_path }));
+        return out;
+    }, [draft]);
+
     // Counts per role
     const counts = useMemo(() => {
         if (!draft) return {};
@@ -1338,23 +1649,23 @@ function MenuAccessView({ setFeedbackModal, canEdit = false }) {
                             </div>
 
                             <div className="divide-y divide-gray-100 dark:divide-neutral-800">
-                                {draft?.map((item) => {
+                                {orderedRows.map(({ item, isChild }) => {
                                     const roles = Array.isArray(item.visible_to_roles) ? item.visible_to_roles : [];
                                     return (
                                         <div
                                             key={item.path}
-                                            className="flex flex-col sm:flex-row sm:items-center px-5 py-3.5 hover:bg-gray-50 dark:hover:bg-neutral-800/50 transition-colors"
+                                            className={`flex flex-col sm:flex-row sm:items-center px-5 py-3 hover:bg-gray-50 dark:hover:bg-neutral-800/50 transition-colors ${isChild ? 'sm:pl-16 bg-gray-50/40 dark:bg-neutral-900/40' : ''}`}
                                         >
                                             <div className="flex items-center gap-3 flex-1 min-w-0 mb-3 sm:mb-0">
-                                                <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
+                                                <div className={`${isChild ? 'w-7 h-7' : 'w-9 h-9'} rounded-lg flex items-center justify-center shrink-0 ${
                                                     roles.length > 0
                                                         ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400'
                                                         : 'bg-gray-100 dark:bg-neutral-800 text-gray-400 dark:text-gray-500'
                                                 }`}>
-                                                    <Menu className="w-4 h-4" />
+                                                    {isChild ? <ChevronRight className="w-3.5 h-3.5" /> : <Menu className="w-4 h-4" />}
                                                 </div>
                                                 <div className="min-w-0">
-                                                    <p className="font-medium text-gray-900 dark:text-gray-100 truncate">{item.name}</p>
+                                                    <p className={`font-medium text-gray-900 dark:text-gray-100 truncate ${isChild ? 'text-sm' : ''}`}>{item.name}</p>
                                                     <p className="text-xs text-gray-500 dark:text-gray-400 font-mono">{item.path}</p>
                                                 </div>
                                             </div>

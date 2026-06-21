@@ -209,10 +209,16 @@ export const login = async (req, res) => {
             return res.status(400).json({ message: 'Invalid email or password' });
         }
 
-        // Block login if email is not verified
-        const verifiedRows = await prisma.$queryRaw`
-            SELECT email_verified FROM users WHERE id = ${user.id}::uuid LIMIT 1
+        // Block login if the account has been deactivated (soft-deleted by an admin)
+        const statusRows = await prisma.$queryRaw`
+            SELECT email_verified, deleted_at FROM users WHERE id = ${user.id}::uuid LIMIT 1
         `;
+        if (statusRows[0]?.deleted_at) {
+            return res.status(403).json({ message: 'This account has been deactivated. Please contact an administrator.' });
+        }
+
+        // Block login if email is not verified
+        const verifiedRows = statusRows;
         if (verifiedRows[0] && verifiedRows[0].email_verified === false) {
             return res.status(403).json({
                 message: 'Please confirm your email address before logging in. Check your inbox for the verification link.',
@@ -344,6 +350,14 @@ export const verifyOtp = async (req, res) => {
 
         if (!user) {
             return res.status(404).json({ message: 'User not found' });
+        }
+
+        // Block if the account was deactivated (soft-deleted) since login started
+        const statusRows = await prisma.$queryRaw`
+            SELECT deleted_at FROM users WHERE id = ${userId}::uuid LIMIT 1
+        `;
+        if (statusRows[0]?.deleted_at) {
+            return res.status(403).json({ message: 'This account has been deactivated. Please contact an administrator.' });
         }
 
         // Check if OTP matches and hasn't expired

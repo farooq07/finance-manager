@@ -8,7 +8,7 @@ import prisma from '../utils/prisma.js';
 export const getMenuVisibility = async (req, res) => {
     try {
         const items = await prisma.$queryRaw`
-            SELECT path, name, icon, visible_to_roles, sort_order
+            SELECT path, name, icon, visible_to_roles, sort_order, parent_path
             FROM menu_visibility
             ORDER BY sort_order ASC
         `;
@@ -50,7 +50,7 @@ export const updateMenuVisibility = async (req, res) => {
         }
 
         const updated = await prisma.$queryRaw`
-            SELECT path, name, icon, visible_to_roles, sort_order
+            SELECT path, name, icon, visible_to_roles, sort_order, parent_path
             FROM menu_visibility
             ORDER BY sort_order ASC
         `;

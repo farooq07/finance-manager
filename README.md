@@ -21,7 +21,7 @@ A personal finance manager built for the Pakistani market — tracks spending, b
 ## Modules
 
 ### Dashboard
-Net worth hero with bank, wallet, investment, asset, and liability totals. Includes daily history chart, asset-allocation donut, and composition breakdown. Clicking any tile deep-links to that module.
+Net worth hero with cash (bank + wallet), invested (stocks + funds), and a liabilities tile that breaks out **Receivable** (owed to you) vs **Payable** (what you owe). Includes daily history chart, asset-allocation donut, and composition breakdown. Clicking any tile deep-links to that module. All amounts respect the app PIN mask.
 
 ### Spending
 Aggregated analytics across bank statement transactions, wallet transactions, and manual expense entries. Period filter (Month / Quarter / Year) with a back/forward navigator. Charts: day-by-day trend, category breakdown, top destinations, weekday rhythm. All data respects the selected date range.
@@ -170,6 +170,15 @@ All amounts are **PKR (Pakistani Rupees)**.
 - Monetary values → `fmtPKR()` from `frontend/src/utils/currency.js`
 - Dates → `fmtDateLong()` from `frontend/src/utils/dates.js`
 - Gold prices → user-facing in **PKR/tola** (1 tola = 11.664 g); stored internally as PKR/gram
+
+---
+
+## UI Conventions
+
+- **Confirmation dialogs** — never use the native `window.confirm` / `alert`. Use the shared shadcn-based dialog via the `useConfirm()` hook from `frontend/src/components/ui/confirm-dialog`. It returns a `Promise<boolean>` (`const ok = await confirm({ title, description, confirmText })`) and is mounted app-wide through `ConfirmDialogProvider` in `App.jsx`. Defaults to a destructive (red) confirm button.
+- **Toasts** — use `sonner` (`toast.success` / `toast.error`); the `<Toaster>` is mounted in `App.jsx`.
+- **Dark mode** — every component pairs light classes with `dark:` variants.
+- Shared shadcn primitives live in `frontend/src/components/ui/` (button, dialog, confirm-dialog, table, etc.).
 
 ---
 

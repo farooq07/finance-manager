@@ -9,9 +9,12 @@ import TextInput from '../components/TextInput';
 import { TableSkeleton } from '../components/Skeleton';
 import { toast } from 'sonner';
 
-export default function RolesManagement() {
+export default function RolesManagement({ addOpen, onAddOpenChange, hideInternalAddButton = false }) {
   const queryClient = useQueryClient();
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [internalAddOpen, setInternalAddOpen] = useState(false);
+  // Allow a parent (Settings console) to drive the Add-Role modal from its header.
+  const isAddModalOpen = addOpen !== undefined ? addOpen : internalAddOpen;
+  const setIsAddModalOpen = onAddOpenChange || setInternalAddOpen;
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, id: null, name: '' });
   const [editingRoleId, setEditingRoleId] = useState(null);
   const [editData, setEditData] = useState({ name: '', slug: '' });
@@ -117,23 +120,17 @@ export default function RolesManagement() {
 
   return (
     <div className="flex-1 overflow-auto">
-      <div className="p-6 space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-50">Roles & Permissions</h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              Manage system roles and their permissions.
-            </p>
-          </div>
-          <button
-            onClick={() => setIsAddModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-medium"
-          >
-            <Plus className="w-4 h-4" />
-            Add Role
-          </button>
-        </div>
+      {!hideInternalAddButton && (
+        <button
+          onClick={() => setIsAddModalOpen(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-medium"
+        >
+          <Plus className="w-4 h-4" />
+          Add Role
+        </button>
+      )}
+      <div className="py-6 space-y-6">
+
 
         {/* Roles Table */}
         {isLoading ? (

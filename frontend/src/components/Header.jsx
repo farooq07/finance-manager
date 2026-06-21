@@ -2,10 +2,10 @@ import { useRef, useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
-import { LogOut, Sun, Moon, Sparkles, ArrowLeft, LifeBuoy, ChevronDown } from 'lucide-react';
+import { LogOut, Sun, Moon, Sparkles, ArrowLeft, LifeBuoy, ChevronDown, Menu } from 'lucide-react';
 import { getRouteMeta } from '../utils/routeMeta';
 
-export default function Header() {
+export default function Header({ onOpenMenu }) {
     const { user, logout } = useAuth();
     const { theme, toggleTheme } = useTheme();
     const location = useLocation();
@@ -37,8 +37,16 @@ export default function Header() {
 
     return (
         <header className="h-14 bg-white dark:bg-neutral-900 border-b border-gray-200 dark:border-neutral-800 flex items-center justify-between px-6 shrink-0 transition-colors">
-            {/* Left — breadcrumb + back arrow */}
+            {/* Left — breadcrumb + back arrow + mobile menu */}
             <div className="flex items-center gap-2 min-w-0">
+                <button
+                    onClick={onOpenMenu}
+                    className="md:hidden p-1.5 -ml-2 mr-1 text-gray-500 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-neutral-800 rounded-lg transition-colors"
+                    aria-label="Open menu"
+                >
+                    <Menu className="w-5 h-5" />
+                </button>
+
                 {meta.parent && (
                     <Link
                         to={meta.parent}

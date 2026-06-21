@@ -21,11 +21,9 @@ import Accounts from './pages/Accounts';
 import BankDetail from './pages/BankDetail';
 import WalletDetail from './pages/WalletDetail';
 import Settings from './pages/Settings';
-import Users from './pages/Users';
 import Reports from './pages/Reports';
 import DesignSystem from './pages/DesignSystem';
 import Personal from './pages/Personal';
-import RolesManagement from './pages/RolesManagement';
 import BeneficiaryDetail from './pages/BeneficiaryDetail';
 import ChangeFirstPassword from './pages/ChangeFirstPassword';
 import AiAssistant from './pages/AiAssistant';
@@ -100,8 +98,6 @@ function App() {
               <Route path="wallets" element={<Accounts />} />
               <Route path="wallets/:id" element={<WalletDetail />} />
               <Route path="settings" element={<Settings />} />
-              <Route path="users" element={<AdminRoute><Users /></AdminRoute>} />
-              <Route path="roles" element={<AdminRoute><RolesManagement /></AdminRoute>} />
               <Route path="reports" element={<Reports />} />
               <Route path="insights" element={<Insights />} />
               <Route path="net-worth" element={<NetWorth />} />

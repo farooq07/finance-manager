@@ -56,12 +56,14 @@ function sectionFor(path) {
     return 'more';
 }
 
-export default function Sidebar() {
+export default function Sidebar({ mobile, onNavClick }) {
     const location = useLocation();
     const { user } = useAuth();
     const [isExpanded, setIsExpanded] = useState(true);
     const [mounted, setMounted] = useState(false);
     useEffect(() => { setMounted(true); }, []);
+
+    const effectiveExpanded = mobile ? true : isExpanded;
 
     const { data: menuItems = [] } = useQuery({
         queryKey: ['menu-visibility'],
@@ -72,6 +74,8 @@ export default function Sidebar() {
 
     // Filter by role, attach icon component.
     const navItems = useMemo(() => menuItems
+        // Sub-section rows (parent_path set) gate page tabs, not sidebar entries.
+        .filter((item) => !item.parent_path)
         .filter((item) => Array.isArray(item.visible_to_roles) && item.visible_to_roles.includes(user?.role))
         .map((item) => ({
             name: item.name,
@@ -95,22 +99,23 @@ export default function Sidebar() {
     return (
         <aside
             className={clsx(
-                'bg-white dark:bg-neutral-950 border-r border-gray-200 dark:border-neutral-800 flex flex-col hidden md:flex shrink-0 relative',
-                mounted ? 'transition-[width] duration-300 ease-in-out' : '',
-                isExpanded ? 'w-[232px]' : 'w-[68px]'
+                'bg-white dark:bg-neutral-950 flex flex-col shrink-0 relative',
+                mobile ? 'w-full h-full border-none' : 'hidden md:flex border-r border-gray-200 dark:border-neutral-800',
+                mounted && !mobile ? 'transition-[width] duration-300 ease-in-out' : '',
+                !mobile && (effectiveExpanded ? 'w-[232px]' : 'w-[68px]')
             )}
         >
             {/* Logo block */}
             <div className={clsx(
                 'h-14 flex items-center gap-2.5 border-b border-gray-100 dark:border-neutral-900 shrink-0',
-                isExpanded ? 'px-4' : 'px-0 justify-center'
+                effectiveExpanded ? 'px-4' : 'px-0 justify-center'
             )}>
                 <img
                     src={logosm}
                     alt="FSWealth Axis"
                     className="h-7 w-7 object-contain shrink-0"
                 />
-                {isExpanded && (
+                {effectiveExpanded && (
                     <h1 className="text-[15px] font-bold tracking-tight text-gray-900 dark:text-gray-100 whitespace-nowrap overflow-hidden">
                         FSWealth <span className="text-emerald-500 italic font-semibold">Axis</span>
                     </h1>
@@ -121,21 +126,22 @@ export default function Sidebar() {
             <nav className="flex-1 min-h-0 overflow-y-auto py-3">
                 {grouped.map((section, idx) => (
                     <div key={section.id} className={idx > 0 ? 'mt-4' : ''}>
-                        {isExpanded && (
+                        {effectiveExpanded && (
                             <p className="px-4 mb-1.5 text-[10px] font-semibold tracking-[0.14em] uppercase text-gray-400 dark:text-neutral-500">
                                 {section.label}
                             </p>
                         )}
-                        {!isExpanded && idx > 0 && (
+                        {!effectiveExpanded && idx > 0 && (
                             <div className="mx-3 my-2 border-t border-gray-100 dark:border-neutral-900" />
                         )}
-                        <div className={clsx('flex flex-col', isExpanded ? 'gap-0.5 px-2' : 'gap-1 px-2 items-center')}>
+                        <div className={clsx('flex flex-col', effectiveExpanded ? 'gap-0.5 px-2' : 'gap-1 px-2 items-center')}>
                             {section.items.map((item) => (
                                 <NavRow
                                     key={item.path}
                                     item={item}
-                                    isExpanded={isExpanded}
+                                    isExpanded={effectiveExpanded}
                                     location={location}
+                                    onClick={onNavClick}
                                 />
                             ))}
                         </div>
@@ -143,29 +149,31 @@ export default function Sidebar() {
                 ))}
             </nav>
 
-            {/* Footer — collapse toggle */}
-            <div className={clsx(
-                'border-t border-gray-100 dark:border-neutral-900 shrink-0 flex items-center',
-                isExpanded ? 'px-3 py-3 justify-between' : 'px-2 py-3 justify-center'
-            )}>
-                {isExpanded && (
-                    <span className="text-[11px] text-gray-400 dark:text-neutral-500 font-medium tracking-wide">
-                        v1
-                    </span>
-                )}
-                <button
-                    onClick={() => setIsExpanded(!isExpanded)}
-                    aria-label={isExpanded ? 'Collapse sidebar' : 'Expand sidebar'}
-                    className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400 dark:text-neutral-500 hover:text-emerald-500 hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors"
-                >
-                    {isExpanded ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                </button>
-            </div>
+            {/* Footer — collapse toggle (hidden on mobile) */}
+            {!mobile && (
+                <div className={clsx(
+                    'border-t border-gray-100 dark:border-neutral-900 shrink-0 flex items-center',
+                    effectiveExpanded ? 'px-3 py-3 justify-between' : 'px-2 py-3 justify-center'
+                )}>
+                    {effectiveExpanded && (
+                        <span className="text-[11px] text-gray-400 dark:text-neutral-500 font-medium tracking-wide">
+                            v1
+                        </span>
+                    )}
+                    <button
+                        onClick={() => setIsExpanded(!isExpanded)}
+                        aria-label={effectiveExpanded ? 'Collapse sidebar' : 'Expand sidebar'}
+                        className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400 dark:text-neutral-500 hover:text-emerald-500 hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors"
+                    >
+                        {effectiveExpanded ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                    </button>
+                </div>
+            )}
         </aside>
     );
 }
 
-function NavRow({ item, isExpanded, location }) {
+function NavRow({ item, isExpanded, location, onClick }) {
     const Icon = item.icon;
     const isActive = location.pathname === item.path
         || (item.path !== '/' && location.pathname.startsWith(item.path));
@@ -174,6 +182,7 @@ function NavRow({ item, isExpanded, location }) {
         return (
             <Link
                 to={item.path}
+                onClick={onClick}
                 className={clsx(
                     'sidebar-item w-10 h-10 flex items-center justify-center rounded-lg transition-colors relative outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40',
                     isActive
@@ -190,6 +199,7 @@ function NavRow({ item, isExpanded, location }) {
     return (
         <Link
             to={item.path}
+            onClick={onClick}
             className={clsx(
                 'group relative flex items-center gap-3 h-9 pl-3 pr-3 rounded-lg text-[13px] transition-colors outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40',
                 isActive

@@ -37,17 +37,29 @@ async function findOrCreateOAuthUser({ provider, providerId, email, name, avatar
         throw err;
     }
 
+    // Reject sign-in for accounts an admin has deactivated (soft-deleted).
+    const assertNotDeactivated = async (id) => {
+        const rows = await prisma.$queryRaw`SELECT deleted_at FROM users WHERE id = ${id}::uuid LIMIT 1`;
+        if (rows[0]?.deleted_at) {
+            const err = new Error('This account has been deactivated. Please contact an administrator.');
+            err.status = 403;
+            throw err;
+        }
+    };
+
     const linkedRows = await prisma.$queryRaw`
         SELECT id FROM users
         WHERE auth_provider = ${provider} AND provider_id = ${providerId}
         LIMIT 1
     `;
     if (linkedRows[0]) {
+        await assertNotDeactivated(linkedRows[0].id);
         return prisma.user.findUnique({ where: { id: linkedRows[0].id } });
     }
 
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) {
+        await assertNotDeactivated(existing.id);
         await prisma.$executeRaw`
             UPDATE users
             SET auth_provider = ${provider},

@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import api from '../services/api';
 import { fmtPKR } from '../utils/currency';
+import { useMenuAccess } from '../hooks/useMenuAccess';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -731,7 +732,13 @@ const MENU = [
 ];
 
 export default function Reports() {
+    const { canSee } = useMenuAccess();
+    const menu = MENU.filter((m) => canSee(`/reports#${m.id}`));
     const [active, setActive] = useState('transactions');
+
+    // If the current section is hidden for this role, fall back to the first allowed one.
+    const visibleIds = menu.map((m) => m.id);
+    const activeSection = visibleIds.includes(active) ? active : (visibleIds[0] || null);
 
     return (
         <div className="flex h-[calc(100vh-3.5rem)] -m-6 text-gray-900 dark:text-gray-100 transition-colors">
@@ -744,9 +751,9 @@ export default function Reports() {
                 <nav className="flex-1">
                     <p className="px-5 mb-2 text-[10px] font-semibold text-gray-400 dark:text-neutral-500 uppercase tracking-widest">Performance</p>
                     <div className="space-y-0.5">
-                        {MENU.map(item => {
+                        {menu.map(item => {
                             const Icon = item.icon;
-                            const isActive = active === item.id;
+                            const isActive = activeSection === item.id;
                             return (
                                 <button
                                     key={item.id}
@@ -770,9 +777,14 @@ export default function Reports() {
 
             {/* Main content */}
             <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-white dark:bg-neutral-900 transition-colors">
-                {active === 'transactions' && <TransactionLogReport />}
-                {active === 'categories'   && <CategoryBreakdownReport />}
-                {active === 'annual'       && <AnnualSummaryReport />}
+                {activeSection === 'transactions' && <TransactionLogReport />}
+                {activeSection === 'categories'   && <CategoryBreakdownReport />}
+                {activeSection === 'annual'       && <AnnualSummaryReport />}
+                {!activeSection && (
+                    <div className="flex-1 flex items-center justify-center text-sm text-gray-500 dark:text-gray-400">
+                        You don't have access to any reports.
+                    </div>
+                )}
             </div>
         </div>
     );

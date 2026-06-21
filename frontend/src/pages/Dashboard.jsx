@@ -12,6 +12,7 @@ import api from '../services/api';
 import { fmtPKR } from '../utils/currency';
 import { fmtDate } from '../utils/dates';
 import MaskedBalance from '../components/MaskedBalance';
+import { useTheme } from '../context/ThemeContext';
 
 const RANGES = [
     { days: 30, label: '1M', phrase: 'past month' },
@@ -258,6 +259,7 @@ function OverviewStrip({ summary, trend, phrase, loading }) {
     const m = summary.metrics;
     const cash = Number(m.totalBankBalance) + Number(m.totalWalletBalance);
     const liabilities = Number(m.totalDebt) + Number(m.totalPayable);
+    const receivable = Number(m.totalReceivable);
     const delta = trend?.current?.delta ?? null;
     const pct = trend?.current?.pct ?? null;
 
@@ -266,7 +268,6 @@ function OverviewStrip({ summary, trend, phrase, loading }) {
             <div className="grid grid-cols-2 lg:grid-cols-4 divide-y divide-x divide-gray-100 dark:divide-neutral-800/80">
                 {/* Primary — net worth + change */}
                 <div className="col-span-2 lg:col-span-1 p-5 relative">
-                    <span className="absolute left-0 top-5 bottom-5 w-1 rounded-full bg-emerald-500/80" />
                     <p className="text-[10px] uppercase tracking-[0.14em] text-gray-500 dark:text-gray-400 font-semibold mb-1.5">
                         Total net worth
                     </p>
@@ -297,13 +298,10 @@ function OverviewStrip({ summary, trend, phrase, loading }) {
                     icon={TrendingUp}
                     tint="emerald"
                 />
-                <StripCell
-                    label="Liabilities"
-                    sub="Debt + payables"
-                    value={liabilities}
-                    icon={Scale}
-                    tint="rose"
-                    muted={liabilities === 0}
+                <LiabilitiesCell
+                    receivable={receivable}
+                    payable={liabilities}
+                    muted={liabilities === 0 && receivable === 0}
                 />
             </div>
         </div>
@@ -331,6 +329,38 @@ function StripCell({ label, sub, value, icon: Icon, tint, muted }) {
                 iconClassName="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 ml-1"
             />
             <p className="text-[11px] text-gray-400 dark:text-neutral-500 mt-1">{sub}</p>
+        </div>
+    );
+}
+
+// Liabilities cell — two simple labelled rows: Receivable and Payable.
+function LiabilitiesCell({ receivable, payable, muted }) {
+    return (
+        <div className="p-5">
+            <div className="flex items-center justify-between mb-2.5">
+                <p className="text-[10px] uppercase tracking-[0.14em] text-gray-500 dark:text-gray-400 font-semibold">Liabilities</p>
+                <span className={`w-6 h-6 rounded-lg flex items-center justify-center ${muted ? 'text-gray-400 bg-gray-100 dark:bg-neutral-800 dark:text-neutral-500' : STRIP_TINT.rose}`}>
+                    <Scale className="w-3.5 h-3.5" />
+                </span>
+            </div>
+            <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                    <span className="text-[11px] text-gray-500 dark:text-neutral-400">Receivable</span>
+                    <MaskedBalance
+                        value={receivable}
+                        className="text-sm font-semibold tabular-nums text-emerald-600 dark:text-emerald-400"
+                        iconClassName="hidden"
+                    />
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                    <span className="text-[11px] text-gray-500 dark:text-neutral-400">Payable</span>
+                    <MaskedBalance
+                        value={payable}
+                        className="text-sm font-semibold tabular-nums text-gray-900 dark:text-gray-100"
+                        iconClassName="hidden"
+                    />
+                </div>
+            </div>
         </div>
     );
 }
@@ -493,8 +523,9 @@ function Composition({ summary, trend, range, loading, historyLoading, onSnapsho
 }
 
 function ChartCard({ title, subtitle, children, className = '', height = 280, action = null, footer = null }) {
+    const auto = height === 'auto';
     return (
-        <div className={`p-5 rounded-2xl border border-gray-200 dark:border-neutral-800 bg-white dark:bg-neutral-850 ${className}`}>
+        <div className={`p-5 rounded-2xl border border-gray-200 dark:border-neutral-800 bg-white dark:bg-neutral-850 flex flex-col ${className}`}>
             <div className="flex items-start justify-between mb-3 gap-3">
                 <div className="min-w-0">
                     <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{title}</h3>
@@ -502,7 +533,12 @@ function ChartCard({ title, subtitle, children, className = '', height = 280, ac
                 </div>
                 {action}
             </div>
-            <div style={{ height: typeof height === 'number' ? `${height}px` : height }}>{children}</div>
+            <div
+                className={auto ? 'flex-1 flex flex-col justify-center' : ''}
+                style={auto ? undefined : { height: typeof height === 'number' ? `${height}px` : height }}
+            >
+                {children}
+            </div>
             {footer}
         </div>
     );
@@ -646,20 +682,35 @@ function ChartAnnotations({ trend }) {
 const ALLOCATION_COLORS = ['#0a5c3b', '#52A397', '#71B7AC', '#c75a2f', '#fbbf24', '#a78bfa', '#60a5fa'];
 
 function AllocationDonut({ data, loading, className }) {
+    const { theme } = useTheme();
+    const surface = theme === 'dark' ? '#1e1e1e' : '#ffffff';
+
     if (loading) {
         return (
-            <ChartCard title="Asset allocation" className={className} height={300}>
-                <div className="h-full rounded-xl bg-gray-100 dark:bg-neutral-800/60 animate-pulse" />
+            <ChartCard title="Asset allocation" height="auto" className={className}>
+                <div className="h-[260px] rounded-xl bg-gray-100 dark:bg-neutral-800/60 animate-pulse" />
             </ChartCard>
         );
     }
     if (!data || data.length === 0) {
         return (
-            <ChartCard title="Asset allocation" subtitle="No assets yet" className={className} height={300}>
-                <div className="h-full flex items-center justify-center text-xs text-gray-400 dark:text-neutral-500">No data</div>
+            <ChartCard title="Asset allocation" subtitle="No assets yet" height="auto" className={className}>
+                <div className="h-[260px] flex items-center justify-center text-xs text-gray-400 dark:text-neutral-500">No data</div>
             </ChartCard>
         );
     }
+
+    // Sort biggest-first and roll everything past the top 6 into a single "Other"
+    // slice — keeps the ring readable instead of a confetti of tiny shards.
+    const sorted = [...data].map((d) => ({ name: d.name, value: Number(d.value) || 0 }))
+        .sort((a, b) => b.value - a.value);
+    const TOP = 6;
+    const head = sorted.slice(0, TOP);
+    const tail = sorted.slice(TOP);
+    const tailTotal = tail.reduce((s, d) => s + d.value, 0);
+    const slices = tailTotal > 0 ? [...head, { name: `Other (${tail.length})`, value: tailTotal }] : head;
+    const total = sorted.reduce((s, d) => s + d.value, 0);
+    const colorAt = (i) => ALLOCATION_COLORS[i % ALLOCATION_COLORS.length];
 
     const option = {
         backgroundColor: 'transparent',
@@ -669,22 +720,65 @@ function AllocationDonut({ data, loading, className }) {
             backgroundColor: '#1f2937', borderColor: '#374151',
             textStyle: { color: '#f9fafb', fontSize: 12 },
         },
-        legend: { type: 'scroll', bottom: 0, textStyle: { color: '#9ca3af', fontSize: 11 }, icon: 'circle', itemWidth: 8, itemHeight: 8 },
         color: ALLOCATION_COLORS,
         series: [{
             type: 'pie',
-            radius: ['45%', '70%'],
-            center: ['50%', '42%'],
+            radius: ['64%', '92%'],
+            center: ['50%', '50%'],
             avoidLabelOverlap: true,
-            data: data.map((d) => ({ name: d.name, value: d.value })),
+            itemStyle: { borderColor: surface, borderWidth: 3, borderRadius: 5 },
+            data: slices.map((d) => ({ name: d.name, value: d.value })),
             label: { show: false },
-            emphasis: { label: { show: true, fontSize: 12, fontWeight: 'bold' }, itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0,0,0,0.3)' } },
+            labelLine: { show: false },
+            emphasis: { scale: true, scaleSize: 4, itemStyle: { shadowBlur: 12, shadowColor: 'rgba(0,0,0,0.18)' } },
         }],
     };
 
     return (
-        <ChartCard title="Asset allocation" subtitle="Where your wealth sits today" className={className} height={300}>
-            <ReactECharts option={option} style={{ height: '100%' }} opts={{ renderer: 'canvas' }} />
+        <ChartCard
+            title="Asset allocation"
+            subtitle={`Across ${sorted.length} ${sorted.length === 1 ? 'holding' : 'holdings'}`}
+            height="auto"
+            className={className}
+        >
+            <div className="flex flex-col sm:flex-row items-center gap-5 pt-1">
+                {/* Donut with total in the hole */}
+                <div className="relative w-[160px] h-[160px] shrink-0">
+                    <ReactECharts option={option} style={{ height: '100%', width: '100%' }} opts={{ renderer: 'canvas' }} notMerge />
+                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                        <span className="text-[9px] uppercase tracking-[0.14em] text-gray-400 dark:text-neutral-500 font-semibold">Total</span>
+                        <MaskedBalance
+                            value={`PKR ${kFmt(total)}`}
+                            isCurrency={false}
+                            className="text-base font-bold tracking-tight text-gray-900 dark:text-gray-100 tabular-nums"
+                            iconClassName="hidden"
+                        />
+                    </div>
+                </div>
+
+                {/* Readable legend — name, share, amount */}
+                <ul className="flex-1 w-full space-y-2 max-h-[180px] overflow-y-auto pr-1">
+                    {slices.map((d, i) => {
+                        const pct = total > 0 ? (d.value / total) * 100 : 0;
+                        return (
+                            <li key={d.name} className="flex items-center justify-between gap-3 text-xs">
+                                <span className="flex items-center gap-2 min-w-0">
+                                    <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: colorAt(i) }} />
+                                    <span className="truncate text-gray-700 dark:text-gray-200">{d.name}</span>
+                                </span>
+                                <span className="flex items-center gap-2.5 shrink-0 tabular-nums">
+                                    <span className="text-gray-400 dark:text-neutral-500 w-8 text-right">{pct.toFixed(0)}%</span>
+                                    <MaskedBalance
+                                        value={d.value}
+                                        className="font-medium text-gray-900 dark:text-gray-100"
+                                        iconClassName="hidden"
+                                    />
+                                </span>
+                            </li>
+                        );
+                    })}
+                </ul>
+            </div>
         </ChartCard>
     );
 }
