@@ -1,0 +1,33 @@
+import { Meta } from '@storybook/addon-docs/blocks';
+
+<Meta title="Introduction" />
+
+# FSWealth Axis — Component Library
+
+Welcome to the Storybook for **FSWealth Axis**, the PKR personal-finance manager.
+
+This is the living catalogue of every reusable UI building block. Each component is
+documented with its variants, states, and interactive controls.
+
+## How it's organised
+
+- **UI/** — low-level shadcn/Radix primitives (Button, Input, Select, Dialog, Table,
+  Avatar, Switch, Calendar, Toast, …). These are the foundation; compose pages from these.
+- **Components/** — app-level wrappers (Button, TextInput) that map our legacy props
+  onto the shadcn primitives.
+
+## Conventions
+
+- **Dark mode** — use the 🎨 toolbar toggle (top bar) to flip between light and dark.
+  Every component ships `dark:` Tailwind variants, so both themes should always look right.
+- **Currency** — sample data uses **PKR** throughout, formatted via `fmtPKR()` in the app.
+- **Accessibility** — the **Accessibility** tab runs axe checks on every story.
+- **Docs** — each component has an auto-generated **Docs** tab listing its props.
+
+## Running locally
+
+```bash
+cd frontend
+npm run storybook        # dev server on http://localhost:6006
+npm run build-storybook  # static build → storybook-static/
+```
