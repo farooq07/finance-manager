@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Papa from 'papaparse';
 import ReactECharts from 'echarts-for-react';
@@ -21,8 +21,15 @@ import DatePickerInput from '../components/DatePickerInput';
 import DatePicker from 'react-datepicker';
 import { toast } from 'sonner';
 import MaskedBalance from '../components/MaskedBalance';
+import Sparkline from '../components/Sparkline';
 import { Button } from '@/components/ui/button';
-import { usePsxStocks, useSyncPsxStocks, useSyncStockNews } from '../hooks/useStocks';
+import {
+    usePsxStocks, useSyncPsxStocks, useSyncStockNews,
+    usePsxSyncStatus, useBulkTickerHistory, useStockNews
+} from '../hooks/useStocks';
+import { useWatchlist, useAddToWatchlist, useRemoveFromWatchlist } from '../hooks/useWatchlist';
+import { derivePositions, withWeights, groupSmallSlices, snapshotsInRange, widestUsableRange } from '../utils/portfolio';
+import { colorsForSeries } from '../utils/tickerColors';
 import Modal from '../components/Modal';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -32,7 +39,26 @@ import { Input } from '@/components/ui/input';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
-const DEFAULT_TARGETS = ['HUBC', 'FFL', 'FFC', 'MEBL', 'OGDC', 'EFERT', 'FATIMA', 'LUCK', 'MARI', 'MTL', 'NATF', 'PPL', 'PSO', 'SYS'];
+// Slices below this share of the portfolio collapse into "Other" so the donut
+// stays legible with 20+ holdings.
+const SMALL_SLICE_THRESHOLD_PCT = 3;
+
+// Prices older than this are flagged as stale. One trading day plus a margin
+// for a sync that ran late.
+const STALE_AFTER_HOURS = 30;
+
+const RANGES = ['1M', '3M', '6M', '1Y', 'ALL'];
+
+function relativeTime(date) {
+    if (!date) return null;
+    const minutes = Math.round((Date.now() - new Date(date).getTime()) / 60000);
+    if (minutes < 1) return 'just now';
+    if (minutes < 60) return `${minutes} min ago`;
+    const hours = Math.round(minutes / 60);
+    if (hours < 24) return `${hours} hr ago`;
+    const days = Math.round(hours / 24);
+    return `${days} day${days === 1 ? '' : 's'} ago`;
+}
 
 export default function Stocks() {
     const navigate = useNavigate();
@@ -53,63 +79,81 @@ export default function Stocks() {
     const { data: dividends = [] } = useDividends();
     const syncDividendsMutation = useSyncDividends();
     const deleteDividendMutation = useDeleteDividend();
+    const { data: syncStatus } = usePsxSyncStatus();
+    const { data: watchlist = [] } = useWatchlist();
+    const addToWatchlist = useAddToWatchlist();
+    const removeFromWatchlist = useRemoveFromWatchlist();
 
-    // ---- Merged Data Logic (Top level to avoid ReferenceErrors) ----
-    const targetSymbols = ['FFC', 'FFL', 'HUBC', 'MEBL', 'OGDC', 'EFERT', 'FATIMA', 'LUCK', 'MARI', 'MTL', 'NATF', 'PPL', 'PSO', 'SYS'];
+    // ---- Derived portfolio state ----
+    // Holdings come from the latest snapshot; watchlist tickers are kept in a
+    // separate list. They used to be merged together with zero quantities,
+    // which put ~14 zero-value slices in the allocation donut and rows with no
+    // position in the holdings table.
     const latestSnapshot = snapshots.length > 0 ? snapshots[0] : null;
-    const currentHoldings = latestSnapshot?.holdings_data || [];
+    const { positions, watchlistOnly } = derivePositions(snapshots, liveStocks, watchlist);
+    const weightedPositions = withWeights(positions);
 
+    // 30-day close series for everything shown on the page — holdings and
+    // watchlist alike — in a single request rather than one per row.
+    const historyTickers = [
+        ...weightedPositions.map(p => p.symbol),
+        ...watchlistOnly.map(w => w.symbol),
+    ];
+    const { data: priceHistory = {} } = useBulkTickerHistory(historyTickers, 30);
+
+    /**
+     * Real 30-day move, from stored daily closes. The previous version compared
+     * against whichever snapshot happened to be ~30 days old, so it measured
+     * "change since your last upload" rather than a 30-day move.
+     */
     const get30dChange = (symbol) => {
-        if (snapshots.length < 2) return null;
-        const targetDate = new Date();
-        targetDate.setDate(targetDate.getDate() - 30);
-
-        const pastSnap = snapshots.find(s => new Date(s.snapshot_date) >= targetDate && s.id !== latestSnapshot?.id);
-        if (!pastSnap) return null;
-
-        const pastHolding = pastSnap.holdings_data.find(h => h.symbol === symbol);
-        const pastPrice = Number(pastHolding?.market_rate) || 0;
-
-        const currentStock = liveStocks.find(s => s.ticker === symbol);
-        const currentPrice = currentStock?.price || 0;
-
-        if (pastPrice === 0 || currentPrice === 0) return null;
-        return ((currentPrice - pastPrice) / pastPrice) * 100;
+        const series = priceHistory[symbol];
+        if (!Array.isArray(series) || series.length < 2) return null;
+        const first = Number(series[0].close);
+        const last = Number(series[series.length - 1].close);
+        if (!first || !last) return null;
+        return ((last - first) / first) * 100;
     };
 
-    // Create a set of all symbols to show: actual holdings + mandatory targets
-    const allSymbols = Array.from(new Set([
-        ...currentHoldings.map(h => h.symbol),
-        ...targetSymbols
-    ]));
+    /**
+     * Trailing-twelve-month dividends per symbol, net of withholding tax.
+     * The Dividend model carries both gross and net; net is what actually
+     * reached the account, so that is what the yield is measured on.
+     */
+    const ttmDividendsBySymbol = (() => {
+        const cutoff = new Date();
+        cutoff.setFullYear(cutoff.getFullYear() - 1);
+        const totals = {};
+        for (const div of dividends) {
+            if (!div.payment_date || new Date(div.payment_date) < cutoff) continue;
+            const symbol = String(div.security_symbol || '').trim().toUpperCase();
+            if (!symbol) continue;
+            totals[symbol] = (totals[symbol] || 0) + Number(div.net_dividend_amount || 0);
+        }
+        return totals;
+    })();
 
-    const consolidatedHoldings = allSymbols.map(sym => {
-        const h = currentHoldings.find(holding => holding.symbol === sym) || {
-            symbol: sym,
-            holding: 0,
-            cost_per_unit: 0,
-            total_cost: 0,
-            market_rate: 0,
-            custody_val: 0,
-            today_gl: 0
-        };
+    const dividendYieldFor = (symbol, marketValue) => {
+        const received = ttmDividendsBySymbol[symbol];
+        if (!received || !marketValue) return null;
+        return (received / marketValue) * 100;
+    };
 
-        const live = liveStocks.find(ls => ls.ticker === sym);
-        const marketPrice = live ? Number(live.price) : Number(h.market_rate);
-        const totalCost = h.total_cost || (Number(h.holding) * (Number(h.cost_per_unit) || 0));
-        const custodyVal = Number(h.holding) * marketPrice;
-        const todayGl = live ? Number(live.change) * Number(h.holding) : (Number(h.today_gl) || 0);
-
-        return {
-            ...h,
-            market_rate: marketPrice,
-            custody_val: custodyVal,
-            total_cost: totalCost,
-            today_gl: todayGl,
-            live_data: live,
-            isTarget: targetSymbols.includes(sym)
-        };
-    });
+    // Legacy field names, kept so the rest of this page keeps working while the
+    // derivation itself now lives in utils/portfolio.js.
+    const consolidatedHoldings = weightedPositions.map(p => ({
+        symbol: p.symbol,
+        holding: p.quantity,
+        cost_per_unit: p.avgCost,
+        total_cost: p.totalCost,
+        market_rate: p.marketPrice,
+        custody_val: p.marketValue,
+        today_gl: p.dayChange,
+        weight_pct: p.weightPct,
+        unrealised_gain: p.unrealisedGain,
+        unrealised_gain_pct: p.unrealisedGainPct,
+        live_data: p.isLive ? { companyName: p.companyName } : null,
+    }));
 
     // ---- Local State ----
     const [showSummaryModal, setShowSummaryModal] = useState(false);
@@ -125,6 +169,11 @@ export default function Stocks() {
     const [isSyncingDividends, setIsSyncingDividends] = useState(false);
     const [showSyncForm, setShowSyncForm] = useState(false);
     const [deleteModal, setDeleteModal] = useState({ isOpen: false, title: '', description: '', onConfirm: null, isLoading: false });
+    const [chartRange, setChartRange] = useState(null); // null = auto-pick
+    const [showOtherBreakdown, setShowOtherBreakdown] = useState(false);
+    const [expandedRow, setExpandedRow] = useState(null);
+    const [activeTab, setActiveTab] = useState('holdings');
+    const [newTicker, setNewTicker] = useState('');
 
     // Security States
     const [revealedSecrets, setRevealedSecrets] = useState([]);
@@ -201,8 +250,13 @@ export default function Stocks() {
             aVal = (a.custody_val - a.total_cost) / aCost;
             bVal = (b.custody_val - b.total_cost) / bCost;
         } else if (sortConfig.key === 'perf_30d') {
-            aVal = get30dChange(a.symbol) || -9999;
-            bVal = get30dChange(b.symbol) || -9999;
+            // Missing data sorts last in both directions rather than pretending
+            // to be a very large loss.
+            aVal = get30dChange(a.symbol) ?? -Infinity;
+            bVal = get30dChange(b.symbol) ?? -Infinity;
+        } else if (sortConfig.key === 'div_yield') {
+            aVal = dividendYieldFor(a.symbol, a.custody_val) ?? -Infinity;
+            bVal = dividendYieldFor(b.symbol, b.custody_val) ?? -Infinity;
         } else if (sortConfig.key === 'today_pct') {
              const aPrev = a.custody_val - (a.today_gl || 0);
              const bPrev = b.custody_val - (b.today_gl || 0);
@@ -523,38 +577,6 @@ export default function Stocks() {
         });
     };
 
-    // ---- Chart preparation ----
-    const chronologicalSnapshots = [...snapshots].reverse();
-    const xAxisDates = chronologicalSnapshots.map(s => fmtDateShort(s.snapshot_date));
-    const custodySeries = chronologicalSnapshots.map(s => Number(s.total_custody));
-    const investedSeries = chronologicalSnapshots.map(s => Number(s.total_invested));
-
-    const chartOptions = {
-        tooltip: { trigger: 'axis', axisPointer: { type: 'cross' } },
-        legend: { data: ['Portfolio Value', 'Capital Invested'], bottom: 0 },
-        grid: { left: '3%', right: '4%', bottom: '10%', containLabel: true },
-        xAxis: { type: 'category', boundaryGap: false, data: xAxisDates },
-        yAxis: { type: 'value', axisLabel: { formatter: (value) => value / 1000 + 'k' } },
-        series: [
-            {
-                name: 'Portfolio Value',
-                type: 'line',
-                data: custodySeries,
-                smooth: true,
-                areaStyle: { opacity: 0.1 },
-                itemStyle: { color: '#10b981' } // Emerald green
-            },
-            {
-                name: 'Capital Invested',
-                type: 'line',
-                data: investedSeries,
-                smooth: true,
-                itemStyle: { color: '#3b82f6' } // Blue
-            }
-        ]
-    };
-
-
     return (
         <div className="">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-5">
@@ -723,6 +745,41 @@ export default function Stocks() {
                     const todayTotalGL = consolidatedHoldings.reduce((sum, h) => sum + (h.today_gl || 0), 0);
                     const liveCoverageCount = liveStocks.length;
 
+                    // Dividends received on holdings, net of withholding tax. The
+                    // price-only gain above ignores these entirely, which
+                    // materially understates return on a high-yield PSX book.
+                    const totalDividendsNet = dividends.reduce(
+                        (sum, d) => sum + Number(d.net_dividend_amount || 0), 0,
+                    );
+                    const totalReturnWithDivs = totalGL + totalDividendsNet;
+                    const totalReturnPct = computedTotalCost > 0
+                        ? (totalReturnWithDivs / computedTotalCost) * 100
+                        : null;
+
+                    // Annualised return over the snapshot history. Needs a start
+                    // date and both directions of cashflow, so it stays null
+                    // until there is enough history to mean anything.
+                    const annualisedReturnPct = (() => {
+                        if (snapshots.length < 2 || computedTotalCost <= 0) return null;
+                        const oldest = [...snapshots].sort(
+                            (a, b) => new Date(a.snapshot_date) - new Date(b.snapshot_date),
+                        )[0];
+                        const years = (Date.now() - new Date(oldest.snapshot_date).getTime())
+                            / (1000 * 60 * 60 * 24 * 365);
+                        // Under a couple of months, annualising amplifies noise
+                        // into a number that looks authoritative and isn't.
+                        if (years < 0.15) return null;
+                        const growth = (totalMarketValue + totalDividendsNet) / computedTotalCost;
+                        if (growth <= 0) return null;
+                        return (growth ** (1 / years) - 1) * 100;
+                    })();
+
+                    const lastSyncedAt = syncStatus?.lastSyncedAt;
+                    const syncAgeHours = lastSyncedAt
+                        ? (Date.now() - new Date(lastSyncedAt).getTime()) / 3_600_000
+                        : null;
+                    const isStale = syncAgeHours === null || syncAgeHours > STALE_AFTER_HOURS;
+
                     // Compute chronological data for sparklines
                     const chronSnapshots = [...snapshots].reverse();
                     
@@ -788,11 +845,24 @@ export default function Stocks() {
                                                 className="text-2xl font-bold text-gray-900 dark:text-gray-100" 
                                                 iconClassName="!opacity-100"
                                             />
-                                            <p className="mt-1 text-[10px] text-gray-400 dark:text-gray-500 flex items-center gap-1">
+                                            <p className="mt-1 text-[10px] text-gray-400 dark:text-gray-500 flex items-center gap-1 flex-wrap">
                                                 {liveCoverageCount > 0 ? (
                                                     <>Live · {liveCoverageCount} tickers</>
                                                 ) : (
                                                     <>Based on latest snapshot</>
+                                                )}
+                                                {lastSyncedAt && (
+                                                    <>
+                                                        <span className="text-gray-300 dark:text-gray-600">·</span>
+                                                        <span className={isStale ? 'text-amber-600 dark:text-amber-500 font-medium' : ''}>
+                                                            updated {relativeTime(lastSyncedAt)}
+                                                        </span>
+                                                    </>
+                                                )}
+                                                {isStale && (
+                                                    <Badge variant="outline" className="h-4 px-1 text-[9px] border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-500">
+                                                        {lastSyncedAt ? 'stale' : 'never synced'}
+                                                    </Badge>
                                                 )}
                                             </p>
                                         </div>
@@ -815,7 +885,10 @@ export default function Stocks() {
                                                     <Info className="w-3.5 h-3.5 text-gray-400" />
                                                 </TooltipTrigger>
                                                 <TooltipContent>
-                                                    <p className="text-xs">Unrealized profit/loss based on total cost</p>
+                                                    <p className="text-xs max-w-[220px]">
+                                                        Unrealised profit/loss on price alone. Total return adds
+                                                        dividends received, net of withholding tax.
+                                                    </p>
                                                 </TooltipContent>
                                             </Tooltip>
                                         </TooltipProvider>
@@ -846,6 +919,21 @@ export default function Stocks() {
                                                     {todayTotalGL >= 0 ? '+' : ''}{fmtPKR(todayTotalGL)} Today
                                                 </p>
                                             </div>
+                                            <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                                {totalDividendsNet > 0 && (
+                                                    <p className={`text-[10px] font-medium ${glColor(totalReturnWithDivs)}`}>
+                                                        {totalReturnPct >= 0 ? '+' : ''}{totalReturnPct.toFixed(2)}% incl. dividends
+                                                    </p>
+                                                )}
+                                                {annualisedReturnPct !== null && (
+                                                    <>
+                                                        {totalDividendsNet > 0 && <span className="text-[10px] text-gray-300 dark:text-gray-600">|</span>}
+                                                        <p className={`text-[10px] font-medium ${glColor(annualisedReturnPct)}`}>
+                                                            {annualisedReturnPct >= 0 ? '+' : ''}{annualisedReturnPct.toFixed(2)}% p.a.
+                                                        </p>
+                                                    </>
+                                                )}
+                                            </div>
                                         </div>
                                         <div className="w-24 h-10">
                                             {chronSnapshots.length > 1 && (
@@ -862,78 +950,313 @@ export default function Stocks() {
             </div>
 
             {/* Visual Analytics */}
-            {snapshots.length > 0 && (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-                    {(() => {
-                        const chronSnapshots = [...snapshots].reverse();
-                        const performanceOptions = {
-                            tooltip: { trigger: 'axis', axisPointer: { type: 'cross' } },
-                            legend: { data: ['Market Value', 'Total Cost'], bottom: 0 },
-                            grid: { left: '3%', right: '4%', bottom: '10%', top: '10%', containLabel: true },
-                            xAxis: { type: 'category', boundaryGap: false, data: chronSnapshots.map(s => fmtDateShort(s.snapshot_date)) },
-                            yAxis: { type: 'value', axisLabel: { formatter: (value) => (value / 1000000).toFixed(1) + 'M' } },
-                            series: [
-                                {
-                                    name: 'Market Value',
-                                    type: 'line',
-                                    data: chronSnapshots.map(s => Number(s.total_custody)),
-                                    smooth: true,
-                                    areaStyle: { opacity: 0.1 },
-                                    itemStyle: { color: '#10b981' }
-                                },
-                                {
-                                    name: 'Total Cost',
-                                    type: 'line',
-                                    data: chronSnapshots.map(s => Number(s.total_invested)),
-                                    smooth: true,
-                                    itemStyle: { color: '#3b82f6' }
-                                }
-                            ]
-                        };
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                {(() => {
+                    // A line needs two points. Pick the narrowest range that has
+                    // them; if no range does, show an empty state rather than a
+                    // single dot floating on an axis.
+                    const autoRange = widestUsableRange(snapshots, RANGES);
+                    const activeRange = chartRange || autoRange;
+                    const rangeSnapshots = activeRange ? snapshotsInRange(snapshots, activeRange) : [];
+                    const hasTrend = rangeSnapshots.length >= 2;
 
-                        const allocationOptions = {
-                            tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
-                            series: [
-                                {
-                                    name: 'Allocation',
-                                    type: 'pie',
-                                    radius: ['40%', '70%'],
-                                    avoidLabelOverlap: false,
-                                    itemStyle: { borderRadius: 8, borderColor: 'transparent', borderWidth: 2 },
-                                    label: { show: false, position: 'center' },
-                                    emphasis: { label: { show: true, fontSize: 18, fontWeight: 'bold' } },
-                                    labelLine: { show: false },
-                                    data: consolidatedHoldings.map(h => ({ value: h.custody_val, name: h.symbol }))
-                                }
-                            ]
-                        };
+                    const performanceOptions = {
+                        tooltip: {
+                            trigger: 'axis',
+                            axisPointer: { type: 'cross' },
+                            valueFormatter: (value) => fmtPKR(value),
+                        },
+                        legend: { data: ['Market Value', 'Total Cost'], bottom: 0 },
+                        grid: { left: '3%', right: '4%', bottom: '12%', top: '10%', containLabel: true },
+                        xAxis: {
+                            type: 'category', boundaryGap: false,
+                            data: rangeSnapshots.map(s => fmtDateShort(s.snapshot_date)),
+                        },
+                        yAxis: {
+                            type: 'value',
+                            axisLabel: {
+                                formatter: (value) => (Math.abs(value) >= 1_000_000
+                                    ? `${(value / 1_000_000).toFixed(1)}M`
+                                    : `${Math.round(value / 1000)}k`),
+                            },
+                        },
+                        series: [
+                            {
+                                name: 'Market Value', type: 'line', smooth: true,
+                                data: rangeSnapshots.map(s => Number(s.total_custody)),
+                                areaStyle: { opacity: 0.1 },
+                                itemStyle: { color: '#10b981' },
+                            },
+                            {
+                                name: 'Total Cost', type: 'line', smooth: true,
+                                data: rangeSnapshots.map(s => Number(s.total_invested)),
+                                itemStyle: { color: '#3b82f6' },
+                            },
+                        ],
+                    };
 
-                        return (
-                            <>
-                                <Card className="border border-gray-100 dark:border-neutral-800 shadow-sm transition-colors bg-white dark:bg-neutral-900">
-                                    <CardHeader className="pb-2">
-                                        <CardTitle className="text-sm font-bold text-gray-900 dark:text-gray-100">Portfolio Performance</CardTitle>
-                                    </CardHeader>
-                                    <CardContent>
-                                        <ReactECharts option={performanceOptions} style={{ height: '300px', width: '100%' }} />
-                                    </CardContent>
-                                </Card>
-                                <Card className="border border-gray-100 dark:border-neutral-800 shadow-sm transition-colors bg-white dark:bg-neutral-900">
-                                    <CardHeader className="pb-2">
-                                        <CardTitle className="text-sm font-bold text-gray-900 dark:text-gray-100">Asset Allocation</CardTitle>
-                                    </CardHeader>
-                                    <CardContent>
-                                        <ReactECharts option={allocationOptions} style={{ height: '300px', width: '100%' }} />
-                                    </CardContent>
-                                </Card>
-                            </>
-                        );
-                    })()}
-                </div>
+                    const { slices, otherMembers } = groupSmallSlices(weightedPositions, SMALL_SLICE_THRESHOLD_PCT);
+                    const allocationOptions = {
+                        color: colorsForSeries(slices),
+                        tooltip: {
+                            trigger: 'item',
+                            formatter: (p) => `${p.name}<br/>${fmtPKR(p.value)} · ${p.percent.toFixed(1)}%`,
+                        },
+                        legend: {
+                            type: 'scroll', orient: 'vertical', right: 0, top: 'center',
+                            itemWidth: 10, itemHeight: 10,
+                            textStyle: { fontSize: 11, color: '#6b7280' },
+                            formatter: (name) => {
+                                const slice = slices.find(s => s.name === name);
+                                return slice ? `${name}  ${slice.weightPct.toFixed(1)}%` : name;
+                            },
+                        },
+                        series: [{
+                            name: 'Allocation',
+                            type: 'pie',
+                            radius: ['40%', '70%'],
+                            center: ['35%', '50%'],
+                            avoidLabelOverlap: false,
+                            itemStyle: { borderRadius: 8, borderColor: 'transparent', borderWidth: 2 },
+                            label: { show: false, position: 'center' },
+                            emphasis: { label: { show: true, fontSize: 16, fontWeight: 'bold' } },
+                            labelLine: { show: false },
+                            data: slices.map(s => ({ value: s.value, name: s.name })),
+                        }],
+                    };
+
+                    return (
+                        <>
+                            <Card className="border border-gray-100 dark:border-neutral-800 shadow-sm transition-colors bg-white dark:bg-neutral-900">
+                                <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
+                                    <CardTitle className="text-sm font-bold text-gray-900 dark:text-gray-100">Portfolio Performance</CardTitle>
+                                    {autoRange && (
+                                        <div className="flex gap-1">
+                                            {RANGES.map(range => {
+                                                const enabled = snapshotsInRange(snapshots, range).length >= 2;
+                                                return (
+                                                    <button
+                                                        key={range}
+                                                        type="button"
+                                                        disabled={!enabled}
+                                                        onClick={() => setChartRange(range)}
+                                                        className={`px-2 py-0.5 text-[11px] font-medium rounded transition-colors ${
+                                                            activeRange === range
+                                                                ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900'
+                                                                : enabled
+                                                                    ? 'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-neutral-800'
+                                                                    : 'text-gray-300 dark:text-neutral-700 cursor-not-allowed'
+                                                        }`}
+                                                    >
+                                                        {range}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </CardHeader>
+                                <CardContent>
+                                    {hasTrend ? (
+                                        <ReactECharts option={performanceOptions} style={{ height: '300px', width: '100%' }} notMerge />
+                                    ) : (
+                                        <div className="h-[300px] flex flex-col items-center justify-center text-center px-6">
+                                            <Activity className="w-8 h-8 text-gray-300 dark:text-neutral-700 mb-3" />
+                                            <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                                Not enough history to chart yet
+                                            </p>
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 max-w-xs">
+                                                Portfolio history starts after your second snapshot. One is captured
+                                                automatically each trading day — or upload a CDC statement to add one now.
+                                            </p>
+                                        </div>
+                                    )}
+                                </CardContent>
+                            </Card>
+
+                            <Card className="border border-gray-100 dark:border-neutral-800 shadow-sm transition-colors bg-white dark:bg-neutral-900">
+                                <CardHeader className="pb-2">
+                                    <CardTitle className="text-sm font-bold text-gray-900 dark:text-gray-100">Asset Allocation</CardTitle>
+                                    <CardDescription className="text-xs text-gray-500 dark:text-gray-400">
+                                        By holding · {weightedPositions.length} position{weightedPositions.length === 1 ? '' : 's'}
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent>
+                                    {weightedPositions.length > 0 ? (
+                                        <>
+                                            <ReactECharts option={allocationOptions} style={{ height: '300px', width: '100%' }} notMerge />
+                                            {otherMembers.length > 0 && (
+                                                <div className="mt-2 border-t border-gray-100 dark:border-neutral-800 pt-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setShowOtherBreakdown(v => !v)}
+                                                        className="flex items-center gap-1 text-xs font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
+                                                    >
+                                                        {showOtherBreakdown ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                                                        Other — {otherMembers.length} holdings under {SMALL_SLICE_THRESHOLD_PCT}%
+                                                    </button>
+                                                    {showOtherBreakdown && (
+                                                        <ul className="mt-2 space-y-1">
+                                                            {otherMembers.map(member => (
+                                                                <li key={member.name} className="flex justify-between text-xs text-gray-600 dark:text-gray-400">
+                                                                    <span className="font-medium">{member.name}</span>
+                                                                    <span className="tabular-nums">
+                                                                        {fmtPKR(member.value)} · {member.weightPct.toFixed(2)}%
+                                                                    </span>
+                                                                </li>
+                                                            ))}
+                                                        </ul>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </>
+                                    ) : (
+                                        <div className="h-[300px] flex flex-col items-center justify-center text-center px-6">
+                                            <Briefcase className="w-8 h-8 text-gray-300 dark:text-neutral-700 mb-3" />
+                                            <p className="text-sm font-medium text-gray-700 dark:text-gray-300">No holdings yet</p>
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                                Upload a CDC snapshot to see your allocation.
+                                            </p>
+                                        </div>
+                                    )}
+                                </CardContent>
+                            </Card>
+                        </>
+                    );
+                })()}
+            </div>
+
+            {/* Holdings / Watchlist tabs */}
+            <div className="flex items-center gap-1 mb-4 border-b border-gray-200 dark:border-neutral-800">
+                {[
+                    { id: 'holdings', label: 'Holdings', count: consolidatedHoldings.length },
+                    { id: 'watchlist', label: 'Watchlist', count: watchlistOnly.length },
+                ].map(tab => (
+                    <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => setActiveTab(tab.id)}
+                        className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                            activeTab === tab.id
+                                ? 'border-gray-900 text-gray-900 dark:border-gray-100 dark:text-gray-100'
+                                : 'border-transparent text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
+                        }`}
+                    >
+                        {tab.label}
+                        <span className="ml-1.5 text-xs text-gray-400 dark:text-gray-500">{tab.count}</span>
+                    </button>
+                ))}
+            </div>
+
+            {/* Watchlist — tickers tracked but not held. These used to be mixed
+                into the holdings table as zero-quantity rows. */}
+            {activeTab === 'watchlist' && (
+                <Card className="mb-4 overflow-hidden text-sm transition-colors">
+                    <CardHeader className="px-6 py-5 border-b border-gray-100 dark:border-neutral-800 bg-gray-50 dark:bg-neutral-800/50 flex flex-col sm:flex-row justify-between sm:items-center gap-3">
+                        <div>
+                            <CardTitle className="text-lg font-bold text-gray-900 dark:text-gray-100">Watchlist</CardTitle>
+                            <CardDescription className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                Tickers you track but do not hold. Excluded from portfolio totals and allocation.
+                            </CardDescription>
+                        </div>
+                        <form
+                            className="flex items-center gap-2"
+                            onSubmit={(e) => {
+                                e.preventDefault();
+                                const ticker = newTicker.trim().toUpperCase();
+                                if (!ticker) return;
+                                addToWatchlist.mutate({ ticker }, {
+                                    onSuccess: () => { setNewTicker(''); toast.success(`${ticker} added to watchlist`); },
+                                    onError: () => toast.error('Could not add that ticker'),
+                                });
+                            }}
+                        >
+                            <Input
+                                value={newTicker}
+                                onChange={(e) => setNewTicker(e.target.value)}
+                                placeholder="Add ticker (e.g. HUBC)"
+                                className="h-9 w-44 uppercase"
+                                maxLength={20}
+                            />
+                            <Button type="submit" size="sm" disabled={addToWatchlist.isPending || !newTicker.trim()}>
+                                {addToWatchlist.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                            </Button>
+                        </form>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                        {watchlistOnly.length === 0 ? (
+                            <div className="px-6 py-12 text-center">
+                                <Eye className="w-8 h-8 text-gray-300 dark:text-neutral-700 mx-auto mb-3" />
+                                <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Nothing on your watchlist</p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                    Add a ticker above to follow its price without holding it.
+                                </p>
+                            </div>
+                        ) : (
+                            <table className="min-w-full">
+                                <thead className="bg-gray-50 dark:bg-neutral-800/50 text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                                    <tr>
+                                        <th className="px-6 py-3 text-left">Symbol</th>
+                                        <th className="px-6 py-3 text-right">Price</th>
+                                        <th className="px-6 py-3 text-right">Day Change</th>
+                                        <th className="px-6 py-3 text-right">30d</th>
+                                        <th className="px-6 py-3 text-center">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100 dark:divide-neutral-800">
+                                    {watchlistOnly.map(item => (
+                                        <tr key={item.symbol} className="hover:bg-blue-50/50 dark:hover:bg-blue-900/10 transition-colors">
+                                            <td className="px-6 py-3">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => navigate(`/stocks/${item.symbol}`)}
+                                                    className="flex flex-col items-start text-left"
+                                                >
+                                                    <span className="font-bold text-blue-600 dark:text-blue-400 underline underline-offset-2">{item.symbol}</span>
+                                                    {item.companyName && (
+                                                        <span className="text-[10px] text-gray-500 dark:text-gray-400 truncate max-w-[180px]">
+                                                            {item.companyName}
+                                                        </span>
+                                                    )}
+                                                </button>
+                                            </td>
+                                            <td className="px-6 py-3 text-right font-semibold text-gray-900 dark:text-gray-100 tabular-nums">
+                                                {item.marketPrice !== null ? fmtPKR(item.marketPrice) : <span className="text-gray-400 text-xs">no quote</span>}
+                                            </td>
+                                            <td className={`px-6 py-3 text-right tabular-nums ${glColor(item.dayChangePct ?? 0)}`}>
+                                                {item.dayChangePct !== null && item.dayChangePct !== undefined
+                                                    ? `${item.dayChangePct >= 0 ? '+' : ''}${item.dayChangePct.toFixed(2)}%`
+                                                    : <span className="text-gray-400 text-xs">—</span>}
+                                            </td>
+                                            <td className="px-6 py-3">
+                                                <div className="flex justify-end">
+                                                    <Sparkline data={priceHistory[item.symbol] || []} width={72} height={24} />
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-3 text-center">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="text-gray-400 hover:text-red-600 h-8 px-2"
+                                                    disabled={removeFromWatchlist.isPending}
+                                                    onClick={() => removeFromWatchlist.mutate(item.symbol, {
+                                                        onSuccess: () => toast.success(`${item.symbol} removed`),
+                                                        onError: () => toast.error('Could not remove that ticker'),
+                                                    })}
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </Button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        )}
+                    </CardContent>
+                </Card>
             )}
 
             {/* Current Holdings Data Table */}
-            {latestSnapshot && (
+            {activeTab === 'holdings' && latestSnapshot && (
                 <Card className="mb-4 overflow-hidden text-sm transition-colors">
                     <CardHeader className="px-6 py-5 border-b border-gray-100 dark:border-neutral-800 flex flex-col sm:flex-row justify-between sm:items-center bg-gray-50 dark:bg-neutral-800/50 transition-colors space-y-4 sm:space-y-0">
                         <div className="flex items-center gap-3">
@@ -991,6 +1314,39 @@ export default function Stocks() {
                                     <th className="px-6 py-4 text-right cursor-pointer hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors group" onClick={() => handleSort('custody_val')}>
                                         <div className="flex items-center justify-end">Current Value {renderSortIcon('custody_val')}</div>
                                     </th>
+                                    <th className="px-6 py-4 text-right cursor-pointer hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors group" onClick={() => handleSort('weight_pct')}>
+                                        <div className="flex items-center justify-end gap-1">
+                                            <TooltipProvider>
+                                                <Tooltip>
+                                                    <TooltipTrigger>
+                                                        <span className="border-b border-dotted border-gray-400">Weight</span>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent>
+                                                        <p className="text-xs">Share of total portfolio market value</p>
+                                                    </TooltipContent>
+                                                </Tooltip>
+                                            </TooltipProvider>
+                                            {renderSortIcon('weight_pct')}
+                                        </div>
+                                    </th>
+                                    <th className="px-6 py-4 text-right cursor-pointer hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors group" onClick={() => handleSort('div_yield')}>
+                                        <div className="flex items-center justify-end gap-1">
+                                            <TooltipProvider>
+                                                <Tooltip>
+                                                    <TooltipTrigger>
+                                                        <span className="border-b border-dotted border-gray-400">Yield</span>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent>
+                                                        <p className="text-xs max-w-[220px]">
+                                                            Trailing 12-month dividends received, net of withholding tax,
+                                                            over current market value.
+                                                        </p>
+                                                    </TooltipContent>
+                                                </Tooltip>
+                                            </TooltipProvider>
+                                            {renderSortIcon('div_yield')}
+                                        </div>
+                                    </th>
                                     <th className="px-6 py-4 text-right cursor-pointer hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors group" onClick={() => handleSort('today_gl')}>
                                         <div className="flex items-center justify-end">Today G/L {renderSortIcon('today_gl')}</div>
                                     </th>
@@ -999,10 +1355,10 @@ export default function Stocks() {
                                             <TooltipProvider>
                                                 <Tooltip>
                                                     <TooltipTrigger>
-                                                        <span className="border-b border-dotted border-gray-400">30d Perf</span>
+                                                        <span className="border-b border-dotted border-gray-400">30d</span>
                                                     </TooltipTrigger>
                                                     <TooltipContent>
-                                                        <p className="text-xs">30-day performance based on historical snapshots</p>
+                                                        <p className="text-xs">30-day move from stored daily closing prices</p>
                                                     </TooltipContent>
                                                 </Tooltip>
                                             </TooltipProvider>
@@ -1019,7 +1375,7 @@ export default function Stocks() {
                                     const topLoserSymbol = canHighlight ? [...filteredAndSortedHoldings].reduce((prev, curr) => (curr.custody_val - curr.total_cost) < (prev.custody_val - prev.total_cost) ? curr : prev).symbol : null;
                                     const topValueSymbol = canHighlight ? [...filteredAndSortedHoldings].reduce((prev, curr) => curr.custody_val > prev.custody_val ? curr : prev).symbol : null;
 
-                                    return filteredAndSortedHoldings.map((stock, idx) => {
+                                    return filteredAndSortedHoldings.map((stock) => {
                                         const computedChange = stock.custody_val - stock.total_cost;
                                         const changePct = stock.total_cost > 0 ? (computedChange / stock.total_cost) * 100 : 0;
                                         const todayGl = stock.today_gl || 0;
@@ -1032,19 +1388,34 @@ export default function Stocks() {
                                         else if (stock.symbol === topValueSymbol) rowBgClass += ' bg-blue-50/30 dark:bg-blue-900/10';
 
                                         return (
+                                            <Fragment key={stock.symbol}>
                                             <tr
-                                                key={idx}
                                                 onClick={() => navigate(`/stocks/${stock.symbol.trim()}`)}
                                                 className={`${rowBgClass} ${stock.holding === 0 ? 'opacity-60 grayscale-[0.5]' : ''}`}
                                             >
                                             <td className="px-6 py-3 whitespace-nowrap">
-                                                <div className="flex flex-col">
-                                                    <span className="font-bold text-blue-600 dark:text-blue-400 underline underline-offset-2">{stock.symbol}</span>
-                                                    {stock.live_data?.companyName && (
-                                                        <span className="text-[10px] text-gray-500 dark:text-gray-400 truncate max-w-[150px]">
-                                                            {stock.live_data.companyName}
-                                                        </span>
-                                                    )}
+                                                <div className="flex items-center gap-2">
+                                                    <button
+                                                        type="button"
+                                                        aria-label={expandedRow === stock.symbol ? 'Collapse details' : 'Expand details'}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setExpandedRow(expandedRow === stock.symbol ? null : stock.symbol);
+                                                        }}
+                                                        className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+                                                    >
+                                                        {expandedRow === stock.symbol
+                                                            ? <ChevronDown className="w-4 h-4" />
+                                                            : <ChevronRight className="w-4 h-4" />}
+                                                    </button>
+                                                    <div className="flex flex-col">
+                                                        <span className="font-bold text-blue-600 dark:text-blue-400 underline underline-offset-2">{stock.symbol}</span>
+                                                        {stock.live_data?.companyName && (
+                                                            <span className="text-[10px] text-gray-500 dark:text-gray-400 truncate max-w-[150px]">
+                                                                {stock.live_data.companyName}
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             </td>
                                             <td className="px-6 py-3 whitespace-nowrap text-right text-gray-600 dark:text-gray-300 font-medium">
@@ -1074,6 +1445,20 @@ export default function Stocks() {
                                             <td className="px-6 py-3 whitespace-nowrap text-right font-semibold text-emerald-700 dark:text-emerald-400">
                                                 {fmtPKR(stock.custody_val)}
                                             </td>
+                                            <td className="px-6 py-3 whitespace-nowrap text-right text-gray-600 dark:text-gray-300 tabular-nums">
+                                                {(stock.weight_pct ?? 0).toFixed(1)}%
+                                            </td>
+                                            <td className="px-6 py-3 whitespace-nowrap text-right tabular-nums">
+                                                {(() => {
+                                                    const yieldPct = dividendYieldFor(stock.symbol, stock.custody_val);
+                                                    if (yieldPct === null) {
+                                                        return <span className="text-gray-400 text-[10px]">—</span>;
+                                                    }
+                                                    return (
+                                                        <span className="text-gray-700 dark:text-gray-300">{yieldPct.toFixed(2)}%</span>
+                                                    );
+                                                })()}
+                                            </td>
                                             <td className="px-6 py-3 whitespace-nowrap text-right font-medium">
                                                 <div className="flex flex-col items-end">
                                                     <span className={`text-sm font-semibold ${glColor(todayGl)}`}>
@@ -1087,12 +1472,18 @@ export default function Stocks() {
                                             <td className="px-6 py-3 whitespace-nowrap text-right">
                                                 {(() => {
                                                     const perf = get30dChange(stock.symbol);
-                                                    if (perf === null) return <span className="text-gray-400 text-[10px]">No 30D Data</span>;
+                                                    const series = priceHistory[stock.symbol] || [];
                                                     return (
-                                                        <span className={`text-sm font-bold ${glColor(perf)} flex items-center justify-end gap-0.5`}>
-                                                            {perf >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                                                            {perf >= 0 ? '+' : ''}{perf.toFixed(1)}%
-                                                        </span>
+                                                        <div className="flex items-center justify-end gap-2">
+                                                            <Sparkline data={series} width={56} height={24} />
+                                                            {perf === null ? (
+                                                                <span className="text-gray-400 text-[10px] w-12 text-right">—</span>
+                                                            ) : (
+                                                                <span className={`text-xs font-bold ${glColor(perf)} w-12 text-right`}>
+                                                                    {perf >= 0 ? '+' : ''}{perf.toFixed(1)}%
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                     );
                                                 })()}
                                             </td>
@@ -1121,13 +1512,27 @@ export default function Stocks() {
                                                 </DropdownMenu>
                                             </td>
                                         </tr>
+                                        {expandedRow === stock.symbol && (
+                                            <tr className="bg-gray-50/70 dark:bg-neutral-800/30">
+                                                <td colSpan={12} className="px-6 py-4">
+                                                    <HoldingDetail
+                                                        ticker={stock.symbol}
+                                                        position={stock}
+                                                        ttmDividend={ttmDividendsBySymbol[stock.symbol] || 0}
+                                                    />
+                                                </td>
+                                            </tr>
+                                        )}
+                                        </Fragment>
                                     );
                                 });
                                 })()}
                                 {filteredAndSortedHoldings.length === 0 && (
                                     <tr>
-                                        <td colSpan={10} className="px-6 py-8 text-center text-gray-500">
-                                            No stocks found matching your search.
+                                        <td colSpan={12} className="px-6 py-8 text-center text-gray-500">
+                                            {consolidatedHoldings.length === 0
+                                                ? 'No holdings yet — upload a CDC snapshot to get started.'
+                                                : 'No stocks found matching your search.'}
                                         </td>
                                     </tr>
                                 )}
@@ -1138,6 +1543,7 @@ export default function Stocks() {
                                     <td className="px-6 py-3">{fmtPKR(consolidatedHoldings.reduce((sum, h) => sum + h.total_cost, 0))}</td>
                                     <td colSpan={2} className="px-6 py-3 uppercase tracking-wider">Total Market Value</td>
                                     <td className="px-6 py-3 text-emerald-700 dark:text-emerald-400">{fmtPKR(consolidatedHoldings.reduce((sum, h) => sum + h.custody_val, 0))}</td>
+                                    <td colSpan={2} className="px-6 py-3"></td>
                                     <td className="px-6 py-3 text-right">
                                         <div className="flex justify-end">
                                             <span className={`font-bold ${glColor(consolidatedHoldings.reduce((sum, h) => sum + h.today_gl, 0))}`}>
@@ -1145,6 +1551,7 @@ export default function Stocks() {
                                             </span>
                                         </div>
                                     </td>
+                                    <td className="px-6 py-3"></td>
                                     <td className="px-6 py-3 text-center">
                                         <Button
                                             variant="ghost"
@@ -1316,21 +1723,10 @@ export default function Stocks() {
 
 
 
-            {/* Main Chart */}
-            <Card className="transition-colors">
-                <CardHeader>
-                    <CardTitle className="text-lg font-bold text-gray-900 dark:text-gray-100">Portfolio Growth vs Investment</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    {snapshots.length > 0 ? (
-                        <ReactECharts option={chartOptions} style={{ height: '350px' }} />
-                    ) : (
-                        <div className="h-[350px] flex items-center justify-center text-gray-400 dark:text-gray-500 border-2 border-dashed border-gray-200 dark:border-neutral-700 rounded-xl">
-                            Upload your first PSX CSV to see chart
-                        </div>
-                    )}
-                </CardContent>
-            </Card>
+            {/* The "Portfolio Growth vs Investment" chart that used to sit here
+                plotted the same two series from the same snapshots as the
+                Portfolio Performance chart above, just without range controls.
+                Removed rather than maintained in two places. */}
 
             {/* Daily Summary Entry Modal */}
             {showSummaryModal && (
@@ -1612,4 +2008,81 @@ function fmtDateShort(dateStr) {
     if (!dateStr) return '';
     const d = new Date(dateStr);
     return `${d.toLocaleString('default', { month: 'short' })} ${d.getDate()}`;
+}
+
+/**
+ * Expanded detail for one holding: position summary plus recent news.
+ *
+ * News was already being scraped into StockNews and surfaced on StockDetail,
+ * but nothing on this page displayed it — there was only a "Sync News" button
+ * that fetched data the user then had to navigate away to read.
+ *
+ * Per-lot buy/sell breakdown belongs here too, but StockTransaction is not
+ * written by the web app yet, so there are no lots to show.
+ */
+function HoldingDetail({ ticker, position, ttmDividend }) {
+    const { data: news = [], isLoading } = useStockNews(ticker);
+
+    return (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div>
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">
+                    Position
+                </h4>
+                <dl className="space-y-1 text-xs">
+                    {[
+                        ['Quantity', Number(position.holding).toLocaleString()],
+                        ['Average cost', fmtPKR(position.cost_per_unit)],
+                        ['Market price', fmtPKR(position.market_rate)],
+                        ['Portfolio weight', `${(position.weight_pct ?? 0).toFixed(2)}%`],
+                        ['Dividends (12m, net)', ttmDividend > 0 ? fmtPKR(ttmDividend) : '—'],
+                    ].map(([label, value]) => (
+                        <div key={label} className="flex justify-between gap-4">
+                            <dt className="text-gray-500 dark:text-gray-400">{label}</dt>
+                            <dd className="font-medium text-gray-900 dark:text-gray-100 tabular-nums">{value}</dd>
+                        </div>
+                    ))}
+                </dl>
+                <p className="mt-3 text-[10px] text-gray-400 dark:text-gray-500 leading-relaxed">
+                    Individual buy and sell lots are not tracked yet, so average cost
+                    comes from your latest CDC snapshot.
+                </p>
+            </div>
+
+            <div className="lg:col-span-2">
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2 flex items-center gap-1.5">
+                    <Newspaper className="w-3.5 h-3.5" /> Recent news
+                </h4>
+                {isLoading ? (
+                    <div className="space-y-2">
+                        <Skeleton className="h-4 w-3/4" />
+                        <Skeleton className="h-4 w-2/3" />
+                    </div>
+                ) : news.length === 0 ? (
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                        No news stored for {ticker}. Use Sync Actions → Sync News to fetch the latest.
+                    </p>
+                ) : (
+                    <ul className="space-y-2">
+                        {news.slice(0, 5).map(item => (
+                            <li key={item.link}>
+                                <a
+                                    href={item.link}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="text-xs text-blue-600 dark:text-blue-400 hover:underline line-clamp-2"
+                                >
+                                    {item.title}
+                                </a>
+                                <p className="text-[10px] text-gray-400 dark:text-gray-500">
+                                    {item.source || 'Unknown source'} · {fmtDateLong(item.publishedAt)}
+                                </p>
+                            </li>
+                        ))}
+                    </ul>
+                )}
+            </div>
+        </div>
+    );
 }

@@ -9,6 +9,7 @@ A personal finance manager built for the Pakistani market — tracks spending, b
 | Layer | Tech |
 |---|---|
 | Frontend | React 19, Vite, Tailwind CSS, TanStack Query v5, React Router v6, ECharts |
+| UI kit | shadcn-based primitives in `components/ui/`, documented in Storybook |
 | Backend | Express 5, Prisma ORM, Node.js |
 | Database | Supabase PostgreSQL (pgvector for RAG embeddings) |
 | Auth | JWT (7-day), OTP via email, optional 4-digit app PIN, Google OAuth, Apple OAuth |
@@ -38,13 +39,14 @@ Unified dues and debts screen with two tabs:
 PSX portfolio tracking. Upload CDC/broker snapshots, log buy transactions, track dividends, and view live PSX prices from the daily scraper.
 
 ### Personal
-Three sub-tabs in one screen:
+Four sub-tabs in one screen (each tab can be hidden per role via menu visibility):
 - **Zakat** — annual payment log
 - **Rent** — monthly rental income with payer and account source
 - **Assets** — property, vehicles, and other physical assets
+- **Gold** — the Gold Vault, described below
 
-### Gold Vault
-PIN-locked gold jewellery inventory. Features:
+### Gold Vault — `/personal?tab=gold`
+PIN-locked gold jewellery inventory, behind its own PIN separate from the app PIN. Features:
 - Add items by weight (grams) and carat; purchase price entered in **PKR/tola** with per-gram auto-calculated inline
 - Photo upload per item (compressed client-side before storage)
 - Daily price scraper keeps market rates current (hamariweb source)
@@ -55,8 +57,32 @@ PIN-locked gold jewellery inventory. Features:
 ### AI Assistant
 Chat interface backed by Gemini/Groq with full session history. Upload documents (PDF, CSV, text) for RAG-powered Q&A against your own financial data using pgvector embeddings.
 
+### Reports
+Transaction log filtered by period, exportable to CSV or PDF. The backend also exposes raw exports at `/api/export/*` (transactions, expenses, dues as CSV; a full account dump as JSON).
+
+### Help & Feedback
+Help content plus a feedback form (bug / feature / question). Submissions land in an admin queue where they can be moved to in-progress or resolved.
+
 ### Settings
-Profile, password, app PIN, Gold Vault PIN management, recurring payments / subscriptions, menu visibility controls per role, legal acceptance log.
+Profile, password, app PIN, Gold Vault PIN management, recurring payments / subscriptions, users and roles, menu visibility controls per role, legal acceptance log.
+
+---
+
+## Background Jobs
+
+Registered on backend start by `services/cron.service.js`:
+
+| Job | Schedule | What it does |
+|---|---|---|
+| Weekly summary email | Sun 09:00 | Emails each user their dashboard metrics |
+| FX rate fetch | Daily 06:00 | Stores PKR rates for USD, EUR, GBP, AED, SAR |
+| Bill reminders | Daily 08:00 | Emails reminders for recurring payments coming due |
+| Gold price sync | Daily 10:00 | Scrapes the 24K price per tola and per gram |
+| PSX price sync | Weekdays 16:30 PKT | Scrapes closing prices and appends a daily price-history row |
+| PSX portfolio snapshot | Weekdays 17:00 PKT | Re-values holdings at the close so the performance chart accrues history |
+| Net-worth snapshot | Daily 23:55 | Writes one net-worth history row per user |
+
+The two PSX jobs skip weekends and the market holidays listed in `backend/src/utils/dates.js`.
 
 ---
 
@@ -65,6 +91,12 @@ Profile, password, app PIN, Gold Vault PIN management, recurring payments / subs
 ### Prerequisites
 - Node.js 20+
 - [Doppler CLI](https://docs.doppler.com/docs/install-cli) authenticated to the `fs-wealth-axis` project (`doppler login`)
+
+On a fresh clone, bind the backend folder to its Doppler config once — `backend/doppler.yaml` supplies the project and config, so no flags are needed:
+
+```bash
+cd backend && doppler setup --no-interactive
+```
 
 ### Install
 
@@ -83,11 +115,21 @@ cd backend && npm run dev
 cd frontend && npm run dev
 ```
 
+### Storybook
+
+```bash
+# Component workshop for the shared UI kit — port 6006
+cd frontend && npm run storybook
+```
+
 ### Tests
 
 ```bash
-# Unit tests (Vitest)
+# Frontend unit tests (Vitest)
 cd frontend && npm run test
+
+# Backend unit tests (Jest)
+cd backend && npm run test
 
 # E2E tests (Playwright) — requires both servers running
 cd frontend && npm run test:e2e
@@ -97,7 +139,7 @@ cd frontend && npm run test:e2e
 
 ## Secrets
 
-All local secrets live in **Doppler** (project `fs-wealth-axis`, config `dev`). Never create `.env` files.
+All local secrets live in **Doppler** (project `fs-wealth-axis`, branch config `dev_farooq` off `dev` — see `backend/doppler.yaml`). Never create `.env` files.
 
 | Variable | Purpose |
 |---|---|
@@ -145,21 +187,33 @@ Finance-manager/
 │   ├── src/
 │   │   ├── controllers/           # Route handlers (one file per domain)
 │   │   ├── routes/                # Express routers
-│   │   ├── services/              # Cron jobs, gold scraper, AI/RAG
-│   │   └── utils/                 # Prisma client, AES crypto, logger
+│   │   ├── services/              # Cron jobs, scrapers, parsers, AI/RAG
+│   │   ├── middleware/            # verifyToken, request validation
+│   │   └── utils/                 # Prisma client, AES crypto, email, logger
+│   ├── doppler.yaml               # Doppler project/config binding
 │   └── server.js
-└── frontend/
-    ├── src/
-    │   ├── components/            # Layout, Sidebar, Header, shared UI
-    │   ├── context/               # AuthContext
-    │   ├── hooks/                 # TanStack Query hooks (one file per domain)
-    │   ├── pages/                 # Route-level page components
-    │   ├── services/              # Axios API client (api.js)
-    │   └── utils/
-    │       ├── currency.js        # fmtPKR() — always use this for PKR amounts
-    │       └── dates.js           # fmtDateLong()
-    └── e2e/                       # Playwright E2E tests
+├── frontend/
+│   ├── .storybook/                # Storybook config
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── ui/                # shadcn primitives + .stories.jsx files
+│   │   │   ├── admin/             # User and role table rows
+│   │   │   └── auth/              # Social sign-in buttons
+│   │   ├── context/               # AuthContext, PinContext
+│   │   ├── hooks/                 # TanStack Query hooks (one file per domain)
+│   │   ├── pages/                 # Route-level page components
+│   │   ├── services/              # Axios API client (api.js)
+│   │   └── utils/
+│   │       ├── currency.js        # fmtPKR() — always use this for PKR amounts
+│   │       └── dates.js           # fmtDateLong()
+│   └── e2e/                       # Playwright E2E tests
+└── docs/
+    ├── setup/DOCS.md              # Full API, model, page, and hook reference
+    ├── deployment/                # Railway and hosting guides
+    └── mobile/                    # React Native / Expo notes
 ```
+
+Full API endpoint tables, database models, page routes, and hook reference: [docs/setup/DOCS.md](docs/setup/DOCS.md).
 
 ---
 

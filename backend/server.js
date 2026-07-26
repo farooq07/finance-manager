@@ -29,6 +29,7 @@ import debtRoutes from './src/routes/debt.routes.js';
 import fxRateRoutes from './src/routes/fxRate.routes.js';
 import goldRoutes from './src/routes/gold.routes.js';
 import feedbackRoutes from './src/routes/feedback.routes.js';
+import watchlistRoutes from './src/routes/watchlist.routes.js';
 import { initCronJobs } from './src/services/cron.service.js';
 
 dotenv.config();
@@ -107,6 +108,7 @@ app.use('/api/debts', debtRoutes);
 app.use('/api/fx', fxRateRoutes);
 app.use('/api/gold', goldRoutes);
 app.use('/api/feedback', feedbackRoutes);
+app.use('/api/watchlist', watchlistRoutes);
 
 // Root route / Health check
 app.get('/', (req, res) => {

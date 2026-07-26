@@ -1,5 +1,5 @@
 import express from 'express';
-import { getStocks, createStock, updateStockPrice, createStockTransaction, deleteStock, getPsxStocks, syncPsxStocks, syncStockNews, getStockNews } from '../controllers/stock.controller.js';
+import { getStocks, createStock, updateStockPrice, createStockTransaction, deleteStock, getPsxStocks, syncPsxStocks, syncStockNews, getStockNews, getPsxSyncStatus, getTickerHistory, getBulkTickerHistory } from '../controllers/stock.controller.js';
 import verifyToken from '../middleware/auth.middleware.js';
 
 const router = express.Router();
@@ -14,7 +14,10 @@ const adminOnly = (req, res, next) => {
     next();
 };
 
+// Specific paths before parameterised ones.
 router.post('/psx/sync', adminOnly, syncPsxStocks);
+router.get('/psx/status', getPsxSyncStatus);
+router.get('/psx/history', getBulkTickerHistory);
 router.get('/psx', getPsxStocks);
 router.get('/', getStocks);
 router.post('/', createStock);
@@ -23,5 +26,6 @@ router.post('/:id/transactions', createStockTransaction);
 router.delete('/:id', deleteStock);
 router.post('/news/sync', syncStockNews);
 router.get('/:ticker/news', getStockNews);
+router.get('/:ticker/history', getTickerHistory);
 
 export default router;
