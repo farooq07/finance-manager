@@ -2,8 +2,9 @@
 
 ## This project uses Doppler — never create .env files
 
-All secrets are managed in Doppler: project `fs-wealth-axis`, config `dev`.
-The `.doppler.yaml` in `backend/` links the folder automatically.
+All secrets are managed in Doppler: project `fs-wealth-axis`, branch config
+`dev_farooq` (off `dev`). The `doppler.yaml` in `backend/` records that binding —
+note the filename has **no leading dot**; Doppler ignores `.doppler.yaml`.
 
 **Never write, create, suggest, or reference a `.env` file.** The gitignored
 `backend/.env` on the main dev machine is a legacy local backup only — Doppler
@@ -20,12 +21,22 @@ Doppler must be authenticated first. On a new machine:
 ```bash
 winget install Doppler.Doppler     # install CLI (Windows)
 doppler login                      # opens browser — approve once
-cd backend && npm run dev          # .doppler.yaml wires up project/config
+cd backend
+doppler setup --no-interactive     # reads doppler.yaml, binds project/config
+npm run dev
 ```
+
+`doppler run` does **not** read `doppler.yaml` on its own — it uses the scope
+bound by `doppler setup`. "You must specify a config" means that step is
+missing; "you must provide a token" means `doppler login` is missing.
+
+> Never run `doppler configure reset` to clean up a single scope — it clears the
+> entire CLI config, including the login token.
 
 ## Adding or changing a secret
 
-1. Open dashboard.doppler.com → fs-wealth-axis → dev
+1. Open dashboard.doppler.com → fs-wealth-axis → your branch config (`dev_farooq`)
+   — and press **Save**; unsaved dashboard edits are not served by the API
 2. Add / update the value there
 3. Restart `npm run dev` — new value is picked up instantly
 
