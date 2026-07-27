@@ -1,78 +1,137 @@
 import { chromium } from 'playwright';
+import logger from '../utils/logger.js';
+
+const NAV_TIMEOUT_MS = 30000;
+const SELECTOR_TIMEOUT_MS = 10000;
+const MAX_ATTEMPTS = 3;
 
 /**
- * Scrapes the PSX website for the given list of tickers.
- * @param {string[]} tickers 
- * @returns {Promise<Array>} Array of scraped stock objects
+ * Parse a scraped numeric string.
+ *
+ * Returns `null` — not 0 — when the text is missing or unparseable. This
+ * distinction matters: a failed parse used to become 0, and the caller wrote
+ * that 0 straight over a perfectly good stored price. A null tells the caller
+ * "no reading", which it can then skip.
+ */
+export function parseNumber(str) {
+    if (str === null || str === undefined) return null;
+    const clean = String(str).replace(/Rs\./gi, '').replace(/[^0-9.-]/g, '');
+    if (clean === '' || clean === '-' || clean === '.') return null;
+    const num = parseFloat(clean);
+    return Number.isFinite(num) ? num : null;
+}
+
+/**
+ * Sanity bounds for a PSX share price in PKR. A scrape that lands outside
+ * this band means the page structure changed and we grabbed the wrong node,
+ * so the reading is rejected rather than stored.
+ *
+ * Mirrors isPlausibleTolaPrice() in goldScraper.service.js.
+ */
+export function isPlausiblePrice(price) {
+    return typeof price === 'number' && Number.isFinite(price) && price > 0 && price <= 100_000;
+}
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Scrape one ticker. Throws on failure so the retry wrapper can catch it.
+ * Fields that fail to parse come back as null and are omitted downstream.
+ */
+async function scrapeOneTicker(context, ticker) {
+    const page = await context.newPage();
+    try {
+        await page.goto(`https://dps.psx.com.pk/company/${ticker}`, {
+            waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT_MS,
+        });
+        await page.waitForSelector('.quote__name', { timeout: SELECTOR_TIMEOUT_MS });
+
+        const companyName = await page.$eval('.quote__name', el => el.textContent.trim());
+        const priceText = await page.$eval('.quote__close', el => el.textContent.trim());
+        const changeValueText = await page.$eval('.change__value', el => el.textContent.trim());
+        const changePercentText = await page.$eval('.change__percent', el => el.textContent.trim());
+
+        const stats = await page.$eval('.stats.stats--noborder', container => {
+            const items = Array.from(container.querySelectorAll('.stats_item'));
+            const res = {};
+            items.forEach(item => {
+                const label = item.querySelector('.stats_label')?.textContent?.trim()?.toLowerCase();
+                const value = item.querySelector('.stats_value')?.textContent?.trim();
+                if (label && value) res[label] = value;
+            });
+            return res;
+        });
+
+        const price = parseNumber(priceText);
+        if (!isPlausiblePrice(price)) {
+            throw new Error(`implausible price for ${ticker}: ${JSON.stringify(priceText)}`);
+        }
+
+        const volumeRaw = parseNumber(stats['volume']);
+
+        return {
+            ticker,
+            companyName: companyName || null,
+            price,
+            change: parseNumber(changeValueText),
+            changePct: parseNumber(changePercentText),
+            volume: volumeRaw === null ? null : Math.round(volumeRaw),
+            high: parseNumber(stats['high']),
+            low: parseNumber(stats['low']),
+            marketCap: parseNumber(stats['market cap']),
+            scrapedAt: new Date(),
+        };
+    } finally {
+        // Always close, including on the throw path — the previous version
+        // leaked a page for every ticker that failed.
+        await page.close().catch(() => {});
+    }
+}
+
+/**
+ * Scrape the PSX site for the given tickers.
+ *
+ * Each ticker is retried up to MAX_ATTEMPTS with exponential backoff, and one
+ * ticker failing never aborts the rest.
+ *
+ * @param {string[]} tickers
+ * @returns {Promise<{results: Array, failures: Array<{ticker: string, error: string}>}>}
  */
 export async function scrapePSX(tickers = []) {
-    if (tickers.length === 0) return [];
+    if (tickers.length === 0) return { results: [], failures: [] };
 
     const results = [];
+    const failures = [];
     const browser = await chromium.launch({ headless: true });
     const context = await browser.newContext();
 
-    for (const ticker of tickers) {
-        try {
-            const page = await context.newPage();
-            await page.goto(`https://dps.psx.com.pk/company/${ticker}`, { waitUntil: 'domcontentloaded', timeout: 30000 });
-
-            // Wait for at least the company name or price to appear
-            await page.waitForSelector('.quote__name', { timeout: 10000 });
-
-            const companyName = await page.$eval('.quote__name', el => el.textContent.trim());
-            const priceText = await page.$eval('.quote__close', el => el.textContent.trim());
-            const changeValueText = await page.$eval('.change__value', el => el.textContent.trim());
-            const changePercentText = await page.$eval('.change__percent', el => el.textContent.trim());
-
-            const stats = await page.$eval('.stats.stats--noborder', container => {
-                const items = Array.from(container.querySelectorAll('.stats_item'));
-                const res = {};
-                items.forEach(item => {
-                    const label = item.querySelector('.stats_label')?.textContent?.trim()?.toLowerCase();
-                    const value = item.querySelector('.stats_value')?.textContent?.trim();
-                    if (label && value) {
-                        res[label] = value;
+    try {
+        for (const ticker of tickers) {
+            let lastError;
+            for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+                try {
+                    results.push(await scrapeOneTicker(context, ticker));
+                    lastError = null;
+                    break;
+                } catch (error) {
+                    lastError = error;
+                    if (attempt < MAX_ATTEMPTS) {
+                        const backoffMs = 1000 * 2 ** (attempt - 1); // 1s, 2s
+                        logger.log(`[PSX] ${ticker} attempt ${attempt} failed (${error.message}); retrying in ${backoffMs}ms`);
+                        await sleep(backoffMs);
                     }
-                });
-                return res;
-            });
-
-            const parseNumber = (str) => {
-                if (!str) return 0;
-                // Remove Rs. prefix and everything except digits, decimal, and minus
-                const clean = str.replace(/Rs\./gi, '').replace(/[^0-9.-]/g, '');
-                return parseFloat(clean) || 0;
-            };
-
-            const change = parseNumber(changeValueText);
-            const changePct = parseNumber(changePercentText);
-            const volume = parseInt((stats['volume'] || '0').replace(/,/g, ''), 10) || 0;
-            const high = parseNumber(stats['high']);
-            const low = parseNumber(stats['low']);
-            const marketCap = parseNumber(stats['market cap']);
-
-            results.push({
-                ticker,
-                companyName,
-                price: parseNumber(priceText),
-                change,
-                changePct,
-                volume,
-                high,
-                low,
-                marketCap,
-                lastUpdated: new Date()
-            });
-
-            await page.close();
-        } catch (error) {
-            console.error(`Error scraping ${ticker}:`, error.message);
+                }
+            }
+            if (lastError) {
+                logger.error(`[PSX] ${ticker} failed after ${MAX_ATTEMPTS} attempts: ${lastError.message}`);
+                failures.push({ ticker, error: lastError.message });
+            }
         }
+    } finally {
+        await browser.close().catch(() => {});
     }
 
-    await browser.close();
-    return results;
+    return { results, failures };
 }
 
 /**

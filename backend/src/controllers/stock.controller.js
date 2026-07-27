@@ -1,6 +1,7 @@
 import prisma from '../utils/prisma.js';
 import logger from '../utils/logger.js';
-import { scrapePSX, scrapeTradingViewNews } from '../services/scraper.service.js';
+import { scrapeTradingViewNews } from '../services/scraper.service.js';
+import { syncPsxPrices, getLatestSyncStatus } from '../services/psxSync.service.js';
 
 // Get user's stock portfolio
 export const getStocks = async (req, res) => {
@@ -141,75 +142,149 @@ export const getPsxStocks = async (req, res) => {
     }
 };
 
-const TARGET_STOCKS = ['HUBC', 'FFL', 'FFC', 'MEBL', 'OGDC', 'EFERT', 'FATIMA', 'LUCK', 'MARI', 'MTL', 'NATF', 'PPL', 'PSO', 'SYS'];
-
+/**
+ * Manual PSX price sync. The scrape/validate/write logic lives in
+ * psxSync.service.js so the nightly cron and this endpoint share one code
+ * path — previously the only way to refresh prices was for an admin to press
+ * a button, and the ticker list was hardcoded here.
+ */
 export const syncPsxStocks = async (req, res) => {
     try {
         if (!['admin', 'super.admin'].includes(req.user?.role)) {
             return res.status(403).json({ message: 'Unauthorized - Admin access required' });
         }
 
-        logger.log('[SYNC] Starting manual PSX Scraping Job...');
-        const results = await scrapePSX(TARGET_STOCKS);
+        logger.log('[SYNC] Starting manual PSX price sync...');
+        const result = await syncPsxPrices();
 
-        if (!results || results.length === 0) {
+        if (result.aborted) {
             return res.status(200).json({
-                message: 'No stock data retrieved. Check network or website changes.',
+                message: 'Sync aborted — too many tickers failed. Existing prices left untouched.',
                 success: false,
-                updated: 0
+                updated: 0,
+                failed: result.failed,
             });
         }
 
-        let updatedCount = 0;
-        let skippedCount = 0;
-
-        for (const data of results) {
-            if (!data.price) {
-                skippedCount++;
-                continue;
-            }
-
-            await prisma.psxStock.upsert({
-                where: { ticker: data.ticker },
-                update: {
-                    companyName: data.companyName,
-                    price: data.price,
-                    change: data.change,
-                    changePct: data.changePct,
-                    volume: BigInt(data.volume),
-                    high: data.high,
-                    low: data.low,
-                    marketCap: data.marketCap
-                },
-                create: {
-                    ticker: data.ticker,
-                    companyName: data.companyName,
-                    price: data.price,
-                    change: data.change,
-                    changePct: data.changePct,
-                    volume: BigInt(data.volume),
-                    high: data.high,
-                    low: data.low,
-                    marketCap: data.marketCap
-                }
-            });
-            updatedCount++;
-        }
-
-        logger.log(`[SYNC] Successfully updated ${updatedCount} PSX stocks (skipped ${skippedCount}).`);
         res.status(200).json({
-            message: `✓ Updated ${updatedCount} stocks`,
+            message: `✓ Updated ${result.updated} stocks`,
             success: true,
-            updated: updatedCount,
-            skipped: skippedCount
+            updated: result.updated,
+            failed: result.failed,
+            status: result.status,
         });
     } catch (error) {
-        console.error('[SYNC] Error during PSX Scraping:', error.message);
+        logger.error('[SYNC] Error during PSX price sync:', error.message);
         res.status(500).json({
             message: 'Error syncing PSX data',
             error: error.message,
             success: false
         });
+    }
+};
+
+/**
+ * Freshness of the last price sync, for the staleness badge on the Stocks
+ * page. Readable by any signed-in user — it exposes no user data.
+ */
+export const getPsxSyncStatus = async (req, res) => {
+    try {
+        const run = await getLatestSyncStatus('psx_prices');
+        if (!run) return res.json({ status: 'never', lastSyncedAt: null });
+
+        res.json({
+            status: run.status,
+            lastSyncedAt: run.finished_at || run.started_at,
+            tickersOk: run.tickers_ok,
+            tickersFailed: run.tickers_failed,
+        });
+    } catch (error) {
+        logger.error('[SYNC] Error fetching sync status:', error.message);
+        res.status(500).json({ message: 'Error fetching sync status' });
+    }
+};
+
+const MAX_HISTORY_DAYS = 3650;
+const MAX_BULK_TICKERS = 100;
+
+function historyDays(raw) {
+    return Math.min(Math.max(parseInt(raw, 10) || 30, 1), MAX_HISTORY_DAYS);
+}
+
+function serialiseHistoryRow(r) {
+    return {
+        date: r.date,
+        open: r.open === null ? null : Number(r.open),
+        high: r.high === null ? null : Number(r.high),
+        low: r.low === null ? null : Number(r.low),
+        close: Number(r.close),
+        volume: r.volume === null ? null : Number(r.volume),
+    };
+}
+
+/**
+ * Daily closes for several tickers at once, keyed by ticker.
+ *
+ * The holdings table draws a sparkline per row; without this it would fire one
+ * request per holding on every render of the page.
+ */
+export const getBulkTickerHistory = async (req, res) => {
+    try {
+        const tickers = String(req.query.tickers || '')
+            .split(',')
+            .map(t => t.trim().toUpperCase())
+            .filter(Boolean)
+            .slice(0, MAX_BULK_TICKERS);
+
+        if (tickers.length === 0) return res.json({});
+
+        const days = historyDays(req.query.days);
+        const since = new Date();
+        since.setDate(since.getDate() - days);
+
+        const rows = await prisma.psxPriceHistory.findMany({
+            where: { ticker: { in: tickers }, date: { gte: since } },
+            orderBy: [{ ticker: 'asc' }, { date: 'asc' }],
+            select: { ticker: true, date: true, open: true, high: true, low: true, close: true, volume: true },
+        });
+
+        const byTicker = {};
+        for (const ticker of tickers) byTicker[ticker] = [];
+        for (const row of rows) {
+            (byTicker[row.ticker] ||= []).push(serialiseHistoryRow(row));
+        }
+
+        res.json(byTicker);
+    } catch (error) {
+        logger.error('[PSX] Error fetching bulk ticker history:', error.message);
+        res.status(500).json({ message: 'Error fetching ticker history' });
+    }
+};
+
+/**
+ * Daily close series for one ticker, for sparklines and per-ticker charts.
+ * PsxPriceHistory is market data, not user data, so it is not user-scoped —
+ * but the route still requires a valid token.
+ */
+export const getTickerHistory = async (req, res) => {
+    try {
+        const ticker = String(req.params.ticker || '').trim().toUpperCase();
+        if (!ticker) return res.status(400).json({ message: 'Ticker is required' });
+
+        const days = historyDays(req.query.days);
+        const since = new Date();
+        since.setDate(since.getDate() - days);
+
+        const rows = await prisma.psxPriceHistory.findMany({
+            where: { ticker, date: { gte: since } },
+            orderBy: { date: 'asc' },
+            select: { date: true, open: true, high: true, low: true, close: true, volume: true },
+        });
+
+        res.json(rows.map(serialiseHistoryRow));
+    } catch (error) {
+        logger.error('[PSX] Error fetching ticker history:', error.message);
+        res.status(500).json({ message: 'Error fetching ticker history' });
     }
 };
 

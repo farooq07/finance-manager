@@ -58,7 +58,7 @@ cd frontend && npm run test:e2e     # Playwright E2E (needs both servers)
 |---|---|
 | Auth controller | `backend/src/controllers/auth.controller.js` |
 | Prisma schema | `backend/prisma/schema.prisma` |
-| API client | `frontend/src/utils/api.js` |
+| API client | `frontend/src/services/api.js` |
 | Currency util | `frontend/src/utils/currency.js` |
 | Date util | `frontend/src/utils/dates.js` |
 | Sidebar menu | `frontend/src/components/Sidebar.jsx` |

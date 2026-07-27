@@ -11,58 +11,59 @@ datasource db {
 }
 
 model User {
-  id                  String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  email               String              @unique
-  name                String
-  password_hash       String?
-  role                String              @default("user") @db.VarChar(50) // 'super.admin', 'admin', 'user'
-  app_pin_code        String?             @db.VarChar(255)
-  otp_code            String?             @db.VarChar(6)
-  otp_expires_at      DateTime?           @db.Timestamptz(6)
-  must_change_password Boolean            @default(false)
-  email_verified      Boolean             @default(false)
-  email_verification_token String?        @db.VarChar(128)
-  email_verification_expires DateTime?    @db.Timestamptz(6)
-  terms_accepted_at   DateTime?           @db.Timestamptz(6)
-  privacy_accepted_at DateTime?           @db.Timestamptz(6)
+  id                         String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email                      String              @unique
+  name                       String
+  password_hash              String?
+  role                       String              @default("user") @db.VarChar(50) // 'super.admin', 'admin', 'user'
+  app_pin_code               String?             @db.VarChar(255)
+  otp_code                   String?             @db.VarChar(6)
+  otp_expires_at             DateTime?           @db.Timestamptz(6)
+  must_change_password       Boolean             @default(false)
+  email_verified             Boolean             @default(false)
+  email_verification_token   String?             @db.VarChar(128)
+  email_verification_expires DateTime?           @db.Timestamptz(6)
+  terms_accepted_at          DateTime?           @db.Timestamptz(6)
+  privacy_accepted_at        DateTime?           @db.Timestamptz(6)
   // OAuth identity providers — null for password-only accounts
-  auth_provider       String?             @db.VarChar(20)   // 'google' | 'apple' | null (password)
-  provider_id         String?             @db.VarChar(255)  // sub/uid from provider
-  avatar_url          String?             @db.VarChar(512)
+  auth_provider              String?             @db.VarChar(20) // 'google' | 'apple' | null (password)
+  provider_id                String?             @db.VarChar(255) // sub/uid from provider
+  avatar_url                 String?             @db.VarChar(512)
   // Soft delete — admins "request" deletion (deactivates login); super.admin reviews → restore or hard-delete
-  deleted_at            DateTime?         @db.Timestamptz(6)
-  deletion_requested_by String?           @db.Uuid
-  deletion_requested_at DateTime?         @db.Timestamptz(6)
-  created_at          DateTime            @default(now()) @db.Timestamptz(6)
-  expenses            Expense[]
-  mutual_funds        MutualFund[]
-  stocks              Stock[]
-  stock_transactions  StockTransaction[]
-  people              Person[]
-  dues_transactions   DuesTransaction[]
-  rent_entries        RentEntry[]
-  portfolio_snapshots PortfolioSnapshot[]
-  psx_snapshots       PsxSnapshot[]
-  bank_investments    BankInvestment[]
-  wallets             Wallet[]
-  banks               Bank[]
-  institutions        Institution[]
-  broker_accounts     BrokerAccount[]
-  zakat               Zakat[]
-  assets              Asset[]
-  dividends           Dividend[]
-  category_patterns   CategoryPattern[]
-  category_cache      CategoryCache[]
-  beneficiaries       Beneficiary[]
-  chat_sessions       ChatSession[]
-  chat_documents      ChatDocument[]
-  networth_snapshots  NetWorthSnapshot[]
-  recurring_payments  RecurringPayment[]
-  debts               Debt[]
-  debt_payments       DebtPayment[]
-  gold_items          GoldItem[]
-  gold_pin            GoldPin?
-  feedback            Feedback[]
+  deleted_at                 DateTime?           @db.Timestamptz(6)
+  deletion_requested_by      String?             @db.Uuid
+  deletion_requested_at      DateTime?           @db.Timestamptz(6)
+  created_at                 DateTime            @default(now()) @db.Timestamptz(6)
+  expenses                   Expense[]
+  mutual_funds               MutualFund[]
+  stocks                     Stock[]
+  stock_transactions         StockTransaction[]
+  people                     Person[]
+  dues_transactions          DuesTransaction[]
+  rent_entries               RentEntry[]
+  portfolio_snapshots        PortfolioSnapshot[]
+  psx_snapshots              PsxSnapshot[]
+  bank_investments           BankInvestment[]
+  wallets                    Wallet[]
+  banks                      Bank[]
+  institutions               Institution[]
+  broker_accounts            BrokerAccount[]
+  zakat                      Zakat[]
+  assets                     Asset[]
+  dividends                  Dividend[]
+  category_patterns          CategoryPattern[]
+  category_cache             CategoryCache[]
+  beneficiaries              Beneficiary[]
+  chat_sessions              ChatSession[]
+  chat_documents             ChatDocument[]
+  networth_snapshots         NetWorthSnapshot[]
+  recurring_payments         RecurringPayment[]
+  debts                      Debt[]
+  debt_payments              DebtPayment[]
+  gold_items                 GoldItem[]
+  gold_pin                   GoldPin?
+  feedback                   Feedback[]
+  watchlist                  Watchlist[]
 
   @@index([deleted_at])
   @@map("users")
@@ -95,23 +96,23 @@ model NetWorthSnapshot {
 // services/cron.service.js queries rows where next_due_date - now is
 // within reminder_days and sends an email reminder.
 model RecurringPayment {
-  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_id        String    @db.Uuid
-  name           String              // "Netflix", "K-Electric"
-  amount         Decimal   @db.Decimal(15, 2)
-  currency       String    @default("PKR") @db.VarChar(8)
-  category       String?
-  frequency      String    @db.VarChar(16)   // "weekly" | "monthly" | "yearly"
-  next_due_date  DateTime  @db.Date
-  auto_debit     Boolean   @default(false)
-  bank_id        String?   @db.Uuid          // optional debit-from account (not FK)
-  reminder_days  Int       @default(3)
-  is_active      Boolean   @default(true)
-  last_paid_at   DateTime? @db.Timestamptz(6)
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id          String    @db.Uuid
+  name             String // "Netflix", "K-Electric"
+  amount           Decimal   @db.Decimal(15, 2)
+  currency         String    @default("PKR") @db.VarChar(8)
+  category         String?
+  frequency        String    @db.VarChar(16) // "weekly" | "monthly" | "yearly"
+  next_due_date    DateTime  @db.Date
+  auto_debit       Boolean   @default(false)
+  bank_id          String?   @db.Uuid // optional debit-from account (not FK)
+  reminder_days    Int       @default(3)
+  is_active        Boolean   @default(true)
+  last_paid_at     DateTime? @db.Timestamptz(6)
   last_reminder_at DateTime? @db.Timestamptz(6)
-  notes          String?
-  created_at     DateTime  @default(now()) @db.Timestamptz(6)
-  updated_at     DateTime  @updatedAt @db.Timestamptz(6)
+  notes            String?
+  created_at       DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime  @updatedAt @db.Timestamptz(6)
 
   user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
@@ -126,13 +127,13 @@ model RecurringPayment {
 model Debt {
   id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   user_id         String    @db.Uuid
-  name            String              // "HBL Credit Card", "Car Loan"
+  name            String // "HBL Credit Card", "Car Loan"
   debt_type       String    @db.VarChar(32) // credit_card | personal_loan | mortgage | car_loan | other
   principal       Decimal   @db.Decimal(15, 2)
   outstanding     Decimal   @db.Decimal(15, 2)
   interest_rate   Decimal?  @db.Decimal(5, 2) // annual %
   minimum_payment Decimal?  @db.Decimal(15, 2)
-  due_day         Int?                // day of month (1..28)
+  due_day         Int? // day of month (1..28)
   start_date      DateTime? @db.Date
   target_payoff   DateTime? @db.Date
   institution_id  String?   @db.Uuid
@@ -171,12 +172,12 @@ model DebtPayment {
 // computed live from the latest GoldPriceHistory row at request time.
 // Gated by a separate GoldPin (not the app-wide app_pin_code).
 model GoldItem {
-  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_id       String    @db.Uuid
-  name          String    @db.VarChar(255)         // "Bridal set", "Engagement ring"
-  type          String    @db.VarChar(20)          // ring | set | chain | bangle | earring | other
-  weight_grams  Decimal   @db.Decimal(10, 3)       // physical weight in grams
-  carats        Int       @default(20)             // 24 | 22 | 21 | 20 | 18
+  id                      String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id                 String    @db.Uuid
+  name                    String    @db.VarChar(255) // "Bridal set", "Engagement ring"
+  type                    String    @db.VarChar(20) // ring | set | chain | bangle | earring | other
+  weight_grams            Decimal   @db.Decimal(10, 3) // physical weight in grams
+  carats                  Int       @default(20) // 24 | 22 | 21 | 20 | 18
   purchase_date           DateTime? @db.Date
   purchase_price_per_gram Decimal?  @db.Decimal(12, 2)
   image_url               String?   @db.Text
@@ -223,12 +224,12 @@ model GoldPin {
 // per pair build up history. The latest row per (base, quote) is what
 // most consumers use; the time series is there for charts and audit.
 model FxRate {
-  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  base        String   @db.VarChar(8)
-  quote       String   @db.VarChar(8)
-  rate        Decimal  @db.Decimal(15, 6)
-  fetched_at  DateTime @default(now()) @db.Timestamptz(6)
-  source      String   @db.VarChar(32) // "open.er-api" | "manual"
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  base       String   @db.VarChar(8)
+  quote      String   @db.VarChar(8)
+  rate       Decimal  @db.Decimal(15, 6)
+  fetched_at DateTime @default(now()) @db.Timestamptz(6)
+  source     String   @db.VarChar(32) // "open.er-api" | "manual"
 
   @@index([base, quote, fetched_at])
   @@map("fx_rates")
@@ -291,12 +292,12 @@ model ChatDocument {
 }
 
 model DocumentChunk {
-  id          String       @id @default(cuid())
+  id          String                       @id @default(cuid())
   document_id String
   chunk_index Int
-  content     String       @db.Text
+  content     String                       @db.Text
   embedding   Unsupported("vector(3072)")?
-  document    ChatDocument @relation(fields: [document_id], references: [id], onDelete: Cascade)
+  document    ChatDocument                 @relation(fields: [document_id], references: [id], onDelete: Cascade)
 
   @@index([document_id])
   @@map("document_chunks")
@@ -360,16 +361,16 @@ model Stock {
 }
 
 model StockTransaction {
-  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_id        String   @db.Uuid
-  stock_id       String   @db.Uuid
-  buy_date       DateTime @db.Date
-  buy_price      Decimal  @db.Decimal(10, 2)
-  quantity       Int
-  brokerage_fee  Decimal? @default(0.00) @db.Decimal(10, 2)
-  created_at     DateTime @default(now()) @db.Timestamptz(6)
-  user           User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  stock          Stock    @relation(fields: [stock_id], references: [id], onDelete: Cascade)
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id       String   @db.Uuid
+  stock_id      String   @db.Uuid
+  buy_date      DateTime @db.Date
+  buy_price     Decimal  @db.Decimal(10, 2)
+  quantity      Int
+  brokerage_fee Decimal? @default(0.00) @db.Decimal(10, 2)
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
+  user          User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  stock         Stock    @relation(fields: [stock_id], references: [id], onDelete: Cascade)
 
   @@map("stock_transactions")
 }
@@ -436,8 +437,8 @@ model PsxSnapshot {
   snapshot_date  DateTime @db.Date // One snapshot per day
   total_custody  Decimal  @db.Decimal(15, 2)
   total_invested Decimal  @db.Decimal(15, 2)
-  holdings_data  Json     // Array of { symbol, holding, market_rate, custody_val }
-  summary_data   Json?    // Optional: { trading_cash, working_capital, total_worth, margin_pct, etc. }
+  holdings_data  Json // Array of { symbol, holding, market_rate, custody_val }
+  summary_data   Json? // Optional: { trading_cash, working_capital, total_worth, margin_pct, etc. }
   created_at     DateTime @default(now()) @db.Timestamptz(6)
   user           User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
@@ -458,70 +459,70 @@ model BankInvestment {
 }
 
 model Wallet {
-  id            String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_id       String              @db.Uuid
-  name          String              @db.VarChar(100)
-  institution   String              @db.VarChar(100)
-  balance       Decimal             @default(0.00) @db.Decimal(15, 2)
-  currency      String              @default("PKR") @db.VarChar(10)
-  exchange_rate Decimal             @default(1.00) @db.Decimal(15, 4)
-  color_theme   String              @default("blue") @db.VarChar(50)
-  account_num   String?             @db.VarChar(50)
-  created_at    DateTime            @default(now()) @db.Timestamptz(6)
-  user          User                @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  id            String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id       String            @db.Uuid
+  name          String            @db.VarChar(100)
+  institution   String            @db.VarChar(100)
+  balance       Decimal           @default(0.00) @db.Decimal(15, 2)
+  currency      String            @default("PKR") @db.VarChar(10)
+  exchange_rate Decimal           @default(1.00) @db.Decimal(15, 4)
+  color_theme   String            @default("blue") @db.VarChar(50)
+  account_num   String?           @db.VarChar(50)
+  created_at    DateTime          @default(now()) @db.Timestamptz(6)
+  user          User              @relation(fields: [user_id], references: [id], onDelete: Cascade)
   statements    WalletStatement[]
 
   @@map("wallets")
 }
 
 model WalletStatement {
-  id                    String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  wallet_id             String                @db.Uuid
-  month                 String                @db.VarChar(20)
-  year                  Int
-  file_path             String?
-  file_hash             String?               @db.VarChar(64)
-  password_encrypted    String?               @db.Text
-  upload_date           DateTime              @default(now()) @db.Timestamptz(6)
-  transactions          Json?
-  opening_balance       Decimal?              @db.Decimal(15, 2)
-  closing_balance       Decimal?              @db.Decimal(15, 2)
-  total_credits         Decimal               @default(0) @db.Decimal(15, 2)
-  total_debits          Decimal               @default(0) @db.Decimal(15, 2)
-  transaction_count     Int                   @default(0)
-  processing_status     String                @default("pending") @db.VarChar(50)
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  wallet_id          String   @db.Uuid
+  month              String   @db.VarChar(20)
+  year               Int
+  file_path          String?
+  file_hash          String?  @db.VarChar(64)
+  password_encrypted String?  @db.Text
+  upload_date        DateTime @default(now()) @db.Timestamptz(6)
+  transactions       Json?
+  opening_balance    Decimal? @db.Decimal(15, 2)
+  closing_balance    Decimal? @db.Decimal(15, 2)
+  total_credits      Decimal  @default(0) @db.Decimal(15, 2)
+  total_debits       Decimal  @default(0) @db.Decimal(15, 2)
+  transaction_count  Int      @default(0)
+  processing_status  String   @default("pending") @db.VarChar(50)
 
-  wallet                Wallet                @relation(fields: [wallet_id], references: [id], onDelete: Cascade)
-  parsed_transactions   WalletTransactionLog[]
+  wallet              Wallet                 @relation(fields: [wallet_id], references: [id], onDelete: Cascade)
+  parsed_transactions WalletTransactionLog[]
 
   @@map("wallet_statements")
 }
 
 model WalletTransactionLog {
-  id                  String    @id @default(cuid())
-  wallet_statement_id String    @db.Uuid
+  id                  String          @id @default(cuid())
+  wallet_statement_id String          @db.Uuid
   wallet_statement    WalletStatement @relation(fields: [wallet_statement_id], references: [id], onDelete: Cascade)
 
-  transaction_date    DateTime  @db.Date
-  description         String    @db.Text
-  debit_amount        Decimal?  @db.Decimal(15, 2)
-  credit_amount       Decimal?  @db.Decimal(15, 2)
-  net_amount          Decimal   @db.Decimal(15, 2)
+  transaction_date DateTime @db.Date
+  description      String   @db.Text
+  debit_amount     Decimal? @db.Decimal(15, 2)
+  credit_amount    Decimal? @db.Decimal(15, 2)
+  net_amount       Decimal  @db.Decimal(15, 2)
 
-  suggested_category  String?   @db.VarChar(100)
-  category_confidence Decimal?  @db.Decimal(3, 2)
+  suggested_category  String?  @db.VarChar(100)
+  category_confidence Decimal? @db.Decimal(3, 2)
 
-  is_duplicate        Boolean   @default(false)
-  duplicate_of_id     String?   @db.Uuid
+  is_duplicate    Boolean @default(false)
+  duplicate_of_id String? @db.Uuid
 
-  user_approved       Boolean   @default(false)
-  approved_category   String?   @db.VarChar(100)
+  user_approved     Boolean @default(false)
+  approved_category String? @db.VarChar(100)
 
-  created_expense_id  String?   @db.Uuid
+  created_expense_id String? @db.Uuid
 
-  notes               String?   @db.Text
-  processing_status   String    @default("pending") @db.VarChar(50)
-  created_at          DateTime  @default(now())
+  notes             String?  @db.Text
+  processing_status String   @default("pending") @db.VarChar(50)
+  created_at        DateTime @default(now())
 
   @@index([wallet_statement_id])
   @@index([user_approved])
@@ -530,70 +531,70 @@ model WalletTransactionLog {
 }
 
 model Bank {
-  id               String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_id          String            @db.Uuid
-  name             String            @db.VarChar(255)
-  account_no       String            @db.VarChar(100)
-  iban_no          String            @db.VarChar(100)
-  currency         String            @default("PKR") @db.VarChar(10)
-  exchange_rate    Decimal           @default(1.00) @db.Decimal(15, 4)
-  starting_balance Decimal           @db.Decimal(15, 2)
-  current_balance  Decimal           @default(0.00) @db.Decimal(15, 2)
-  created_at       DateTime          @default(now()) @db.Timestamptz(6)
-  user             User              @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  id               String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id          String          @db.Uuid
+  name             String          @db.VarChar(255)
+  account_no       String          @db.VarChar(100)
+  iban_no          String          @db.VarChar(100)
+  currency         String          @default("PKR") @db.VarChar(10)
+  exchange_rate    Decimal         @default(1.00) @db.Decimal(15, 4)
+  starting_balance Decimal         @db.Decimal(15, 2)
+  current_balance  Decimal         @default(0.00) @db.Decimal(15, 2)
+  created_at       DateTime        @default(now()) @db.Timestamptz(6)
+  user             User            @relation(fields: [user_id], references: [id], onDelete: Cascade)
   statements       BankStatement[]
 
   @@map("banks")
 }
 
 model BankStatement {
-  id                    String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  bank_id               String                @db.Uuid
-  month                 String                @db.VarChar(20)
-  year                  Int
-  file_path             String?               // Location of uploaded file
-  file_hash             String?               @db.VarChar(64)  // SHA256 for dedup
-  password_encrypted    String?               @db.Text         // Encrypted password if PDF is protected
-  upload_date           DateTime              @default(now()) @db.Timestamptz(6)
-  transactions          Json?                 // Parsed transaction data
-  opening_balance       Decimal?              @db.Decimal(15, 2)
-  closing_balance       Decimal?              @db.Decimal(15, 2)
-  total_credits         Decimal               @default(0) @db.Decimal(15, 2)
-  total_debits          Decimal               @default(0) @db.Decimal(15, 2)
-  transaction_count     Int                   @default(0)
-  processing_status     String                @default("pending") @db.VarChar(50) // pending, reviewed, approved, reconciled
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  bank_id            String   @db.Uuid
+  month              String   @db.VarChar(20)
+  year               Int
+  file_path          String? // Location of uploaded file
+  file_hash          String?  @db.VarChar(64) // SHA256 for dedup
+  password_encrypted String?  @db.Text // Encrypted password if PDF is protected
+  upload_date        DateTime @default(now()) @db.Timestamptz(6)
+  transactions       Json? // Parsed transaction data
+  opening_balance    Decimal? @db.Decimal(15, 2)
+  closing_balance    Decimal? @db.Decimal(15, 2)
+  total_credits      Decimal  @default(0) @db.Decimal(15, 2)
+  total_debits       Decimal  @default(0) @db.Decimal(15, 2)
+  transaction_count  Int      @default(0)
+  processing_status  String   @default("pending") @db.VarChar(50) // pending, reviewed, approved, reconciled
 
-  bank                  Bank                  @relation(fields: [bank_id], references: [id], onDelete: Cascade)
-  parsed_transactions   BankTransactionLog[]
+  bank                Bank                 @relation(fields: [bank_id], references: [id], onDelete: Cascade)
+  parsed_transactions BankTransactionLog[]
 
   @@map("bank_statements")
 }
 
 model BankTransactionLog {
-  id                  String    @id @default(cuid())
-  bank_statement_id   String    @db.Uuid
-  bank_statement      BankStatement @relation(fields: [bank_statement_id], references: [id], onDelete: Cascade)
+  id                String        @id @default(cuid())
+  bank_statement_id String        @db.Uuid
+  bank_statement    BankStatement @relation(fields: [bank_statement_id], references: [id], onDelete: Cascade)
 
-  transaction_date    DateTime  @db.Date
-  description         String    @db.Text
-  debit_amount        Decimal?  @db.Decimal(15, 2)
-  credit_amount       Decimal?  @db.Decimal(15, 2)
-  net_amount          Decimal   @db.Decimal(15, 2)
+  transaction_date DateTime @db.Date
+  description      String   @db.Text
+  debit_amount     Decimal? @db.Decimal(15, 2)
+  credit_amount    Decimal? @db.Decimal(15, 2)
+  net_amount       Decimal  @db.Decimal(15, 2)
 
-  suggested_category  String?   @db.VarChar(100)
-  category_confidence Decimal?  @db.Decimal(3, 2)
+  suggested_category  String?  @db.VarChar(100)
+  category_confidence Decimal? @db.Decimal(3, 2)
 
-  is_duplicate        Boolean   @default(false)
-  duplicate_of_id     String?   @db.Uuid
+  is_duplicate    Boolean @default(false)
+  duplicate_of_id String? @db.Uuid
 
-  user_approved       Boolean   @default(false)
-  approved_category   String?   @db.VarChar(100)
+  user_approved     Boolean @default(false)
+  approved_category String? @db.VarChar(100)
 
-  created_expense_id  String?   @db.Uuid
+  created_expense_id String? @db.Uuid
 
-  notes               String?   @db.Text
-  processing_status   String    @default("pending") @db.VarChar(50) // pending, approved, rejected, disputed
-  created_at          DateTime  @default(now())
+  notes             String?  @db.Text
+  processing_status String   @default("pending") @db.VarChar(50) // pending, approved, rejected, disputed
+  created_at        DateTime @default(now())
 
   @@index([bank_statement_id])
   @@index([user_approved])
@@ -602,16 +603,16 @@ model BankTransactionLog {
 }
 
 model CategoryPattern {
-  id                String   @id @default(cuid())
-  user_id           String   @db.Uuid
-  user              User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  id      String @id @default(cuid())
+  user_id String @db.Uuid
+  user    User   @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
-  keyword           String   @db.VarChar(100)
-  assigned_category String   @db.VarChar(100)
-  confidence        Decimal  @db.Decimal(3, 2)
+  keyword           String  @db.VarChar(100)
+  assigned_category String  @db.VarChar(100)
+  confidence        Decimal @db.Decimal(3, 2)
 
-  occurrences       Int      @default(1)
-  last_used         DateTime @default(now())
+  occurrences Int      @default(1)
+  last_used   DateTime @default(now())
 
   @@unique([user_id, keyword, assigned_category])
   @@map("category_patterns")
@@ -672,22 +673,22 @@ model Zakat {
 }
 
 model Asset {
-  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_id       String   @db.Uuid
-  name          String   @db.VarChar(255)
-  type          String   @db.VarChar(100)
-  value         Decimal  @default(0.00) @db.Decimal(15, 2)
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id       String    @db.Uuid
+  name          String    @db.VarChar(255)
+  type          String    @db.VarChar(100)
+  value         Decimal   @default(0.00) @db.Decimal(15, 2)
   purchase_date DateTime? @db.Date
   description   String?
-  created_at    DateTime @default(now()) @db.Timestamptz(6)
-  user          User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  created_at    DateTime  @default(now()) @db.Timestamptz(6)
+  user          User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@map("assets")
 }
 
 model PsxStock {
   id          String   @id @default(cuid())
-  ticker      String   @unique  // "FFL", "ENGRO"
+  ticker      String   @unique // "FFL", "ENGRO"
   companyName String
   price       Decimal  @db.Decimal(15, 4)
   change      Decimal  @db.Decimal(15, 4)
@@ -700,6 +701,67 @@ model PsxStock {
   createdAt   DateTime @default(now())
 
   @@map("psx_stocks")
+}
+
+// Daily end-of-day price per ticker. PsxStock holds only the *current*
+// price and is overwritten on every sync, so without this table there is
+// no price history at all — no sparklines, no per-ticker charts, no way
+// to compute a 30-day move from anything other than the user's own
+// snapshot uploads. Populated by the weekday price-sync cron.
+//
+// Date is keyed to the Asia/Karachi trading day (see utils/dates.js),
+// following the same convention as GoldPriceHistory.
+model PsxPriceHistory {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ticker     String   @db.VarChar(20)
+  date       DateTime @db.Date
+  // The PSX company page does not reliably expose an opening price, so
+  // `open` stays null rather than being back-filled with a guess.
+  open       Decimal? @db.Decimal(15, 4)
+  high       Decimal? @db.Decimal(15, 4)
+  low        Decimal? @db.Decimal(15, 4)
+  close      Decimal  @db.Decimal(15, 4)
+  volume     BigInt?
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  @@unique([ticker, date])
+  @@index([ticker, date])
+  @@map("psx_price_history")
+}
+
+// Outcome of one scrape run. PsxStock.lastUpdated is @updatedAt, so it
+// bumps on every write including a degraded one — it cannot tell a good
+// sync from a bad one. This can, which is what the staleness badge on
+// the Stocks page reads.
+model ScrapeRun {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  source         String    @db.VarChar(32) // 'psx_prices' | 'psx_news'
+  status         String    @db.VarChar(16) // 'success' | 'partial' | 'failed'
+  started_at     DateTime  @default(now()) @db.Timestamptz(6)
+  finished_at    DateTime? @db.Timestamptz(6)
+  tickers_ok     Int       @default(0)
+  tickers_failed Int       @default(0)
+  error          String?
+
+  @@index([source, started_at])
+  @@map("scrape_runs")
+}
+
+// Tickers a user tracks but may not hold. Replaces a 14-symbol array that
+// was hardcoded twice in Stocks.jsx and injected into the allocation donut
+// as zero-value slices.
+model Watchlist {
+  id       String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id  String   @db.Uuid
+  ticker   String   @db.VarChar(20)
+  notes    String?
+  added_at DateTime @default(now()) @db.Timestamptz(6)
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, ticker])
+  @@index([user_id])
+  @@map("watchlist")
 }
 
 model StockNews {
@@ -716,35 +778,35 @@ model StockNews {
 }
 
 model Dividend {
-  id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_id               String   @db.Uuid
-  event_id              String?  @db.VarChar(100)
-  security_symbol       String   @db.VarChar(50)
-  security_name         String?  @db.VarChar(255)
-  iban                  String?  @db.VarChar(100)
-  financial_year        String?  @db.VarChar(50)
-  gross_dividend_amount Decimal  @db.Decimal(15, 2)
-  net_dividend_amount   Decimal  @db.Decimal(15, 2)
-  status                String?  @db.VarChar(50)
+  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id               String    @db.Uuid
+  event_id              String?   @db.VarChar(100)
+  security_symbol       String    @db.VarChar(50)
+  security_name         String?   @db.VarChar(255)
+  iban                  String?   @db.VarChar(100)
+  financial_year        String?   @db.VarChar(50)
+  gross_dividend_amount Decimal   @db.Decimal(15, 2)
+  net_dividend_amount   Decimal   @db.Decimal(15, 2)
+  status                String?   @db.VarChar(50)
   payment_date          DateTime? @db.Date
   reason                String?
-  created_at            DateTime @default(now()) @db.Timestamptz(6)
-  user                  User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  created_at            DateTime  @default(now()) @db.Timestamptz(6)
+  user                  User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@unique([user_id, event_id])
   @@map("dividends")
 }
 
 model Beneficiary {
-  id         String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_id    String               @db.Uuid
-  name       String               @db.VarChar(255)
-  nickname   String?              @db.VarChar(100)
-  phone      String?              @db.VarChar(50)
-  notes      String?
-  created_at DateTime             @default(now()) @db.Timestamptz(6)
-  user       User                 @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  accounts   BeneficiaryAccount[]
+  id           String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id      String                   @db.Uuid
+  name         String                   @db.VarChar(255)
+  nickname     String?                  @db.VarChar(100)
+  phone        String?                  @db.VarChar(50)
+  notes        String?
+  created_at   DateTime                 @default(now()) @db.Timestamptz(6)
+  user         User                     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  accounts     BeneficiaryAccount[]
   transactions BeneficiaryTransaction[]
 
   @@map("beneficiaries")
@@ -753,8 +815,8 @@ model Beneficiary {
 model BeneficiaryAccount {
   id             String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   beneficiary_id String      @db.Uuid
-  account_label  String?     @db.VarChar(100)  // e.g., "HBL Savings", "NayaPay"
-  account_no     String      @db.VarChar(100)  // full or partial account/IBAN/phone
+  account_label  String?     @db.VarChar(100) // e.g., "HBL Savings", "NayaPay"
+  account_no     String      @db.VarChar(100) // full or partial account/IBAN/phone
   created_at     DateTime    @default(now()) @db.Timestamptz(6)
   beneficiary    Beneficiary @relation(fields: [beneficiary_id], references: [id], onDelete: Cascade)
 
@@ -764,10 +826,10 @@ model BeneficiaryAccount {
 model BeneficiaryTransaction {
   id                    String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   beneficiary_id        String      @db.Uuid
-  bank_transaction_id   String?     // cuid — matches BankTransactionLog.id
-  wallet_transaction_id String?     // cuid — matches WalletTransactionLog.id (future)
+  bank_transaction_id   String? // cuid — matches BankTransactionLog.id
+  wallet_transaction_id String? // cuid — matches WalletTransactionLog.id (future)
   amount                Decimal     @db.Decimal(15, 2)
-  direction             String      @db.VarChar(10)  // 'credit' | 'debit'
+  direction             String      @db.VarChar(10) // 'credit' | 'debit'
   transaction_date      DateTime    @db.Date
   description           String?
   created_at            DateTime    @default(now()) @db.Timestamptz(6)
@@ -781,11 +843,11 @@ model Feedback {
   id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   user_id     String   @db.Uuid
   user        User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  type        String   @db.VarChar(20)  // 'bug' | 'feature' | 'question' | 'other'
+  type        String   @db.VarChar(20) // 'bug' | 'feature' | 'question' | 'other'
   title       String   @db.VarChar(200)
   description String
   screenshot  String?  @db.Text
-  status      String   @default("open") @db.VarChar(20)  // 'open' | 'in_progress' | 'resolved'
+  status      String   @default("open") @db.VarChar(20) // 'open' | 'in_progress' | 'resolved'
   created_at  DateTime @default(now()) @db.Timestamptz(6)
 
   @@map("feedback")
