@@ -69,8 +69,15 @@ async function callGroq(descriptions) {
     return JSON.parse(completion.choices[0]?.message?.content || '{}');
 }
 
+// Descriptions per AI request. The reply is a JSON map capped at 1024 output
+// tokens, so one request for a whole statement can be cut off mid-JSON and
+// fail every row. Chunks keep each reply small.
+export const AI_BATCH_SIZE = 40;
+
 /**
  * Categorise a batch of unique descriptions via the configured AI provider.
+ * Sent in chunks of AI_BATCH_SIZE, one after another (provider rate limits);
+ * a failed chunk marks only its own descriptions as ai_error.
  * Returns a Map<description, { category, confidence, source }>.
  */
 export async function aiCategorizeBatch(descriptions) {
@@ -84,24 +91,27 @@ export async function aiCategorizeBatch(descriptions) {
         return results;
     }
 
-    try {
-        const parsed = provider === 'gemini'
-            ? await callGemini(descriptions)
-            : await callGroq(descriptions);
+    for (let start = 0; start < descriptions.length; start += AI_BATCH_SIZE) {
+        const chunk = descriptions.slice(start, start + AI_BATCH_SIZE);
+        try {
+            const parsed = provider === 'gemini'
+                ? await callGemini(chunk)
+                : await callGroq(chunk);
 
-        descriptions.forEach((desc, i) => {
-            const category = parsed[String(i + 1)];
-            if (category && CATEGORIES.includes(category)) {
-                results.set(desc, { category, confidence: 0.80, source: 'ai' });
-            } else {
-                results.set(desc, { category: 'Other', confidence: 0.1, source: 'ai' });
-            }
-        });
+            chunk.forEach((desc, i) => {
+                const category = parsed[String(i + 1)];
+                if (category && CATEGORIES.includes(category)) {
+                    results.set(desc, { category, confidence: 0.80, source: 'ai' });
+                } else {
+                    results.set(desc, { category: 'Other', confidence: 0.1, source: 'ai' });
+                }
+            });
 
-        logger.log(`[AI_CAT] ${provider} categorised ${descriptions.length} descriptions`);
-    } catch (err) {
-        console.error(`[AI_CAT] ${provider} batch failed:`, err.message);
-        descriptions.forEach(d => results.set(d, { category: 'Other', confidence: 0.1, source: 'ai_error' }));
+            logger.log(`[AI_CAT] ${provider} categorised ${chunk.length} descriptions`);
+        } catch (err) {
+            console.error(`[AI_CAT] ${provider} batch failed:`, err.message);
+            chunk.forEach(d => results.set(d, { category: 'Other', confidence: 0.1, source: 'ai_error' }));
+        }
     }
 
     return results;
