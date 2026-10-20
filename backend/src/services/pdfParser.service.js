@@ -2,30 +2,38 @@ import Tesseract from 'tesseract.js';
 import fs from 'fs';
 import crypto from 'crypto';
 import pdfreader from 'pdfreader';
+import { PDFParse } from 'pdf-parse';
 import logger from '../utils/logger.js';
 
-let pdfParse;
-
-// Dynamic import for CommonJS module
-async function loadPdfParse() {
-    if (!pdfParse) {
-        const pdfParseModule = await import('pdf-parse');
-        pdfParse = pdfParseModule.default || pdfParseModule;
+/**
+ * Read a PDF from disk, dropping anything before the %PDF header. Some bank
+ * portals prepend bytes (e.g. a UTF-8 BOM), which shifts every internal
+ * offset and makes strict readers reject the file.
+ */
+function readPdfBuffer(filePath) {
+    const buf = fs.readFileSync(filePath);
+    const start = buf.indexOf('%PDF-');
+    if (start === -1 || start > 1024) {
+        const err = new Error('This file is not a valid PDF.');
+        err.code = 'PDF_INVALID';
+        throw err;
     }
-    return pdfParse;
+    // Copy rather than subarray: pdf2json reads the underlying ArrayBuffer and
+    // would ignore a subarray's byte offset, seeing the junk bytes again.
+    return start === 0 ? buf : Buffer.from(buf.subarray(start));
 }
 
 /**
  * Extract text from PDF using pdfreader with positional reconstruction
  * Groups text items by y-coordinate to reconstruct table rows properly
  */
-function extractTextWithPdfreader(filePath) {
+function extractTextWithPdfreader(pdfBuffer) {
     return new Promise((resolve, reject) => {
         let pageCount = 0;
         const items = [];
         let currentPage = 1;
 
-        new pdfreader.PdfReader().parseFileItems(filePath, (err, item) => {
+        new pdfreader.PdfReader().parseBuffer(pdfBuffer, (err, item) => {
             if (err) {
                 reject(err);
             } else if (!item) {
@@ -101,15 +109,17 @@ function reconstructLinesFromItems(items) {
  * @returns {Promise<{rawText: string, pageCount: number}>}
  */
 export async function extractPdfText(filePath, password = null) {
+    const pdfBuffer = readPdfBuffer(filePath);
+
     // For password-protected PDFs, use pdf-parse first since pdfreader doesn't support passwords
     if (password) {
-        return await extractWithPdfParse(filePath, password);
+        return await extractWithPdfParse(pdfBuffer, password);
     }
 
     // For non-encrypted PDFs, prefer pdfreader for better table structure preservation
     try {
         logger.log('[PDF_PARSER] Trying pdfreader for table reconstruction...');
-        const pdfreaderData = await extractTextWithPdfreader(filePath);
+        const pdfreaderData = await extractTextWithPdfreader(pdfBuffer);
 
         if (pdfreaderData.rawText && pdfreaderData.rawText.trim().length > 0) {
             logger.log('[PDF_PARSER] pdfreader succeeded, text length:', pdfreaderData.rawText.length);
@@ -126,27 +136,39 @@ export async function extractPdfText(filePath, password = null) {
         logger.log('[PDF_PARSER] pdfreader failed:', pdfreaderError.message, '- falling back to pdf-parse');
     }
 
-    return await extractWithPdfParse(filePath, password);
+    return await extractWithPdfParse(pdfBuffer, password);
 }
 
-async function extractWithPdfParse(filePath, password) {
+/**
+ * Extract text with pdf-parse (pdf.js). Handles encrypted PDFs.
+ * Password problems are thrown with a `code` the controllers can show:
+ * PDF_PASSWORD_REQUIRED or PDF_PASSWORD_INCORRECT.
+ * @param {string|Buffer} input - file path or PDF bytes
+ */
+export async function extractWithPdfParse(input, password = null) {
+    const pdfBuffer = Buffer.isBuffer(input) ? input : readPdfBuffer(input);
+    // pdf.js may take ownership of the bytes it is given — pass a copy.
+    const parser = new PDFParse({ data: new Uint8Array(pdfBuffer), ...(password ? { password } : {}) });
     try {
-        const pdfParser = await loadPdfParse();
-        const pdfBuffer = fs.readFileSync(filePath);
-        const options = password ? { password } : {};
-
-        const pdfData = await pdfParser(pdfBuffer, options);
+        const result = await parser.getText();
         return {
-            rawText: pdfData.text || '',
-            pageCount: pdfData.numpages || 0,
-            metadata: pdfData.info || {},
+            rawText: result.text || '',
+            pageCount: result.total || 0,
+            metadata: {},
             method: 'pdf-parse'
         };
     } catch (error) {
-        if (error.message?.includes('password')) {
-            throw new Error('PDF is password-protected but no password provided');
+        if (error?.name === 'PasswordException') {
+            const incorrect = error.code === 2;
+            const err = new Error(incorrect
+                ? 'Incorrect PDF password. Check it and try again.'
+                : 'This PDF is password-protected — enter its password and try again.');
+            err.code = incorrect ? 'PDF_PASSWORD_INCORRECT' : 'PDF_PASSWORD_REQUIRED';
+            throw err;
         }
         throw new Error(`PDF extraction failed: ${error.message}`);
+    } finally {
+        await parser.destroy?.();
     }
 }
 
