@@ -9,8 +9,9 @@ import prisma from '../utils/prisma.js';
 //
 // Set AI_CHAT_PROVIDER in .env to one of:
 //   gemini  — Google Gemini (needs GEMINI_API_KEY)
-//             Free tier models: gemini-2.0-flash, gemini-1.5-flash-8b
-//             Paid models:      gemini-2.5-pro, gemini-2.5-flash
+//             Models: gemini-2.5-flash (default), gemini-2.5-flash-lite,
+//                     gemini-2.5-pro. Check the live list before changing —
+//                     Google retires old versions (2.0 and 1.5 are gone).
 //
 //   groq    — Groq (needs GROQ_API_KEY, very generous free tier)
 //             Free models: llama-3.3-70b-versatile, llama-3.1-8b-instant
@@ -22,7 +23,7 @@ import prisma from '../utils/prisma.js';
 // Falls back: gemini → groq → error
 // ---------------------------------------------------------------------------
 
-const GEMINI_MODEL  = process.env.GEMINI_CHAT_MODEL  || 'gemini-2.0-flash';
+const GEMINI_MODEL  = process.env.GEMINI_CHAT_MODEL  || 'gemini-2.5-flash';
 const GROQ_MODEL    = process.env.GROQ_CHAT_MODEL    || 'llama-3.3-70b-versatile';
 const OPENAI_MODEL  = process.env.OPENAI_CHAT_MODEL  || 'gpt-4o-mini';
 

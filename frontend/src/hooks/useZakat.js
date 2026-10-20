@@ -11,11 +11,13 @@ export const useZakatEntries = () => {
     });
 };
 
-export const useDashboardSummary = () => {
+// Server-calculated Zakat (cash, investments, gold, dues, debts, nisab).
+// Shares the ['zakat'] prefix so entry mutations refresh it too.
+export const useZakatSummary = () => {
     return useQuery({
-        queryKey: ['dashboardSummary'],
+        queryKey: ['zakat', 'summary'],
         queryFn: async () => {
-            const { data } = await api.get('/dashboard/summary');
+            const { data } = await api.get('/zakat/summary');
             return data;
         }
     });

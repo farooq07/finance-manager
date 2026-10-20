@@ -78,10 +78,20 @@ export function parseTransactions(rawText) {
 
         // Combine all lines in this block
         const blockLines = lines.slice(startIdx, endIdx);
-        const blockText = blockLines.join(' ');
+        const blockText = repairTornThousands(blockLines.join(' '));
 
-        // Extract amounts from block (filtered to actual money values)
-        const amounts = extractAmountsFromText(blockText);
+        // Prefer amounts from the line the date is on. For statements with
+        // wrapped multi-line descriptions (e.g. "DC TXN ... / MERCHANT NAME /
+        // INTERNATIONAL TXN. FEE PERCENT 4.50"), the Withdrawal/Deposit/Balance
+        // columns line up with the date row — later lines only contribute noise
+        // numbers (fee percentages, reference codes) that would otherwise get
+        // mistaken for the real amount or balance. Fall back to the full block
+        // when the date line itself doesn't carry enough numbers.
+        const firstLine = repairTornThousands(blockLines[0]);
+        let amounts = extractAmountsFromText(firstLine);
+        if (amounts.length < 2) {
+            amounts = extractAmountsFromText(blockText);
+        }
 
         if (!amounts.length) {
             logger.log(`[PARSER] Block ${m} has date but no amounts: ${blockText.substring(0, 100)}`);
@@ -123,9 +133,74 @@ export function parseTransactions(rawText) {
         transactions.push(tx);
     }
 
+    correctDirectionsUsingBalance(transactions);
+
     const valid = transactions.filter(tx => tx.net_amount !== 0);
     logger.log(`[PARSER] Extracted ${valid.length} valid transactions (${transactions.length - valid.length} zero-amount rows skipped)`);
     return valid;
+}
+
+/**
+ * Cross-check debit/credit direction against the running balance and flip it
+ * when the keyword heuristic guessed wrong.
+ *
+ * Keyword matching can't distinguish direction for descriptions with no
+ * debit/credit signal at all (e.g. "IBFT <ref> <sender name>" incoming
+ * transfers), and `determineDirection` defaults those to debit. The extracted
+ * balance is a much stronger signal: for consecutive transactions, the true
+ * net amount is always (currentBalance - previousBalance). If the sign we
+ * picked disagrees with that but the opposite sign matches the balance delta
+ * closely, the keyword guess was wrong — flip it.
+ */
+function correctDirectionsUsingBalance(transactions) {
+    let prevBalance = null;
+
+    for (const tx of transactions) {
+        if (tx.balance == null || isNaN(tx.balance)) {
+            prevBalance = null;
+            continue;
+        }
+
+        if (prevBalance == null || !tx.net_amount) {
+            prevBalance = tx.balance;
+            continue;
+        }
+
+        const asIs = new Decimal(prevBalance).plus(tx.net_amount);
+        const flipped = new Decimal(prevBalance).minus(tx.net_amount);
+        const diffAsIs = asIs.minus(tx.balance).abs();
+        const diffFlipped = flipped.minus(tx.balance).abs();
+
+        if (diffAsIs.lessThanOrEqualTo(0.01)) {
+            prevBalance = tx.balance;
+            continue;
+        }
+
+        if (diffFlipped.lessThanOrEqualTo(0.01)) {
+            const amount = tx.debit_amount != null ? tx.debit_amount : tx.credit_amount;
+            if (tx.debit_amount != null) {
+                tx.debit_amount = null;
+                tx.withdrawal_amount = null;
+                tx.credit_amount = amount;
+                tx.deposit_amount = amount;
+            } else {
+                tx.credit_amount = null;
+                tx.deposit_amount = null;
+                tx.debit_amount = amount;
+                tx.withdrawal_amount = amount;
+            }
+            tx.net_amount = new Decimal(tx.net_amount).negated().toNumber();
+            prevBalance = tx.balance;
+            continue;
+        }
+
+        // Neither direction reconciles — this row's amount and/or balance is
+        // itself corrupted (e.g. a torn number extractAmountsFromText/
+        // repairTornThousands couldn't recover). Don't advance prevBalance to
+        // this untrustworthy value, or every transaction after it would also
+        // fail to reconcile and Fix B would stop working for the rest of the
+        // statement. Carry the last known-good balance forward instead.
+    }
 }
 
 /**
@@ -225,6 +300,24 @@ function detectDate(line) {
     }
 
     return null;
+}
+
+/**
+ * Repair large comma-grouped numbers that PDF text extraction tears apart at
+ * an arbitrary digit boundary (e.g. "997,611.25" coming out as "997,6" +
+ * "11.25" because the source PDF renders the number across two separate
+ * text-drawing operations). A thousands-group with fewer than 3 digits after
+ * its final comma is never valid on its own, so treat it as a signal to
+ * stitch the next whitespace-separated token back onto it.
+ */
+function repairTornThousands(text) {
+    return text.replace(
+        /\b(\d{1,3}(?:,\d{3})*,\d{1,2})\s+(\d+(?:\.\d{1,2})?)\b/g,
+        (match, prefix, suffix) => {
+            const stitched = prefix + suffix;
+            return /^\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?$/.test(stitched) ? stitched : match;
+        }
+    );
 }
 
 /**

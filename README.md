@@ -13,7 +13,7 @@ A personal finance manager built for the Pakistani market — tracks spending, b
 | Backend | Express 5, Prisma ORM, Node.js |
 | Database | Supabase PostgreSQL (pgvector for RAG embeddings) |
 | Auth | JWT (7-day), OTP via email, optional 4-digit app PIN, Google OAuth, Apple OAuth |
-| AI | Gemini 1.5 Flash (categoriser + RAG) · Groq llama-3.3-70b (fallback) |
+| AI | Gemini 2.5 Flash (categoriser + RAG) · Groq llama-3.3-70b (fallback) |
 | Secrets | Doppler (local dev) · Railway env vars (backend) · Vercel env vars (frontend) |
 | Deploy | Frontend → Vercel · Backend → Railway |
 

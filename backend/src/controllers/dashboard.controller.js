@@ -1,5 +1,6 @@
 import prisma from '../utils/prisma.js';
 import { sendSummaryEmail } from '../utils/email.js';
+import { summarizeDues } from '../services/dues.service.js';
 
 export const fetchDashboardData = async (userId) => {
     // 1. Bank Balance (Wallets and Banks)
@@ -89,25 +90,7 @@ export const fetchDashboardData = async (userId) => {
             include: { transactions: true }
         });
 
-        let totalReceivable = 0;
-        let totalPayable = 0;
-
-        people.forEach(person => {
-            let netBalance = 0;
-            person.transactions.forEach(t => {
-                if (t.transaction_type === 'receivable') {
-                    netBalance += Number(t.amount);
-                } else if (t.transaction_type === 'payable') {
-                    netBalance -= Number(t.amount);
-                }
-            });
-
-            if (netBalance > 0) {
-                totalReceivable += netBalance;
-            } else if (netBalance < 0) {
-                totalPayable += Math.abs(netBalance);
-            }
-        });
+        const { totalReceivable, totalPayable } = summarizeDues(people);
 
         // 5. Monthly Expenses (Current Year)
         const expenses = await prisma.expense.findMany({ where: { user_id: userId } });

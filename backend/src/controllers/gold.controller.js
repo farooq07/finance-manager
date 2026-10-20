@@ -10,6 +10,7 @@ import {
     purchaseValueForItem,
     equivalent24kGrams,
     getLatestPriceRow,
+    summarizeGold,
 } from '../services/goldValuation.service.js';
 
 const VALID_TYPES   = new Set(['ring', 'set', 'chain', 'bangle', 'earring', 'other']);
@@ -273,12 +274,7 @@ export const zakatSummary = async (req, res) => {
 
         const perGram = priceRow ? Number(priceRow.price_24k_per_gram) : 0;
 
-        let total24kGrams = 0;
-        let totalValue    = 0;
-        for (const item of items) {
-            total24kGrams += equivalent24kGrams(item);
-            totalValue    += valueForItem(item, perGram);
-        }
+        const { total24kGrams, totalValue } = summarizeGold(items, perGram);
 
         const isNisabMet     = total24kGrams >= NISAB_GRAMS;
         const nisabValuePkr  = perGram ? Number((NISAB_GRAMS * perGram).toFixed(2)) : 0;

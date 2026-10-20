@@ -42,7 +42,7 @@ function getProvider() {
 
 async function callGemini(descriptions) {
     if (!geminiClient) geminiClient = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const model = geminiClient.getGenerativeModel({ model: 'gemini-2.0-flash' });
+    const model = geminiClient.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
     const numbered = descriptions.map((d, i) => `${i + 1}. ${d}`).join('\n');
     const result = await model.generateContent({

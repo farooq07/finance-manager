@@ -107,6 +107,78 @@ describe('parseTransactions — Standard Chartered format (DDMmmYY)', () => {
         expect(txs).toHaveLength(1);
         expect(txs[0].net_amount).toBe(-850);
     });
+
+    it('ignores noise numbers on wrapped description lines (fee %, reference codes)', () => {
+        // The real withdrawal (209.00) and balance (2,400,006.29) sit on the
+        // date line; "4.50" is a foreign-txn fee percentage on a later line
+        // and must not be mistaken for the balance.
+        const text = [
+            '14Jul25 DC TXN PKR 200.00 ON 13/JUL 209.00 2,400,006.29',
+            'APPLE.COM/BILL ITUNES.COM IE',
+            'INTERNATIONAL TXN. FEE PERCENT 4.50',
+        ].join('\n');
+        const txs = parseTransactions(text);
+
+        expect(txs).toHaveLength(1);
+        expect(txs[0].debit_amount).toBe(209);
+        expect(txs[0].balance).toBe(2400006.29);
+    });
+
+    it('corrects direction via balance continuity when no keyword matches (IBFT credit)', () => {
+        // "IBFT <ref> <sender>" has no debit/credit keyword, so the heuristic
+        // defaults to debit. The balance rising by exactly the transaction
+        // amount proves it was actually a deposit.
+        const text = [
+            '14Jul25 DC TXN PKR 2500.00 ON 12/JUL 2,500.00 100,000.00',
+            '15Jul25 IBFT 23/07/2025 627873 QALAB HUSSNAIN SHAH 2,500.00 102,500.00',
+        ].join('\n');
+        const txs = parseTransactions(text);
+
+        expect(txs).toHaveLength(2);
+        expect(txs[0].debit_amount).toBe(2500);
+        expect(txs[1].credit_amount).toBe(2500);
+        expect(txs[1].debit_amount).toBeNull();
+        expect(txs[1].net_amount).toBe(2500);
+    });
+
+    it('repairs a large balance number torn apart by PDF extraction (e.g. "997,6" + "11.25")', () => {
+        // Some SCB pages render a balance across two text-drawing operations,
+        // so pdfreader's reconstruction inserts a stray space in the middle
+        // of the number: "997,611.25" comes out as "997,6" then "11.25".
+        // "997,6" is never a valid amount on its own (a thousands group must
+        // have exactly 3 digits), so it must be stitched back together.
+        const text = [
+            '13Feb26 DC TXN PKR 1438.00 ON 10/FEB SOME MERCHANT LAHORE PK 1,438.00 1,041,111.25',
+            '16Feb26 DC TXN PKR 43500.00 ON 14/FEB HAJVERY JEWELRY LAHORE PK 43,500.00 997,6 11.25',
+        ].join('\n');
+        const txs = parseTransactions(text);
+
+        expect(txs).toHaveLength(2);
+        expect(txs[1].debit_amount).toBe(43500);
+        expect(txs[1].balance).toBe(997611.25);
+    });
+
+    it('does not let one unreconcilable balance poison correction for later transactions', () => {
+        // Row 2 simulates a balance torn at a clean group boundary (e.g.
+        // "1,041,111.25" -> "1,041" + "111.25") which repairTornThousands
+        // can't detect, since both fragments already look like valid
+        // standalone amounts. That row stays wrong, but the running-balance
+        // anchor must not advance to its corrupted value — otherwise every
+        // transaction after it would also fail to reconcile against Fix B.
+        // Row 3's IBFT credit (no debit/credit keyword) should still get
+        // corrected using row 1's balance as the anchor.
+        const text = [
+            '13Feb26 DC TXN PKR 1438.00 ON 10/FEB SOME MERCHANT LAHORE PK 1,438.00 1,041,111.25',
+            '16Feb26 BT PK1BT2602130KEGX JADE E-SERVICES PAKISTAN 1,438.00 1,041 111.25',
+            '18Feb26 IBFT SOMEBODY ELSE 1,438.00 1,042,549.25',
+        ].join('\n');
+        const txs = parseTransactions(text);
+
+        expect(txs).toHaveLength(3);
+        expect(txs[2].credit_amount).toBe(1438);
+        expect(txs[2].debit_amount).toBeNull();
+        expect(txs[2].balance).toBe(1042549.25);
+    });
 });
 
 describe('parseTransactions — NayaPay format (DD MMM YYYY)', () => {
