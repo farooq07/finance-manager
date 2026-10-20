@@ -10,8 +10,13 @@ reconciles.
 
 ```bash
 cd backend
-npm run fixture:statement -- path/to/statement.pdf hbl 2026-03 [pdf-password]
+npm run fixture:statement -- path/to/statement.pdf hbl 2026-03 --mask "YOUR NAME,OTHER NAME"
+# password-protected PDF: set STATEMENT_PDF_PASSWORD in the environment first
 ```
+
+`--mask` hides the given words everywhere (case-insensitive). Always pass your
+own name and the names of people you transfer money to — the automatic rules
+only catch names that follow a label like `Account Title:`.
 
 The script extracts the text, redacts what it can (account/card numbers,
 IBANs, CNICs, phone numbers, emails, labelled name/address lines) and writes a

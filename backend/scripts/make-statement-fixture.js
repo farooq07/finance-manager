@@ -1,7 +1,12 @@
 // Turn a real bank statement PDF into a redacted draft test fixture.
 //
-//   node scripts/make-statement-fixture.js <statement.pdf> <bank> <name> [password]
-//   e.g. node scripts/make-statement-fixture.js ~/Downloads/hbl-mar.pdf hbl 2026-03
+//   node scripts/make-statement-fixture.js <statement.pdf> <bank> <name> [--mask "NAME ONE,NAME TWO"]
+//   e.g. node scripts/make-statement-fixture.js ~/Downloads/hbl-mar.pdf hbl 2026-03 --mask "ALI KHAN"
+//
+// --mask lists words to hide wherever they appear (your name, people you
+// transfer to) — the automatic rules can't recognise an unlabelled name.
+// A PDF password is read from STATEMENT_PDF_PASSWORD, not the command line,
+// so it doesn't end up in shell history.
 //
 // Writes src/services/__tests__/fixtures/statements/<bank>/<name>.txt and
 // <name>.expected.json. The expected file is a DRAFT copied from the current
@@ -19,9 +24,13 @@ import { redactStatementText } from '../src/services/statementRedact.service.js'
 const FIXTURES = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'services', '__tests__', 'fixtures', 'statements');
 const SLUG = /^[a-z0-9][a-z0-9-]*$/;
 
-const [pdfPath, bank, name, password] = process.argv.slice(2);
+const args = process.argv.slice(2);
+const maskAt = args.indexOf('--mask');
+const extraTerms = maskAt === -1 ? [] : String(args[maskAt + 1] || '').split(',');
+const [pdfPath, bank, name] = maskAt === -1 ? args : args.filter((_, i) => i !== maskAt && i !== maskAt + 1);
+const password = process.env.STATEMENT_PDF_PASSWORD || null;
 if (!pdfPath || !bank || !name) {
-    console.error('Usage: node scripts/make-statement-fixture.js <statement.pdf> <bank> <name> [password]');
+    console.error('Usage: node scripts/make-statement-fixture.js <statement.pdf> <bank> <name> [--mask "NAME ONE,NAME TWO"]');
     process.exit(1);
 }
 if (!SLUG.test(bank) || !SLUG.test(name)) {
@@ -37,13 +46,13 @@ if (fs.existsSync(txtPath) || fs.existsSync(jsonPath)) {
     process.exit(1);
 }
 
-const { rawText } = await extractPdfText(pdfPath, password || null);
+const { rawText } = await extractPdfText(pdfPath, password);
 if (!rawText?.trim()) {
     console.error('No text could be extracted from this PDF (scanned image or wrong password?).');
     process.exit(1);
 }
 
-const { text, redactions } = redactStatementText(rawText);
+const { text, redactions } = redactStatementText(rawText, { extraTerms });
 const txs = parseTransactions(text);
 const { opening, closing } = parseStatementBalances(text);
 const recon = reconcile(txs, opening, closing);
