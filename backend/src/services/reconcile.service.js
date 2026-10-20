@@ -91,3 +91,23 @@ export function reconcile(transactions, opening, closing) {
 
     return { ok, totalCheck, rowChecks, mismatchCount, hasBalances, message };
 }
+
+/**
+ * Decide whether a reconciled import may be saved. A statement whose numbers
+ * don't add up is blocked until the user explicitly accepts the mismatch;
+ * one with no balance data at all is allowed (unverified isn't wrong).
+ *
+ * @returns {null | { status: 422, body: { message, reconciliation, needsConfirmation: true } }}
+ */
+export function importGate(reconciliation, acceptMismatch) {
+    if (reconciliation.ok) return null;
+    if (acceptMismatch === true || acceptMismatch === 'true') return null;
+    return {
+        status: 422,
+        body: {
+            message: `This statement doesn't reconcile: ${reconciliation.message} Check the highlighted rows, or confirm to import anyway.`,
+            reconciliation,
+            needsConfirmation: true,
+        },
+    };
+}
