@@ -13,7 +13,7 @@ const metrics = {
     totalInvestments: 300000,
     totalReceivable: 100000,
     totalPayable: 50000,
-    totalDebt: 50000,
+    totalDebt: 9999999, // full outstanding — zakat must use its own debt rule instead
     totalAssetValue: 9000000, // personal-use property — must not count
 };
 
@@ -30,6 +30,19 @@ describe('getZakatSummary', () => {
         fetchDashboardData.mockResolvedValue({ metrics });
         jest.spyOn(prisma.goldItem, 'findMany').mockResolvedValue(goldItems);
         jest.spyOn(prisma.goldPriceHistory, 'findFirst').mockResolvedValue(priceRow);
+        jest.spyOn(prisma.debt, 'findMany').mockResolvedValue([
+            { debt_type: 'credit_card', outstanding: '50000', minimum_payment: null },
+        ]);
+    });
+
+    it('deducts only the next 12 months of a mortgage, not the whole balance', async () => {
+        prisma.debt.findMany.mockResolvedValue([
+            { debt_type: 'credit_card', outstanding: '50000', minimum_payment: '5000' },
+            { debt_type: 'mortgage', outstanding: '5000000', minimum_payment: '50000' },
+        ]);
+        await getZakatSummary(req, res);
+        expect(prisma.debt.findMany).toHaveBeenCalledWith({ where: { user_id: 'u1', is_active: true } });
+        expect(res.json.mock.calls[0][0].breakdown.debts).toBe(650000);
     });
 
     it('queries gold and dashboard with req.user.id', async () => {
