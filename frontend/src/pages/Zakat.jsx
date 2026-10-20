@@ -12,7 +12,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card'
 
 export default function Zakat() {
     const { data: zakatData, isLoading: loadingZakat } = useZakatEntries();
-    const { data: summary, isLoading: loadingSummary } = useZakatSummary();
+    const { data: summary, isLoading: loadingSummary, isError: summaryFailed, refetch: refetchSummary } = useZakatSummary();
 
     const createZakat = useCreateZakatEntry();
     const deleteZakat = useDeleteZakatEntry();
@@ -28,6 +28,8 @@ export default function Zakat() {
         </div>
     );
 
+    // Without a summary we have no figures — never fall through to a PKR 0 estimate.
+    const summaryUnavailable = summaryFailed || !summary;
     const breakdown = summary?.breakdown || {};
     const breakdownRows = [
         { label: 'Cash & bank', value: breakdown.cash, sign: '+' },
@@ -86,10 +88,25 @@ export default function Zakat() {
                     </div>
                     <div>
                         <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Estimated Zakat (2.5%)</p>
-                        <MaskedBalance value={summary?.zakatDue ?? 0} className="text-3xl font-bold text-gray-900 dark:text-gray-100" />
-                        <p className={`text-xs font-medium mt-2 ${nisabStatus.className}`}>{nisabStatus.text}</p>
-                        {summary?.nisabValue != null && (
-                            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Nisab (85 g gold): {fmtPKR(summary.nisabValue)}</p>
+                        {summaryUnavailable ? (
+                            <>
+                                <p className="text-sm font-medium text-red-600 dark:text-red-400 mt-1">Couldn't calculate your Zakat right now.</p>
+                                <button
+                                    type="button"
+                                    onClick={() => refetchSummary()}
+                                    className="text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:underline mt-2"
+                                >
+                                    Try again
+                                </button>
+                            </>
+                        ) : (
+                            <>
+                                <MaskedBalance value={summary.zakatDue} className="text-3xl font-bold text-gray-900 dark:text-gray-100" />
+                                <p className={`text-xs font-medium mt-2 ${nisabStatus.className}`}>{nisabStatus.text}</p>
+                                {summary.nisabValue != null && (
+                                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Nisab (85 g gold): {fmtPKR(summary.nisabValue)}</p>
+                                )}
+                            </>
                         )}
                     </div>
                 </Card>
@@ -107,7 +124,7 @@ export default function Zakat() {
             </div>
 
             {/* How the estimate is built */}
-            <Card className="p-6">
+            {!summaryUnavailable && <Card className="p-6">
                 <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-4">How this is calculated</h3>
                 <dl className="divide-y divide-gray-100 dark:divide-neutral-800 text-sm">
                     {breakdownRows.map(row => (
@@ -127,7 +144,7 @@ export default function Zakat() {
                     </div>
                 </dl>
                 <p className="text-xs text-gray-400 dark:text-gray-500 mt-3">Your home, car and other personal-use assets are not included.</p>
-            </Card>
+            </Card>}
 
             {/* Form & Table */}
             <Card className="overflow-hidden">

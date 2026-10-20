@@ -23,7 +23,7 @@
 
 | Bucket | Source (`fetchDashboardData().metrics` unless noted) | Treatment |
 |---|---|---|
-| Cash | `totalBankBalance + totalWalletBalance + totalRentBalance` | zakatable |
+| Cash | `totalBankBalance + totalWalletBalance` (rent log excluded — it already lands in those balances; fixed after final review) | zakatable |
 | Investments | `totalInvestments` (market value) | zakatable |
 | Gold | current value of all `GoldItem`s at latest 24K price | zakatable |
 | Receivables | `totalReceivable` | zakatable |

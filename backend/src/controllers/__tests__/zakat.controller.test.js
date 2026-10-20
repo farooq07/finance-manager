@@ -42,14 +42,20 @@ describe('getZakatSummary', () => {
         await getZakatSummary(req, res);
         const body = res.json.mock.calls[0][0];
         expect(body.breakdown).toEqual({
-            cash: 500000, investments: 300000, goldValue: 200000,
+            cash: 450000, investments: 300000, goldValue: 200000,
             receivables: 100000, payables: 50000, debts: 50000,
         });
-        expect(body.netZakatable).toBe(1000000);
+        expect(body.netZakatable).toBe(950000);
         expect(body.nisabValue).toBe(1700000);
         expect(body.isNisabMet).toBe(false);
         expect(body.zakatDue).toBe(0);
         expect(body.goldPriceDate).toEqual(priceRow.date);
+    });
+
+    it('rent log is not added to cash (it already lands in bank/wallet balances)', async () => {
+        await getZakatSummary(req, res);
+        const body = res.json.mock.calls[0][0];
+        expect(body.breakdown.cash).toBe(metrics.totalBankBalance + metrics.totalWalletBalance);
     });
 
     it('no gold price → nisabValue null, goldPriceDate null, isNisabMet null', async () => {

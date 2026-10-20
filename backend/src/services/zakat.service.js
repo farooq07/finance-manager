@@ -11,7 +11,7 @@ const round2 = (d) => d.toDecimalPlaces(2).toNumber();
 /**
  * Zakat on the user's whole wealth.
  *
- * Zakatable: cash (bank + wallet + rent balance), investments at market value,
+ * Zakatable: cash (bank + wallet), investments at market value,
  * gold at current value, and money owed to the user. Deducted: money the user
  * owes (dues payables + active debts). Personal-use physical assets are not
  * passed in — they are not zakatable.

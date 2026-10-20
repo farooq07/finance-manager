@@ -6,6 +6,7 @@ import { fmtPKR } from '../utils/currency';
 import Zakat from './Zakat';
 
 let summary;
+let summaryError;
 
 vi.mock('../context/PinContext', () => ({
     usePin: () => ({ isUnlocked: true, promptPin: vi.fn() }),
@@ -13,7 +14,7 @@ vi.mock('../context/PinContext', () => ({
 
 vi.mock('../hooks/useZakat', () => ({
     useZakatEntries: () => ({ data: { entries: [], currentYearTotal: 0 }, isLoading: false }),
-    useZakatSummary: () => ({ data: summary, isLoading: false }),
+    useZakatSummary: () => ({ data: summary, isLoading: false, isError: summaryError, refetch: vi.fn() }),
     useCreateZakatEntry: () => ({ mutateAsync: vi.fn(), isPending: false }),
     useDeleteZakatEntry: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
@@ -35,7 +36,16 @@ const baseSummary = {
 const renderPage = () => render(<Zakat />, { wrapper: BrowserRouter });
 
 describe('Zakat page', () => {
-    beforeEach(() => { summary = { ...baseSummary }; });
+    beforeEach(() => { summary = { ...baseSummary }; summaryError = false; });
+
+    it('summary request failed: shows error, not a PKR 0 estimate', () => {
+        summary = undefined;
+        summaryError = true;
+        renderPage();
+        expect(screen.getByText("Couldn't calculate your Zakat right now.")).toBeInTheDocument();
+        expect(screen.queryByText('How this is calculated')).not.toBeInTheDocument();
+        expect(screen.queryByText(/nisab can't be checked/)).not.toBeInTheDocument();
+    });
 
     it('shows zakat due', () => {
         renderPage();

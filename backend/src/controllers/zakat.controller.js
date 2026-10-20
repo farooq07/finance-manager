@@ -19,7 +19,9 @@ export const getZakatSummary = async (req, res) => {
         const { totalValue: goldValue } = summarizeGold(goldItems, perGram);
 
         const breakdown = {
-            cash: m.totalBankBalance + m.totalWalletBalance + m.totalRentBalance,
+            // Rent entries are a log of rent received into an account, so the
+            // money is already in the bank/wallet balances — don't add it twice.
+            cash: m.totalBankBalance + m.totalWalletBalance,
             investments: m.totalInvestments,
             goldValue,
             receivables: m.totalReceivable,
