@@ -60,6 +60,25 @@ export default function StatementReviewModal({ preview, fileName, onConfirm, onC
         return { verifiable: true, ok: diff < 0.01, computed, expected: num(closing), diff };
     }, [rows, opening, closing]);
 
+    // Per-row check: a row's balance must equal the previous balance (or the
+    // opening, for the first row) plus its credit minus its debit. Rows without
+    // a balance can't be checked and reset the chain.
+    const brokenRows = useMemo(() => {
+        const broken = new Set();
+        let prev = opening.trim() !== '' ? num(opening) : null;
+        for (const r of rows) {
+            if (r.balance.trim() === '') { prev = null; continue; }
+            const bal = num(r.balance);
+            if (prev != null && Math.abs(prev + num(r.credit) - num(r.debit) - bal) >= 0.01) broken.add(r._id);
+            prev = bal;
+        }
+        return broken;
+    }, [rows, opening]);
+
+    const mismatched = (recon.verifiable && !recon.ok) || brokenRows.size > 0;
+    const [acceptMismatch, setAcceptMismatch] = useState(false);
+    const canImport = !mismatched || acceptMismatch;
+
     const totalIn = rows.reduce((s, r) => s + num(r.credit), 0);
     const totalOut = rows.reduce((s, r) => s + num(r.debit), 0);
 
@@ -82,6 +101,7 @@ export default function StatementReviewModal({ preview, fileName, onConfirm, onC
             transactions,
             opening: opening.trim() === '' ? null : num(opening),
             closing: closing.trim() === '' ? null : num(closing),
+            acceptMismatch: mismatched && acceptMismatch,
         });
     }
 
@@ -150,7 +170,16 @@ export default function StatementReviewModal({ preview, fileName, onConfirm, onC
                                     <td><input value={r.description} onChange={(e) => updateRow(r._id, 'description', e.target.value)} className={cell} placeholder="Description" /></td>
                                     <td><input value={r.debit} onChange={(e) => updateRow(r._id, 'debit', e.target.value)} className={`${cell} text-right tabular-nums`} placeholder="0" inputMode="decimal" /></td>
                                     <td><input value={r.credit} onChange={(e) => updateRow(r._id, 'credit', e.target.value)} className={`${cell} text-right tabular-nums`} placeholder="0" inputMode="decimal" /></td>
-                                    <td><input value={r.balance} onChange={(e) => updateRow(r._id, 'balance', e.target.value)} className={`${cell} text-right tabular-nums`} placeholder="—" inputMode="decimal" /></td>
+                                    <td>
+                                        <input
+                                            value={r.balance}
+                                            onChange={(e) => updateRow(r._id, 'balance', e.target.value)}
+                                            className={`${cell} text-right tabular-nums ${brokenRows.has(r._id) ? 'ring-2 ring-red-400 dark:ring-red-500 border-red-300 dark:border-red-700' : ''}`}
+                                            title={brokenRows.has(r._id) ? "Balance doesn't follow from the previous row" : undefined}
+                                            placeholder="—"
+                                            inputMode="decimal"
+                                        />
+                                    </td>
                                     <td className="text-center">
                                         <button onClick={() => deleteRow(r._id)} className="p-1 rounded-md text-gray-300 dark:text-neutral-600 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors opacity-0 group-hover:opacity-100">
                                             <Trash2 className="w-3.5 h-3.5" />
@@ -192,12 +221,23 @@ export default function StatementReviewModal({ preview, fileName, onConfirm, onC
 
                 {/* Footer */}
                 <div className="px-6 py-4 border-t border-gray-100 dark:border-neutral-800 flex items-center justify-end gap-2">
+                    {mismatched && (
+                        <label className="mr-auto inline-flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={acceptMismatch}
+                                onChange={(e) => setAcceptMismatch(e.target.checked)}
+                                className="rounded border-gray-300 dark:border-neutral-600 text-red-500 focus:ring-red-500/40"
+                            />
+                            I've checked these rows — import anyway
+                        </label>
+                    )}
                     <button onClick={onCancel} className="px-4 py-2 rounded-xl text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors">
                         Cancel
                     </button>
                     <button
                         onClick={handleImport}
-                        disabled={committing || rows.length === 0}
+                        disabled={committing || rows.length === 0 || !canImport}
                         className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white text-sm font-medium transition-colors"
                     >
                         {committing ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
