@@ -614,6 +614,9 @@ export const commitStatement = async (req, res) => {
         // Duplicate handling (mirror uploadStatement semantics)
         const fileHash = getFileHash(filePath);
         const isDuplicate = await isFilePreviouslyImported(req.user.id, fileHash, bankId);
+        // A statement being replaced is only deleted once the new import has
+        // passed every check below — a refused import must not lose the old one.
+        let replaceExisting = null;
         if (isDuplicate) {
             const existing = await prisma.bankStatement.findFirst({
                 where: { bank_id: bankId, file_hash: fileHash },
@@ -621,12 +624,7 @@ export const commitStatement = async (req, res) => {
             });
             const isEmptyFailed = existing && (existing.transaction_count ?? 0) === 0;
             if (isEmptyFailed || force === true || force === 'true') {
-                try {
-                    if (existing?.file_path && existing.file_path !== filePath && fs.existsSync(existing.file_path)) {
-                        fs.unlinkSync(existing.file_path);
-                    }
-                    if (existing) await prisma.bankStatement.delete({ where: { id: existing.id } });
-                } catch (e) { logger.log('[COMMIT] cleanup failed:', e.message); }
+                replaceExisting = existing;
             } else {
                 return res.status(409).json({
                     message: 'This statement was already imported.',
@@ -677,6 +675,15 @@ export const commitStatement = async (req, res) => {
         const reconciliation = reconcile(parsedTxs, openingBalance, closingBalance);
         const blocked = importGate(reconciliation, acceptMismatch);
         if (blocked) return res.status(blocked.status).json(blocked.body);
+
+        if (replaceExisting) {
+            try {
+                if (replaceExisting.file_path && replaceExisting.file_path !== filePath && fs.existsSync(replaceExisting.file_path)) {
+                    fs.unlinkSync(replaceExisting.file_path);
+                }
+                await prisma.bankStatement.delete({ where: { id: replaceExisting.id } });
+            } catch (e) { logger.log('[COMMIT] cleanup failed:', e.message); }
+        }
 
         const { statement, transactionLogs, duplicateCount } = await finalizeImport({
             userId: req.user.id,

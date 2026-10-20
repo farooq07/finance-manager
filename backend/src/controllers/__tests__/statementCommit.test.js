@@ -3,11 +3,12 @@ import fs from 'fs';
 import path from 'path';
 import prisma from '../../utils/prisma.js';
 
+let fileAlreadyImported = false;
 jest.unstable_mockModule('../../services/duplicateDetector.service.js', () => ({
     findDuplicates: jest.fn(async () => new Map()),
     findWalletDuplicates: jest.fn(async () => new Map()),
-    isFilePreviouslyImported: jest.fn(async () => false),
-    isWalletFilePreviouslyImported: jest.fn(async () => false),
+    isFilePreviouslyImported: jest.fn(async () => fileAlreadyImported),
+    isWalletFilePreviouslyImported: jest.fn(async () => fileAlreadyImported),
     markAsDuplicate: jest.fn(),
 }));
 
@@ -30,6 +31,7 @@ const cases = [
         params: { bankId: 'b1' },
         owner: () => jest.spyOn(prisma.bank, 'findUnique').mockResolvedValue({ id: 'b1' }),
         save: () => jest.spyOn(prisma.bankStatement, 'create').mockRejectedValue(SAVE_REACHED),
+        statementModel: () => prisma.bankStatement,
     },
     {
         name: 'wallet',
@@ -38,10 +40,11 @@ const cases = [
         params: { walletId: 'w1' },
         owner: () => jest.spyOn(prisma.wallet, 'findUnique').mockResolvedValue({ id: 'w1' }),
         save: () => jest.spyOn(prisma.walletStatement, 'create').mockRejectedValue(SAVE_REACHED),
+        statementModel: () => prisma.walletStatement,
     },
 ];
 
-describe.each(cases)('$name commitStatement reconciliation gate', ({ commit, dir, params, owner, save }) => {
+describe.each(cases)('$name commitStatement reconciliation gate', ({ commit, dir, params, owner, save, statementModel }) => {
     let uploadId, res, saveSpy;
 
     beforeEach(() => {
@@ -56,7 +59,30 @@ describe.each(cases)('$name commitStatement reconciliation gate', ({ commit, dir
 
     afterEach(() => {
         fs.rmSync(path.join(dir, uploadId), { force: true });
+        fileAlreadyImported = false;
         jest.restoreAllMocks();
+    });
+
+    it('force-replace of a duplicate that doesn\'t reconcile keeps the old statement', async () => {
+        fileAlreadyImported = true;
+        jest.spyOn(statementModel(), 'findFirst').mockResolvedValue({ id: 'old', transaction_count: 12, file_path: null });
+        const deleteSpy = jest.spyOn(statementModel(), 'delete').mockResolvedValue({});
+
+        await commit(request({ closing: 99999, force: true }), res);
+
+        expect(res.status).toHaveBeenCalledWith(422);
+        expect(deleteSpy).not.toHaveBeenCalled();
+    });
+
+    it('force-replace that is accepted deletes the old statement before saving', async () => {
+        fileAlreadyImported = true;
+        jest.spyOn(statementModel(), 'findFirst').mockResolvedValue({ id: 'old', transaction_count: 12, file_path: null });
+        const deleteSpy = jest.spyOn(statementModel(), 'delete').mockResolvedValue({});
+
+        await commit(request({ closing: 99999, force: true, acceptMismatch: true }), res);
+
+        expect(deleteSpy).toHaveBeenCalledWith({ where: { id: 'old' } });
+        expect(saveSpy).toHaveBeenCalled();
     });
 
     const request = (body) => ({

@@ -692,6 +692,9 @@ export const commitStatement = async (req, res) => {
 
         const fileHash = getFileHash(filePath);
         const isDuplicate = await isWalletFilePreviouslyImported(req.user.id, fileHash, walletId);
+        // A statement being replaced is only deleted once the new import has
+        // passed every check below — a refused import must not lose the old one.
+        let replaceExisting = null;
         if (isDuplicate) {
             const existing = await prisma.walletStatement.findFirst({
                 where: { wallet_id: walletId, file_hash: fileHash },
@@ -699,10 +702,7 @@ export const commitStatement = async (req, res) => {
             });
             const isEmptyFailed = existing && (existing.transaction_count ?? 0) === 0;
             if (isEmptyFailed || force === true || force === 'true') {
-                try {
-                    if (existing?.file_path && existing.file_path !== filePath && fs.existsSync(existing.file_path)) fs.unlinkSync(existing.file_path);
-                    if (existing) await prisma.walletStatement.delete({ where: { id: existing.id } });
-                } catch (e) { logger.log('[WALLET_COMMIT] cleanup failed:', e.message); }
+                replaceExisting = existing;
             } else {
                 return res.status(409).json({
                     message: 'This statement was already imported.',
@@ -748,6 +748,13 @@ export const commitStatement = async (req, res) => {
         const reconciliation = reconcile(parsedTxs, openingBalance, closingBalance);
         const blocked = importGate(reconciliation, acceptMismatch);
         if (blocked) return res.status(blocked.status).json(blocked.body);
+
+        if (replaceExisting) {
+            try {
+                if (replaceExisting.file_path && replaceExisting.file_path !== filePath && fs.existsSync(replaceExisting.file_path)) fs.unlinkSync(replaceExisting.file_path);
+                await prisma.walletStatement.delete({ where: { id: replaceExisting.id } });
+            } catch (e) { logger.log('[WALLET_COMMIT] cleanup failed:', e.message); }
+        }
 
         const { statement, transactionLogs, duplicateCount } = await finalizeWalletImport({
             userId: req.user.id, walletId, parsedTxs, openingBalance, closingBalance, filePath, fileHash, password,
