@@ -651,7 +651,11 @@ export const previewStatement = async (req, res) => {
         try {
             const pdf = await extractPdfText(filePath, password);
             rawText = pdf.rawText || '';
-        } catch (e) { logger.log('[WALLET_PREVIEW] PDF extract failed:', e.message); }
+        } catch (e) {
+            // Missing/wrong password or not a PDF: the user can fix these.
+            if (e.code?.startsWith('PDF_')) throw e;
+            logger.log('[WALLET_PREVIEW] PDF extract failed:', e.message);
+        }
 
         const transactions = rawText ? parseTransactions(rawText) : [];
         const balances = rawText ? parseStatementBalances(rawText) : { opening: null, closing: null };
@@ -664,7 +668,10 @@ export const previewStatement = async (req, res) => {
     } catch (error) {
         if (filePath && fs.existsSync(filePath)) { try { fs.unlinkSync(filePath); } catch { /* ignore */ } }
         console.error('[WALLET_PREVIEW] failed:', error);
-        return res.status(400).json({ message: error.message || 'Failed to preview statement' });
+        return res.status(400).json({
+            message: error.message || 'Failed to preview statement',
+            ...(error.code?.startsWith('PDF_') ? { code: error.code } : {}),
+        });
     }
 };
 
