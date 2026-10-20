@@ -51,6 +51,26 @@ describe('StatementReviewModal reconciliation', () => {
         expect(importButton).toBeEnabled();
     });
 
+    it('does not flag rows when some rows have no balance (the server skips that check too)', () => {
+        // Rows 1→2 break the chain, but row 3 has no balance at all.
+        const partial = [
+            ...rows(99999),
+            { transaction_date: '2026-03-03', description: 'FEE', debit_amount: 100, credit_amount: null, balance: null },
+        ];
+        const { importButton } = renderModal({ transactions: partial, closing: 10400 });
+        expect(screen.queryByTitle(ROW_FLAG)).not.toBeInTheDocument();
+        expect(importButton).toBeEnabled();
+    });
+
+    it('editing a row clears an earlier "import anyway"', () => {
+        const { importButton } = renderModal({ closing: 99999 });
+        fireEvent.click(screen.getByLabelText(OVERRIDE));
+        expect(importButton).toBeEnabled();
+        fireEvent.change(screen.getAllByPlaceholderText('0')[0], { target: { value: '600' } });
+        expect(screen.getByLabelText(OVERRIDE)).not.toBeChecked();
+        expect(importButton).toBeDisabled();
+    });
+
     it('balanced statement imports without override', () => {
         const { importButton, onConfirm } = renderModal();
         expect(screen.queryByText(OVERRIDE)).not.toBeInTheDocument();

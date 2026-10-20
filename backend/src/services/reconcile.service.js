@@ -117,7 +117,7 @@ export function importGate(reconciliation, acceptMismatch) {
     return {
         status: 422,
         body: {
-            message: `This statement doesn't reconcile: ${reconciliation.message} Check the highlighted rows, or confirm to import anyway.`,
+            message: `This statement doesn't reconcile: ${reconciliation.message} Check the amounts against your statement, or confirm to import anyway.`,
             reconciliation,
             needsConfirmation: true,
         },

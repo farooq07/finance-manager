@@ -29,6 +29,8 @@ describe('importGate', () => {
         expect(gate.body.needsConfirmation).toBe(true);
         expect(gate.body.reconciliation).toBe(recon);
         expect(gate.body.message).toMatch(/reconcile/i);
+        // CSV imports have no review grid, so don't send people looking for one.
+        expect(gate.body.message).not.toMatch(/highlighted/i);
     });
 
     it('mismatch with acceptMismatch true is allowed', () => {

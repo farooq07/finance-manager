@@ -43,11 +43,16 @@ export default function StatementReviewModal({ preview, fileName, onConfirm, onC
         return isNaN(n) ? 0 : n;
     };
 
+    // Any edit changes what the user would be confirming, so it clears an
+    // earlier "import anyway".
+    const [acceptMismatch, setAcceptMismatch] = useState(false);
+    const edit = (fn) => { setAcceptMismatch(false); fn(); };
+
     const updateRow = (id, field, value) =>
-        setRows((rs) => rs.map((r) => (r._id === id ? { ...r, [field]: value } : r)));
-    const deleteRow = (id) => setRows((rs) => rs.filter((r) => r._id !== id));
+        edit(() => setRows((rs) => rs.map((r) => (r._id === id ? { ...r, [field]: value } : r))));
+    const deleteRow = (id) => edit(() => setRows((rs) => rs.filter((r) => r._id !== id)));
     const addRow = () =>
-        setRows((rs) => [...rs, { _id: Date.now(), date: '', description: '', debit: '', credit: '', balance: '' }]);
+        edit(() => setRows((rs) => [...rs, { _id: Date.now(), date: '', description: '', debit: '', credit: '', balance: '' }]));
 
     // Live reconciliation (totals)
     const recon = useMemo(() => {
@@ -64,7 +69,9 @@ export default function StatementReviewModal({ preview, fileName, onConfirm, onC
     // opening, for the first row) plus its credit minus its debit. Rows without
     // a balance can't be checked and reset the chain.
     // Newest-first statements are checked in reverse; whichever order holds wins.
+    // Like the server, only check when every row carries a balance.
     const brokenRows = useMemo(() => {
+        if (rows.some((r) => r.balance.trim() === '')) return new Set();
         const chain = (ordered) => {
             const broken = new Set();
             let prev = opening.trim() !== '' ? num(opening) : null;
@@ -83,7 +90,6 @@ export default function StatementReviewModal({ preview, fileName, onConfirm, onC
     }, [rows, opening]);
 
     const mismatched = (recon.verifiable && !recon.ok) || brokenRows.size > 0;
-    const [acceptMismatch, setAcceptMismatch] = useState(false);
     const canImport = !mismatched || acceptMismatch;
 
     const totalIn = rows.reduce((s, r) => s + num(r.credit), 0);
@@ -210,11 +216,11 @@ export default function StatementReviewModal({ preview, fileName, onConfirm, onC
                 <div className="px-6 py-3 border-t border-gray-100 dark:border-neutral-800 grid grid-cols-2 sm:grid-cols-4 gap-3">
                     <label className="block">
                         <span className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 dark:text-neutral-500">Opening</span>
-                        <input value={opening} onChange={(e) => setOpening(e.target.value)} className={`${cell} mt-1 tabular-nums`} placeholder="—" inputMode="decimal" />
+                        <input value={opening} onChange={(e) => edit(() => setOpening(e.target.value))} className={`${cell} mt-1 tabular-nums`} placeholder="—" inputMode="decimal" />
                     </label>
                     <label className="block">
                         <span className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 dark:text-neutral-500">Closing</span>
-                        <input value={closing} onChange={(e) => setClosing(e.target.value)} className={`${cell} mt-1 tabular-nums`} placeholder="—" inputMode="decimal" />
+                        <input value={closing} onChange={(e) => edit(() => setClosing(e.target.value))} className={`${cell} mt-1 tabular-nums`} placeholder="—" inputMode="decimal" />
                     </label>
                     <div>
                         <span className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 dark:text-neutral-500">Total In</span>
