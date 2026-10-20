@@ -2,17 +2,18 @@ import prisma from '../utils/prisma.js';
 import logger from '../utils/logger.js';
 import { fetchDashboardData } from './dashboard.controller.js';
 import { NISAB_GRAMS, getLatestPriceRow, summarizeGold } from '../services/goldValuation.service.js';
-import { computeZakat } from '../services/zakat.service.js';
+import { computeZakat, zakatDeductibleDebt } from '../services/zakat.service.js';
 
 // GET /api/zakat/summary — Zakat due on the user's whole wealth (cash,
 // investments, gold, dues, debts). Rules live in services/zakat.service.js.
 export const getZakatSummary = async (req, res) => {
     try {
         const userId = req.user.id;
-        const [{ metrics: m }, goldItems, priceRow] = await Promise.all([
+        const [{ metrics: m }, goldItems, priceRow, debts] = await Promise.all([
             fetchDashboardData(userId),
             prisma.goldItem.findMany({ where: { user_id: userId } }),
             getLatestPriceRow(),
+            prisma.debt.findMany({ where: { user_id: userId, is_active: true } }),
         ]);
 
         const perGram = priceRow ? Number(priceRow.price_24k_per_gram) : 0;
@@ -26,7 +27,7 @@ export const getZakatSummary = async (req, res) => {
             goldValue,
             receivables: m.totalReceivable,
             payables: m.totalPayable,
-            debts: m.totalDebt,
+            debts: zakatDeductibleDebt(debts),
         };
 
         res.json({

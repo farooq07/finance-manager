@@ -1,4 +1,38 @@
-import { computeZakat } from '../zakat.service.js';
+import { computeZakat, zakatDeductibleDebt } from '../zakat.service.js';
+
+const debt = (debt_type, outstanding, minimum_payment = null) => ({ debt_type, outstanding, minimum_payment });
+
+describe('zakatDeductibleDebt', () => {
+    it('deducts credit cards, personal loans and other debts in full', () => {
+        expect(zakatDeductibleDebt([debt('credit_card', 80000, 5000)])).toBe(80000);
+        expect(zakatDeductibleDebt([debt('personal_loan', 300000, 20000)])).toBe(300000);
+        expect(zakatDeductibleDebt([debt('other', 15000)])).toBe(15000);
+    });
+
+    it('deducts only the next 12 monthly payments of a mortgage', () => {
+        expect(zakatDeductibleDebt([debt('mortgage', 5000000, 50000)])).toBe(600000);
+    });
+
+    it('never deducts more than a long loan\'s outstanding balance', () => {
+        expect(zakatDeductibleDebt([debt('car_loan', 200000, 30000)])).toBe(200000);
+    });
+
+    it('deducts a long loan in full when no monthly payment is recorded', () => {
+        expect(zakatDeductibleDebt([debt('mortgage', 5000000, null)])).toBe(5000000);
+        expect(zakatDeductibleDebt([debt('car_loan', 900000, 0)])).toBe(900000);
+    });
+
+    it('sums mixed debts and accepts Prisma Decimal strings', () => {
+        expect(zakatDeductibleDebt([
+            debt('credit_card', '10000.10'),
+            debt('car_loan', '1200000.00', '25000.00'),
+        ])).toBe(310000.1);
+    });
+
+    it('no debts → 0', () => {
+        expect(zakatDeductibleDebt([])).toBe(0);
+    });
+});
 
 const base = {
     cash: 500000, investments: 300000, goldValue: 200000,

@@ -103,8 +103,21 @@ export default function Zakat() {
                             <>
                                 <MaskedBalance value={summary.zakatDue} className="text-3xl font-bold text-gray-900 dark:text-gray-100" />
                                 <p className={`text-xs font-medium mt-2 ${nisabStatus.className}`}>{nisabStatus.text}</p>
+                                {summary.zakatDue > 0 && currentYearTotal > 0 && (
+                                    currentYearTotal >= summary.zakatDue ? (
+                                        <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400 mt-2">Paid in full for this year</p>
+                                    ) : (
+                                        <div className="flex items-center gap-2 mt-2 text-sm">
+                                            <span className="text-gray-500 dark:text-gray-400">Remaining to pay</span>
+                                            <MaskedBalance value={summary.zakatDue - currentYearTotal} className="font-semibold text-gray-900 dark:text-gray-100" />
+                                        </div>
+                                    )
+                                )}
                                 {summary.nisabValue != null && (
                                     <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Nisab (85 g gold): {fmtPKR(summary.nisabValue)}</p>
+                                )}
+                                {summary.goldPriceDate && (
+                                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Gold price as of {fmtDateLong(summary.goldPriceDate)}</p>
                                 )}
                             </>
                         )}
@@ -144,6 +157,7 @@ export default function Zakat() {
                     </div>
                 </dl>
                 <p className="text-xs text-gray-400 dark:text-gray-500 mt-3">Your home, car and other personal-use assets are not included.</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Mortgages and car loans count only the next 12 monthly payments.</p>
             </Card>}
 
             {/* Form & Table */}

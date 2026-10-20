@@ -28,7 +28,7 @@
 | Gold | current value of all `GoldItem`s at latest 24K price | zakatable |
 | Receivables | `totalReceivable` | zakatable |
 | Payables | `totalPayable` | deducted |
-| Debts | `totalDebt` (active institutional debt outstanding) | deducted |
+| Debts | active `Debt` rows via `zakatDeductibleDebt`: credit card / personal loan / other in full; mortgage & car loan = min(outstanding, 12 × minimum_payment), full if no payment recorded (owner decision 2026-10-20) | deducted |
 | Physical assets | `totalAssetValue` | **excluded** (personal-use property) |
 
 Nisab = value of 85 g of 24K gold at the latest price. Zakat is due when net zakatable wealth ≥ nisab.

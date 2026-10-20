@@ -31,39 +31,55 @@ describe('Auth Controller Tests', () => {
             expect(mockRes.status).toHaveBeenCalledWith(400);
         });
 
-        it('should return 400 if user with email already exists', async () => {
+        it('should return 400 if a verified user with email already exists', async () => {
             mockReq.body = { email: 'test@example.com', password: 'password123', name: 'Tester' };
 
             jest.spyOn(prisma.user, 'findUnique').mockResolvedValueOnce({ id: '123e4567-e89b-12d3-a456-426614174000' });
+            jest.spyOn(prisma, '$queryRaw').mockResolvedValueOnce([{ email_verified: true }]);
 
             await register(mockReq, mockRes);
 
             expect(prisma.user.findUnique).toHaveBeenCalledTimes(1);
             expect(mockRes.status).toHaveBeenCalledWith(400);
-            expect(mockRes.json).toHaveBeenCalledWith({ message: 'User with this email already exists' });
+            expect(mockRes.json).toHaveBeenCalledWith({ message: 'An account with this email already exists. Please sign in instead.' });
         });
 
-        it('should execute prisma create and return 201 on success', async () => {
-            mockReq.body = { email: 'new@example.com', password: 'securepassword', name: 'John Doe' };
+        it('should resend verification (200) if the existing user is unverified', async () => {
+            mockReq.body = { email: 'test@example.com', password: 'password123', name: 'Tester' };
 
-            // Simulate no existing user
-            jest.spyOn(prisma.user, 'findUnique').mockResolvedValueOnce(null);
-
-            // Mock bcrypt to avoid doing actual heavy hashing
-            jest.spyOn(bcrypt, 'hash').mockResolvedValueOnce('hashed_password_string');
-
-            // Simulate DB creation successful
-            jest.spyOn(prisma.user, 'create').mockResolvedValueOnce({
-                id: '123e4567-e89b-12d3-a456-426614174001',
-                email: mockReq.body.email
+            jest.spyOn(prisma.user, 'findUnique').mockResolvedValueOnce({
+                id: '123e4567-e89b-12d3-a456-426614174000', email: 'test@example.com', name: 'Tester',
             });
+            jest.spyOn(prisma, '$queryRaw').mockResolvedValueOnce([{ email_verified: false }]);
+            jest.spyOn(prisma, '$executeRaw').mockResolvedValueOnce(1);
 
             await register(mockReq, mockRes);
 
+            expect(prisma.$executeRaw).toHaveBeenCalledTimes(1); // fresh token stored
+            expect(mockRes.status).toHaveBeenCalledWith(200);
+            expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
+                email: 'test@example.com',
+                requiresVerification: true,
+            }));
+        });
+
+        it('should create an unverified user and return 201 asking to verify email', async () => {
+            mockReq.body = { email: 'new@example.com', password: 'securepassword', name: 'John Doe' };
+
+            jest.spyOn(prisma.user, 'findUnique').mockResolvedValueOnce(null);
+            // Mock bcrypt to avoid doing actual heavy hashing
+            jest.spyOn(bcrypt, 'hash').mockResolvedValueOnce('hashed_password_string');
+            jest.spyOn(prisma, '$queryRaw').mockResolvedValueOnce([
+                { id: '123e4567-e89b-12d3-a456-426614174001', name: 'John Doe', email: 'new@example.com' },
+            ]);
+
+            await register(mockReq, mockRes);
+
+            expect(prisma.$queryRaw).toHaveBeenCalledTimes(1); // the INSERT
             expect(mockRes.status).toHaveBeenCalledWith(201);
             expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
-                user: expect.any(Object),
-                token: expect.any(String)
+                email: 'new@example.com',
+                requiresVerification: true,
             }));
         });
     });
@@ -85,6 +101,8 @@ describe('Auth Controller Tests', () => {
 
             jest.spyOn(prisma.user, 'findFirst').mockResolvedValueOnce(fakeDbUser);
             jest.spyOn(bcrypt, 'compare').mockResolvedValueOnce(true);
+            // Account status lookups (deactivated? verified?) — active, verified user
+            jest.spyOn(prisma, '$queryRaw').mockResolvedValue([{ email_verified: true, deleted_at: null }]);
 
             // Should successfully process login OTP trigger
             jest.spyOn(prisma.user, 'update').mockResolvedValueOnce(fakeDbUser);

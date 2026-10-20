@@ -2,11 +2,37 @@ import Decimal from 'decimal.js';
 import { ZAKAT_RATE } from './goldValuation.service.js';
 
 const toDecimal = (v) => {
+    if (v == null) return new Decimal(0);
     const n = Number(v);
-    return new Decimal(Number.isFinite(n) ? v : 0);
+    return new Decimal(Number.isFinite(n) ? String(v) : 0);
 };
 
 const round2 = (d) => d.toDecimalPlaces(2).toNumber();
+
+// Long-term financing: only the instalments due in the coming year reduce
+// zakatable wealth (common contemporary Hanafi practice). Everything else is
+// short-term and deducted in full.
+const LONG_TERM_DEBT_TYPES = new Set(['mortgage', 'car_loan']);
+const LONG_TERM_MONTHS = 12;
+
+/**
+ * How much of the user's active debts may be deducted before Zakat.
+ * A long-term loan without a recorded monthly payment is deducted in full —
+ * we can't tell what falls due this year, and under-deducting would
+ * overstate Zakat.
+ */
+export function zakatDeductibleDebt(debts) {
+    let total = new Decimal(0);
+    for (const d of debts) {
+        const outstanding = toDecimal(d.outstanding);
+        const monthly = toDecimal(d.minimum_payment);
+        const deductible = LONG_TERM_DEBT_TYPES.has(d.debt_type) && monthly.greaterThan(0)
+            ? Decimal.min(outstanding, monthly.times(LONG_TERM_MONTHS))
+            : outstanding;
+        total = total.plus(deductible);
+    }
+    return round2(total);
+}
 
 /**
  * Zakat on the user's whole wealth.
