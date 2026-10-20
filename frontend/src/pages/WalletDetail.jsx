@@ -434,7 +434,7 @@ export default function WalletDetail() {
                     preview={preview}
                     fileName={fileName}
                     committing={committing}
-                    onConfirm={(mapping) => handleCommit(mapping)}
+                    onConfirm={(mapping) => handleCommit({ mapping })}
                     onCancel={() => { setPreview(null); resetUploadModal(); }}
                 />
             )}

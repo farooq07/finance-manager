@@ -91,6 +91,22 @@ describe.each(cases)('$name commitStatement reconciliation gate', ({ commit, dir
         body: { uploadId, type: 'pdf', transactions: reviewedTxs, opening: 10000, ...body },
     });
 
+    it('CSV commit checks the opening/closing typed in the mapping dialog', async () => {
+        fs.writeFileSync(path.join(dir, uploadId), [
+            'Date,Description,Amount,Balance',
+            '01/03/2026,ATM,-500.00,9500.00',
+            '02/03/2026,SALARY,1000.00,10500.00',
+        ].join('\n'));
+        const mapping = { headerRowIndex: 0, date: 0, description: 1, amount: 2, debit: -1, credit: -1, balance: 3, type: -1 };
+
+        await commit({ user: { id: 'u1' }, params, body: { uploadId, type: 'csv', mapping: { ...mapping, opening: '10000', closing: '99999' } } }, res);
+        expect(res.status).toHaveBeenCalledWith(422);
+        expect(saveSpy).not.toHaveBeenCalled();
+
+        await commit({ user: { id: 'u1' }, params, body: { uploadId, type: 'csv', mapping: { ...mapping, opening: '10000', closing: '10500' } } }, res);
+        expect(saveSpy).toHaveBeenCalled();
+    });
+
     it('mismatched rows → 422, nothing saved', async () => {
         await commit(request({ closing: 99999 }), res);
         expect(res.status).toHaveBeenCalledWith(422);
