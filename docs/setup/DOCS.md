@@ -425,7 +425,7 @@ The message endpoint is rate-limited to 30 requests per hour.
 | Service | Description |
 |---------|-------------|
 | **categorizer.service.js** | Multi-layered transaction categoriser that checks user-learned patterns, a cache, fuzzy keyword matching, and AI fallback in order. Records user corrections to improve future accuracy. |
-| **aiCategorizer.service.js** | Calls Gemini 1.5 Flash (Groq llama as fallback) to batch-categorise transaction descriptions into Pakistani banking categories, caching results to avoid repeat API calls. |
+| **aiCategorizer.service.js** | Calls Gemini 2.5 Flash (Groq llama as fallback) to batch-categorise transaction descriptions into Pakistani banking categories, caching results to avoid repeat API calls. |
 | **ragEngine.service.js** | Runs the AI assistant's conversation loop using tool calling and semantic document search, routing between providers depending on availability. |
 | **financialTools.js** | Defines the database query tools (expense summaries, cash flow, portfolio performance, dues, gold, assets) that the RAG engine calls to ground answers in real user data. |
 | **documentProcessor.service.js** | Ingests uploaded documents by chunking text, generating embeddings, and storing them in pgvector; also handles retrieval for RAG context. |
