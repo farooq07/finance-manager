@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useZakatEntries, useCreateZakatEntry, useDeleteZakatEntry, useDashboardSummary } from '../hooks/useZakat';
+import { useZakatEntries, useCreateZakatEntry, useDeleteZakatEntry, useZakatSummary } from '../hooks/useZakat';
 import { fmtPKR } from '../utils/currency';
 import { fmtDateLong } from '../utils/dates';
 import Button from '../components/Button';
@@ -12,7 +12,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card'
 
 export default function Zakat() {
     const { data: zakatData, isLoading: loadingZakat } = useZakatEntries();
-    const { data: dashboardData, isLoading: loadingDashboard } = useDashboardSummary();
+    const { data: summary, isLoading: loadingSummary } = useZakatSummary();
 
     const createZakat = useCreateZakatEntry();
     const deleteZakat = useDeleteZakatEntry();
@@ -20,7 +20,7 @@ export default function Zakat() {
     const [form, setForm] = useState({ amount: '', description: '', date: new Date().toISOString().split('T')[0] });
     const [deleteModal, setDeleteModal] = useState({ isOpen: false, id: null });
 
-    if (loadingZakat || loadingDashboard) return (
+    if (loadingZakat || loadingSummary) return (
         <div className="space-y-6">
             <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Zakat Management</h1>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6"><StatSkeleton /><StatSkeleton /></div>
@@ -28,10 +28,20 @@ export default function Zakat() {
         </div>
     );
 
-    // Calculate Net Worth Balance (minus receivables)
-    const totalNetWorth = dashboardData?.metrics?.netWorth || 0;
-    const totalReceivable = dashboardData?.metrics?.totalReceivable || 0;
-    const applicableZakat = (totalNetWorth - totalReceivable) * 0.025; // 2.5%
+    const breakdown = summary?.breakdown || {};
+    const breakdownRows = [
+        { label: 'Cash & bank', value: breakdown.cash, sign: '+' },
+        { label: 'Investments', value: breakdown.investments, sign: '+' },
+        { label: 'Gold', value: breakdown.goldValue, sign: '+' },
+        { label: 'Owed to you', value: breakdown.receivables, sign: '+' },
+        { label: 'You owe', value: breakdown.payables, sign: '−' },
+        { label: 'Debts', value: breakdown.debts, sign: '−' },
+    ];
+    const nisabStatus = summary?.isNisabMet === true
+        ? { text: 'Zakat is due on your wealth', className: 'text-emerald-600 dark:text-emerald-400' }
+        : summary?.isNisabMet === false
+            ? { text: 'Your wealth is below nisab — no Zakat due', className: 'text-gray-500 dark:text-gray-400' }
+            : { text: "Gold price not available yet — nisab can't be checked. Estimate shown assumes Zakat is due.", className: 'text-amber-600 dark:text-amber-400' };
 
     const entries = zakatData?.entries || [];
     const currentYearTotal = zakatData?.currentYearTotal || 0;
@@ -76,8 +86,11 @@ export default function Zakat() {
                     </div>
                     <div>
                         <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Estimated Zakat (2.5%)</p>
-                        <MaskedBalance value={applicableZakat} className="text-3xl font-bold text-gray-900 dark:text-gray-100" />
-                        <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">Based on Net Worth minus Receivables (PKR {fmtPKR(totalNetWorth - totalReceivable)})</p>
+                        <MaskedBalance value={summary?.zakatDue ?? 0} className="text-3xl font-bold text-gray-900 dark:text-gray-100" />
+                        <p className={`text-xs font-medium mt-2 ${nisabStatus.className}`}>{nisabStatus.text}</p>
+                        {summary?.nisabValue != null && (
+                            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Nisab (85 g gold): {fmtPKR(summary.nisabValue)}</p>
+                        )}
                     </div>
                 </Card>
 
@@ -92,6 +105,29 @@ export default function Zakat() {
                     </div>
                 </Card>
             </div>
+
+            {/* How the estimate is built */}
+            <Card className="p-6">
+                <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-4">How this is calculated</h3>
+                <dl className="divide-y divide-gray-100 dark:divide-neutral-800 text-sm">
+                    {breakdownRows.map(row => (
+                        <div key={row.label} className="flex items-center justify-between py-2">
+                            <dt className="text-gray-600 dark:text-gray-300">{row.label}</dt>
+                            <dd className="flex items-center gap-1 font-medium text-gray-900 dark:text-gray-100">
+                                <span className="text-gray-400 dark:text-gray-500">{row.sign}</span>
+                                <MaskedBalance value={row.value ?? 0} />
+                            </dd>
+                        </div>
+                    ))}
+                    <div className="flex items-center justify-between pt-3">
+                        <dt className="font-semibold text-gray-900 dark:text-gray-100">Zakatable wealth</dt>
+                        <dd className="font-bold text-gray-900 dark:text-gray-100">
+                            <MaskedBalance value={summary?.netZakatable ?? 0} />
+                        </dd>
+                    </div>
+                </dl>
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-3">Your home, car and other personal-use assets are not included.</p>
+            </Card>
 
             {/* Form & Table */}
             <Card className="overflow-hidden">
