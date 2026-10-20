@@ -10,7 +10,8 @@
     "dev:local": "nodemon server.js",
     "build": "npx prisma generate",
     "seed": "node prisma/seed.js",
-    "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest"
+    "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
+    "fixture:statement": "node scripts/make-statement-fixture.js"
   },
   "keywords": [],
   "author": "",
