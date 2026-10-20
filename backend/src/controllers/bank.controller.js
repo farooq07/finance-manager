@@ -4,7 +4,7 @@ import { encryptSecret, decryptSecret } from '../utils/crypto.js';
 import { extractPdfText, getFileHash } from '../services/pdfParser.service.js';
 import { parseTransactions, validateBalance, parseStatementBalances } from '../services/transactionParser.service.js';
 import { parseCsvTransactions, inspectCsv, parseCsvWithMapping } from '../services/csvParser.service.js';
-import { reconcile } from '../services/reconcile.service.js';
+import { reconcile, importGate } from '../services/reconcile.service.js';
 import { categorizeTransactionBatch, recordUserCategory } from '../services/categorizer.service.js';
 import { findDuplicates, isFilePreviouslyImported, markAsDuplicate } from '../services/duplicateDetector.service.js';
 import { linkTransactionsToBeneficiaries } from './beneficiary.controller.js';
@@ -597,7 +597,7 @@ export const previewStatement = async (req, res) => {
 export const commitStatement = async (req, res) => {
     try {
         const { bankId } = req.params;
-        const { uploadId, type, mapping, transactions: reviewedTxs, opening, closing, password, force } = req.body;
+        const { uploadId, type, mapping, transactions: reviewedTxs, opening, closing, password, force, acceptMismatch } = req.body;
 
         const bank = await prisma.bank.findUnique({ where: { id: bankId, user_id: req.user.id } });
         if (!bank) return res.status(404).json({ message: 'Bank not found' });
@@ -669,6 +669,8 @@ export const commitStatement = async (req, res) => {
         }
 
         const reconciliation = reconcile(parsedTxs, openingBalance, closingBalance);
+        const blocked = importGate(reconciliation, acceptMismatch);
+        if (blocked) return res.status(blocked.status).json(blocked.body);
 
         const { statement, transactionLogs, duplicateCount } = await finalizeImport({
             userId: req.user.id,
