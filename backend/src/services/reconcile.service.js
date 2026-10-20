@@ -46,26 +46,19 @@ export function reconcile(transactions, opening, closing) {
     const withBalance = transactions.filter(t => t.balance !== null && t.balance !== undefined);
     const hasBalances = withBalance.length > 0 && withBalance.length === transactions.length;
 
-    const rowChecks = [];
+    let rowChecks = [];
     if (hasBalances && transactions.length > 0) {
-        // Seed prevBalance: derive from first row (balance - net), or use opening.
-        let prev = hasOpening
-            ? new Decimal(opening)
-            : new Decimal(transactions[0].balance).minus(new Decimal(transactions[0].net_amount || 0));
-
-        transactions.forEach((tx, index) => {
-            const expected = prev.plus(new Decimal(tx.net_amount || 0));
-            const actual = new Decimal(tx.balance);
-            const diff = expected.minus(actual).abs().toNumber();
-            rowChecks.push({
-                index,
-                ok: diff < EPSILON,
-                expected: expected.toNumber(),
-                actual: actual.toNumber(),
-                diff,
-            });
-            prev = actual; // chain off the statement's own balance to isolate single-row errors
-        });
+        rowChecks = chainChecks(transactions, hasOpening ? opening : null);
+        // Many exports list the newest row first. If the file-order chain
+        // breaks but the reversed chain holds, the statement is just
+        // newest-first — report it in that order (indexes stay file indexes).
+        if (rowChecks.some(r => !r.ok)) {
+            const n = transactions.length;
+            const reversed = chainChecks([...transactions].reverse(), hasOpening ? opening : null)
+                .map(r => ({ ...r, index: n - 1 - r.index }))
+                .reverse();
+            if (reversed.every(r => r.ok)) rowChecks = reversed;
+        }
     }
 
     const mismatchCount = rowChecks.filter(r => !r.ok).length;
@@ -90,6 +83,25 @@ export function reconcile(transactions, opening, closing) {
     }
 
     return { ok, totalCheck, rowChecks, mismatchCount, hasBalances, message };
+}
+
+/**
+ * Per-row running-balance check in the given order: each row's balance must
+ * equal the previous row's balance plus its net amount. Seeded from the
+ * opening balance, or from the first row itself when there is none.
+ */
+function chainChecks(rows, opening) {
+    let prev = opening !== null
+        ? new Decimal(opening)
+        : new Decimal(rows[0].balance).minus(new Decimal(rows[0].net_amount || 0));
+
+    return rows.map((tx, index) => {
+        const expected = prev.plus(new Decimal(tx.net_amount || 0));
+        const actual = new Decimal(tx.balance);
+        const diff = expected.minus(actual).abs().toNumber();
+        prev = actual; // chain off the statement's own balance to isolate single-row errors
+        return { index, ok: diff < EPSILON, expected: expected.toNumber(), actual: actual.toNumber(), diff };
+    });
 }
 
 /**

@@ -45,6 +45,12 @@ describe('StatementReviewModal reconciliation', () => {
         expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({ acceptMismatch: true }));
     });
 
+    it('newest-first statement is not flagged', () => {
+        const { importButton } = renderModal({ transactions: [...rows()].reverse() });
+        expect(screen.queryByTitle(ROW_FLAG)).not.toBeInTheDocument();
+        expect(importButton).toBeEnabled();
+    });
+
     it('balanced statement imports without override', () => {
         const { importButton, onConfirm } = renderModal();
         expect(screen.queryByText(OVERRIDE)).not.toBeInTheDocument();

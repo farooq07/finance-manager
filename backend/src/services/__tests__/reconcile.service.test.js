@@ -2,6 +2,20 @@ import { reconcile, importGate } from '../reconcile.service.js';
 
 const tx = (net_amount, balance = null) => ({ net_amount, balance });
 
+describe('reconcile — row order', () => {
+    it('newest-first statement reconciles', () => {
+        // Opening 10,000 → -500 (9,500) → +1,000 (10,500), listed newest first
+        const recon = reconcile([tx(1000, 10500), tx(-500, 9500)], 10000, 10500);
+        expect(recon.ok).toBe(true);
+        expect(recon.mismatchCount).toBe(0);
+    });
+
+    it('a genuinely broken newest-first statement still fails', () => {
+        const recon = reconcile([tx(1000, 10500), tx(-500, 9000)], 10000, 10500);
+        expect(recon.ok).toBe(false);
+    });
+});
+
 describe('importGate', () => {
     it('balanced import is allowed', () => {
         const recon = reconcile([tx(-500, 9500), tx(1000, 10500)], 10000, 10500);

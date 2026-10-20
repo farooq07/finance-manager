@@ -497,7 +497,14 @@ export function parseCsvWithMapping(filePath, mapping) {
 
     if (closingBalance === null && transactions.length > 0) {
         const withBal = transactions.filter(t => t.balance !== null);
-        if (withBal.length > 0) closingBalance = withBal[withBal.length - 1].balance;
+        if (withBal.length > 0) {
+            // The closing balance belongs to the newest row — the last one in
+            // an oldest-first export, the first one in a newest-first export.
+            const first = withBal[0];
+            const last = withBal[withBal.length - 1];
+            const newestFirst = new Date(first.transaction_date) > new Date(last.transaction_date);
+            closingBalance = (newestFirst ? first : last).balance;
+        }
     }
 
     logger.log(`[CSV_PARSER] mapping parse → ${transactions.length} txns, opening=${openingBalance}, closing=${closingBalance}`);

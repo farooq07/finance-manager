@@ -63,16 +63,23 @@ export default function StatementReviewModal({ preview, fileName, onConfirm, onC
     // Per-row check: a row's balance must equal the previous balance (or the
     // opening, for the first row) plus its credit minus its debit. Rows without
     // a balance can't be checked and reset the chain.
+    // Newest-first statements are checked in reverse; whichever order holds wins.
     const brokenRows = useMemo(() => {
-        const broken = new Set();
-        let prev = opening.trim() !== '' ? num(opening) : null;
-        for (const r of rows) {
-            if (r.balance.trim() === '') { prev = null; continue; }
-            const bal = num(r.balance);
-            if (prev != null && Math.abs(prev + num(r.credit) - num(r.debit) - bal) >= 0.01) broken.add(r._id);
-            prev = bal;
-        }
-        return broken;
+        const chain = (ordered) => {
+            const broken = new Set();
+            let prev = opening.trim() !== '' ? num(opening) : null;
+            for (const r of ordered) {
+                if (r.balance.trim() === '') { prev = null; continue; }
+                const bal = num(r.balance);
+                if (prev != null && Math.abs(prev + num(r.credit) - num(r.debit) - bal) >= 0.01) broken.add(r._id);
+                prev = bal;
+            }
+            return broken;
+        };
+        const forward = chain(rows);
+        if (forward.size === 0) return forward;
+        const backward = chain([...rows].reverse());
+        return backward.size === 0 ? backward : forward;
     }, [rows, opening]);
 
     const mismatched = (recon.verifiable && !recon.ok) || brokenRows.size > 0;
