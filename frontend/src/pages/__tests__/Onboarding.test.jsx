@@ -98,9 +98,13 @@ describe('Onboarding', () => {
     });
 
     it('one failing row stays with its error, others are saved', async () => {
-        vi.mocked(api.post).mockImplementation((url) => (url === '/banks'
-            ? Promise.resolve({ data: { id: 'b1', name: 'Meezan', current_balance: '100000' } })
-            : Promise.reject(apiError('Wallet name is required'))));
+        // Like the real server: a saved bank shows up in later GET /banks.
+        vi.mocked(api.post).mockImplementation((url, body) => {
+            if (url !== '/banks') return Promise.reject(apiError('Wallet name is required'));
+            const bank = { id: 'b1', name: body.name, current_balance: String(body.starting_balance) };
+            existing.banks = [...existing.banks, bank];
+            return Promise.resolve({ data: bank });
+        });
         await toStep2();
         fillRow(0, { type: 'bank', name: 'Meezan', balance: '100000' });
         fireEvent.click(screen.getByRole('button', { name: '+ Add another' }));
@@ -112,7 +116,28 @@ describe('Onboarding', () => {
         expect(api.post).toHaveBeenCalledWith('/wallets', { name: 'JazzCash', institution: 'JazzCash', balance: 5000 });
         expect(screen.getByRole('heading', { name: 'Add your accounts' })).toBeInTheDocument();
         expect(screen.getAllByLabelText('Account name')).toHaveLength(1); // only the failed row is still editable
-        expect(screen.getByText('Meezan')).toBeInTheDocument(); // saved one is listed
+        // The saved bank is listed exactly once, and counted once.
+        await waitFor(() => expect(screen.getAllByText('Meezan')).toHaveLength(1));
+        expect(screen.getByText(/Net worth so far:/).textContent).toContain(fmtPKR(105000));
+    });
+
+    it('accepts balances typed with commas', async () => {
+        vi.mocked(api.post).mockResolvedValue({ data: { id: 'b1', name: 'Meezan', current_balance: '150000' } });
+        await toStep2();
+        fillRow(0, { name: 'Meezan', balance: '1,50,000' });
+        expect(continueBtn()).toBeEnabled();
+        fireEvent.click(continueBtn());
+        await waitFor(() => expect(api.post).toHaveBeenCalledWith('/banks', { name: 'Meezan', starting_balance: 150000 }));
+    });
+
+    it.each([
+        ['-500', "Balance can't be negative"],
+        ['abc', 'Enter an amount like 100000'],
+    ])('explains an invalid balance %s', async (balance, message) => {
+        await toStep2();
+        fillRow(0, { name: 'Meezan', balance });
+        expect(screen.getByText(message)).toBeInTheDocument();
+        expect(continueBtn()).toBeDisabled();
     });
 
     it('lists existing accounts and does not resend them', async () => {

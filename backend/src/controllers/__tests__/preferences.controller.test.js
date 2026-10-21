@@ -38,8 +38,9 @@ describe('updatePreferences', () => {
 
         req.body = { interests: null };
         await updatePreferences(req, res);
-        // A JSON column needs Prisma.JsonNull to store SQL-level JSON null.
-        expect(update.mock.calls[1][0].data.interests).toBe(Prisma.JsonNull);
+        // DbNull = SQL NULL, the same as new and backfilled users
+        // (JsonNull would store the JSON value 'null' instead).
+        expect(update.mock.calls[1][0].data.interests).toBe(Prisma.DbNull);
         expect(res.status).not.toHaveBeenCalled();
     });
 

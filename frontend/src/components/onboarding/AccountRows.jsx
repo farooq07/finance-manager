@@ -7,13 +7,34 @@ import { fmtPKR } from '../../utils/currency';
 const WALLET_SUGGESTIONS = ['JazzCash', 'Easypaisa', 'SadaPay', 'NayaPay', 'Cash'];
 
 const emptyRow = () => ({ id: crypto.randomUUID(), type: 'bank', name: '', balance: '', error: null });
+
+// Pakistani users type "1,50,000" or "100 000" — ignore separators.
+function parseBalance(text) {
+    const cleaned = text.replace(/[,\s]/g, '');
+    if (cleaned === '') return { value: null, error: null };
+    const value = Number(cleaned);
+    if (!Number.isFinite(value)) return { value: null, error: 'Enter an amount like 100000' };
+    if (value < 0) return { value: null, error: "Balance can't be negative" };
+    return { value, error: null };
+}
+
 const isTouched = (r) => r.name.trim() !== '' || r.balance.trim() !== '';
-const isValid = (r) => r.name.trim() !== '' && r.balance.trim() !== '' && Number.isFinite(Number(r.balance)) && Number(r.balance) >= 0;
+const isValid = (r) => r.name.trim() !== '' && parseBalance(r.balance).value !== null;
 
 // Bank → POST /banks; wallet → POST /wallets (institution = its name).
-const saveRow = (r) => (r.type === 'bank'
-    ? api.post('/banks', { name: r.name.trim(), starting_balance: Number(r.balance) })
-    : api.post('/wallets', { name: r.name.trim(), institution: r.name.trim(), balance: Number(r.balance) }));
+const saveRow = (r) => {
+    const amount = parseBalance(r.balance).value;
+    return r.type === 'bank'
+        ? api.post('/banks', { name: r.name.trim(), starting_balance: amount })
+        : api.post('/wallets', { name: r.name.trim(), institution: r.name.trim(), balance: amount });
+};
+
+// Accounts already on the server, in PKR.
+const toExisting = (banks = [], wallets = []) => [
+    ...banks.map((b) => ({ id: `bank-${b.id}`, kind: 'bank', name: b.name, balance: Number(b.current_balance) || 0 })),
+    ...wallets.map((w) => ({ id: `wallet-${w.id}`, kind: 'wallet', name: w.name, balance: (Number(w.balance) || 0) * (Number(w.exchange_rate) || 1) })),
+];
+const sum = (accounts) => accounts.reduce((s, a) => s + a.balance, 0);
 
 /**
  * Onboarding step 2: accounts the user already has (read-only) plus editable
@@ -26,16 +47,12 @@ export default function AccountRows({ onDone }) {
     const wallets = useQuery({ queryKey: ['wallets'], queryFn: async () => (await api.get('/wallets')).data });
 
     const [rows, setRows] = useState(() => [emptyRow()]);
-    const [saved, setSaved] = useState([]);
     const [saving, setSaving] = useState(false);
 
-    const existing = [
-        ...(banks.data || []).map((b) => ({ id: `bank-${b.id}`, kind: 'bank', name: b.name, balance: Number(b.current_balance) || 0 })),
-        ...(wallets.data || []).map((w) => ({ id: `wallet-${w.id}`, kind: 'wallet', name: w.name, balance: (Number(w.balance) || 0) * (Number(w.exchange_rate) || 1) })),
-        ...saved,
-    ];
-    const total = existing.reduce((s, a) => s + a.balance, 0)
-        + rows.filter(isValid).reduce((s, r) => s + Number(r.balance), 0);
+    // Saved rows are shown from the server's list (refetched after saving),
+    // never kept locally too — otherwise they'd be listed and counted twice.
+    const existing = toExisting(banks.data, wallets.data);
+    const total = sum(existing) + rows.filter(isValid).reduce((s, r) => s + parseBalance(r.balance).value, 0);
     const canContinue = !saving
         && rows.filter(isTouched).every(isValid)
         && existing.length + rows.filter(isValid).length > 0;
@@ -45,21 +62,22 @@ export default function AccountRows({ onDone }) {
     async function handleContinue() {
         setSaving(true);
         const remaining = [];
-        let savedTotal = 0;
         for (const row of rows.filter(isTouched)) {
             try {
                 await saveRow(row);
-                savedTotal += Number(row.balance);
-                setSaved((s) => [...s, { id: row.id, kind: row.type, name: row.name.trim(), balance: Number(row.balance) }]);
             } catch (err) {
                 remaining.push({ ...row, error: err.response?.data?.message || 'Could not save this account' });
             }
         }
+        await Promise.all([
+            queryClient.refetchQueries({ queryKey: ['banks'] }),
+            queryClient.refetchQueries({ queryKey: ['wallets'] }),
+        ]);
         setRows(remaining.length ? remaining : [emptyRow()]);
         setSaving(false);
-        queryClient.invalidateQueries({ queryKey: ['banks'] });
-        queryClient.invalidateQueries({ queryKey: ['wallets'] });
-        if (!remaining.length) onDone(existing.reduce((s, a) => s + a.balance, 0) + savedTotal);
+        if (!remaining.length) {
+            onDone(sum(toExisting(queryClient.getQueryData(['banks']), queryClient.getQueryData(['wallets']))));
+        }
     }
 
     const cell = 'w-full px-3 py-2.5 rounded-xl border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/40';
@@ -116,7 +134,9 @@ export default function AccountRows({ onDone }) {
                             <Trash2 className="w-4 h-4" />
                         </button>
                     </div>
-                    {r.error && <p className="text-xs text-red-600 dark:text-red-400">{r.error}</p>}
+                    {(r.error || parseBalance(r.balance).error) && (
+                        <p className="text-xs text-red-600 dark:text-red-400">{r.error || parseBalance(r.balance).error}</p>
+                    )}
                 </div>
             ))}
 

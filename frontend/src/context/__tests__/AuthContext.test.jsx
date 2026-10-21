@@ -38,4 +38,16 @@ describe('AuthContext login sets the full user from /auth/me', () => {
         expect(screen.getByText('user:u1:null')).toBeInTheDocument();
         expect(localStorage.getItem('token')).toBe('jwt');
     });
+
+    it('a failed /auth/me after a successful login still signs the user in', async () => {
+        vi.mocked(api.post).mockResolvedValue({ data: { token: 'jwt', user: { id: 'u1', role: 'user' } } });
+        render(<AuthProvider><Probe /></AuthProvider>);
+        await screen.findByText('no user');
+        vi.mocked(api.get).mockRejectedValue(new Error('network blip'));
+
+        await act(() => auth.verifyOtp('u1', '123456')); // must not throw
+
+        // Falls back to the login reply — no onboarded_at, so never trapped.
+        expect(screen.getByText('user:u1:undefined')).toBeInTheDocument();
+    });
 });

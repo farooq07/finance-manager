@@ -20,7 +20,7 @@ export const updatePreferences = async (req, res) => {
                 return res.status(400).json({ message: 'interests must be a list or null' });
             }
             if (interests === null) {
-                data.interests = Prisma.JsonNull;
+                data.interests = Prisma.DbNull; // SQL NULL, like new users — not the JSON value null
             } else {
                 const unknown = interests.filter((k) => !INTEREST_KEYS.includes(k));
                 if (unknown.length) {
