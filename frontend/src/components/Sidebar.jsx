@@ -8,6 +8,7 @@ import {
 import clsx from 'clsx';
 import logosm from '../assets/logosm.svg';
 import { useAuth } from '../context/AuthContext';
+import { isMenuPathVisible } from '../utils/menuVisibility';
 import { useQuery } from '@tanstack/react-query';
 import api from '../services/api';
 
@@ -72,18 +73,18 @@ export default function Sidebar({ mobile, onNavClick }) {
         enabled: !!user,
     });
 
-    // Filter by role, attach icon component.
+    // Filter by role and the user's interests, attach icon component.
     const navItems = useMemo(() => menuItems
         // Sub-section rows (parent_path set) gate page tabs, not sidebar entries.
         .filter((item) => !item.parent_path)
-        .filter((item) => Array.isArray(item.visible_to_roles) && item.visible_to_roles.includes(user?.role))
+        .filter((item) => isMenuPathVisible(item.path, item, user))
         .map((item) => ({
             name: item.name,
             path: item.path,
             icon: ICONS[item.icon] || Home,
             sectionId: sectionFor(item.path),
         })),
-    [menuItems, user?.role]);
+    [menuItems, user]);
 
     // Group items by section, preserving original order within each.
     const grouped = useMemo(() => {

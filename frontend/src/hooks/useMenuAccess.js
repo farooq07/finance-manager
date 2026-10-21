@@ -1,12 +1,14 @@
 import { useQuery } from '@tanstack/react-query';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { isMenuPathVisible } from '../utils/menuVisibility';
 
 /**
  * Shared access to the menu_visibility table.
  *
- * Returns `canSee(path)` which tells whether the current user's role is allowed
- * to see a given menu item or sub-section (e.g. '/personal#gold').
+ * Returns `canSee(path)` which tells whether the current user should see a
+ * given menu item or sub-section (e.g. '/personal#gold') — their role allows
+ * it and, if they picked interests, it's core or one of their picks.
  *
  * Fail-open: if the data hasn't loaded yet, or there is no row for `path`,
  * we return `true` so pages never accidentally hide their own tabs.
@@ -21,11 +23,7 @@ export function useMenuAccess() {
         enabled: !!user,
     });
 
-    const canSee = (path) => {
-        const row = items.find((i) => i.path === path);
-        if (!row) return true; // unknown path → visible by default
-        return Array.isArray(row.visible_to_roles) && row.visible_to_roles.includes(user?.role);
-    };
+    const canSee = (path) => isMenuPathVisible(path, items.find((i) => i.path === path), user);
 
     return { items, isLoading, canSee };
 }
