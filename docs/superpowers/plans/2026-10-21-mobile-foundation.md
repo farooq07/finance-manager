@@ -22,6 +22,8 @@
 - Lock: unlock on open and after **5 minutes** in background; **5** wrong PINs → sign out.
 - Placeholder copy for unbuilt areas, exactly: `Coming in the next update`.
 - Tests mock the network; nothing calls the live API.
+- Testing Library 14: `render` is async — always `await render(...)` (found in Task 1).
+- `app.json` slug stays `finance-manager-mobile`: it must match the linked EAS project (`extra.eas.projectId`); users never see it. Name/package/scheme are the WealthAxis values (Task 1 ruling).
 
 ## Review Focus
 
