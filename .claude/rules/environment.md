@@ -6,9 +6,11 @@ All secrets are managed in Doppler: project `fs-wealth-axis`, branch config
 `dev_farooq` (off `dev`). The `doppler.yaml` in `backend/` records that binding —
 note the filename has **no leading dot**; Doppler ignores `.doppler.yaml`.
 
-**Never write, create, suggest, or reference a `.env` file.** The gitignored
-`backend/.env` on the main dev machine is a legacy local backup only — Doppler
-is the source of truth.
+**Never write, create, suggest, or reference a `.env` file.** The old
+`backend/.env` was retired on 2026-10-21 (moved out of the repo): Prisma and
+`server.js`'s `dotenv.config()` auto-load a `.env`, so it let scripts and tests
+reach the real database outside Doppler. Doppler is the only source of truth,
+and `npm run dev:local` (which relied on that file) was removed.
 
 ## Running the backend
 

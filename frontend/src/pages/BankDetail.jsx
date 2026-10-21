@@ -20,6 +20,7 @@ import BankTransactionsTable from '../components/BankTransactionsTable';
 import StatementFileUpload from '../components/StatementFileUpload';
 import CsvMappingModal from '../components/CsvMappingModal';
 import StatementReviewModal from '../components/StatementReviewModal';
+import UnreconciledBadge from '../components/UnreconciledBadge';
 import { useConfirm } from '../components/ui/confirm-dialog';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
 
@@ -725,6 +726,7 @@ function StatementsList({ statements, onUpload, onSelect, onSync, onDelete, sync
                                     <span className="min-w-0">
                                         <span className="block text-[12px] font-semibold tabular-nums text-gray-800 dark:text-gray-200 leading-tight">
                                             {s.month.slice(0, 3)} <span className="text-gray-400 dark:text-neutral-500 font-normal">{s.year}</span>
+                                            <UnreconciledBadge status={s.processing_status} />
                                         </span>
                                         <span className="mt-0.5 block text-[10px] text-gray-400 dark:text-neutral-500 tabular-nums">
                                             {s.transaction_count ?? 0} txn{s.transaction_count !== 1 ? 's' : ''}

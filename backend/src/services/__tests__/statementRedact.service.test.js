@@ -65,6 +65,12 @@ describe('redactStatementText', () => {
         expect(redactions).toBe(3);
     });
 
+    it('keeps YYYYMMDD dates but still masks other 8-digit runs', () => {
+        const { text, redactions } = redactStatementText('20260301 POS 19991231 ref 20261399 acct 12345678');
+        expect(text).toBe('20260301 POS 19991231 ref [ACCOUNT] acct [ACCOUNT]');
+        expect(redactions).toBe(2);
+    });
+
     it('keeps amounts and dates', () => {
         const line = '02-Mar-2026 SALARY CREDIT 1,250,000.00 12500000.00 95,000.00';
         expect(redactStatementText(line).text).toBe(line);

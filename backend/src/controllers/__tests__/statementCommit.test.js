@@ -114,13 +114,15 @@ describe.each(cases)('$name commitStatement reconciliation gate', ({ commit, dir
         expect(saveSpy).not.toHaveBeenCalled();
     });
 
-    it('acceptMismatch → proceeds to save', async () => {
+    it('acceptMismatch → saves the statement marked unreconciled', async () => {
         await commit(request({ closing: 99999, acceptMismatch: true }), res);
         expect(saveSpy).toHaveBeenCalled();
+        expect(saveSpy.mock.calls[0][0].data.processing_status).toBe('unreconciled');
     });
 
-    it('balanced statement → proceeds to save without override', async () => {
+    it('balanced statement → saved as pending without override', async () => {
         await commit(request({ closing: 10500 }), res);
         expect(saveSpy).toHaveBeenCalled();
+        expect(saveSpy.mock.calls[0][0].data.processing_status).toBe('pending');
     });
 });

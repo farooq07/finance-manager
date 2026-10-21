@@ -20,9 +20,12 @@ const RULES = [
     [label(String.raw`account\s*(?:title|name)|title\s+of\s+account|customer(?:\s*name)?|name`), '$1[NAME]'],
     [label('address'), '$1[ADDRESS]'],
     // 8+ digit runs (account, card, reference numbers) — but not amounts:
-    // a run followed by a decimal part like 12500000.00 is money.
-    [/(?<![\d,])\d{8,}(?![\d,]*\.\d)(?![\d,])/g, '[ACCOUNT]'],
+    // a run followed by a decimal part like 12500000.00 is money. A run that
+    // reads as a YYYYMMDD date is kept, or the parser would lose that row.
+    [/(?<![\d,])\d{8,}(?![\d,]*\.\d)(?![\d,])/g, (run) => (isYmdDate(run) ? null : '[ACCOUNT]')],
 ];
+
+const isYmdDate = (run) => /^(19|20)\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])$/.test(run);
 
 const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -42,8 +45,13 @@ export function redactStatementText(text, { extraTerms = [] } = {}) {
     }
     for (const [pattern, replacement] of RULES) {
         out = out.replace(pattern, (...args) => {
+            // A function replacement may return null to keep the match as-is.
+            const result = typeof replacement === 'function'
+                ? replacement(args[0])
+                : replacement.replace('$1', args[1] ?? '');
+            if (result === null) return args[0];
             redactions += 1;
-            return replacement.replace('$1', args[1] ?? '');
+            return result;
         });
     }
     return { text: out, redactions };

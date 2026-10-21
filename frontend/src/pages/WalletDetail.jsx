@@ -16,6 +16,7 @@ import StatementTransactionsModal from '../components/StatementTransactionsModal
 import StatementFileUpload from '../components/StatementFileUpload';
 import CsvMappingModal from '../components/CsvMappingModal';
 import StatementReviewModal from '../components/StatementReviewModal';
+import UnreconciledBadge from '../components/UnreconciledBadge';
 import { useConfirm } from '../components/ui/confirm-dialog';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
 
@@ -314,6 +315,7 @@ export default function WalletDetail() {
                                         <div>
                                             <h4 className="font-semibold text-gray-900 dark:text-gray-100">
                                                 {statement.month} {statement.year}
+                                                <UnreconciledBadge status={statement.processing_status} />
                                             </h4>
                                             <p className="text-xs text-gray-500 dark:text-gray-400">
                                                 {statement.transaction_count} transactions • {statement.processing_status}

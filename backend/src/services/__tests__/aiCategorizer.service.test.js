@@ -10,6 +10,7 @@ jest.unstable_mockModule('@google/generative-ai', () => ({
 
 process.env.AI_PROVIDER = 'gemini';
 process.env.GEMINI_API_KEY = 'test-key';
+process.env.AI_RETRY_BASE_MS = '0'; // no real back-off waits in tests
 
 const { aiCategorizeBatch, AI_BATCH_SIZE } = await import('../aiCategorizer.service.js');
 
@@ -47,6 +48,37 @@ describe('aiCategorizeBatch chunking', () => {
         expect(r.size).toBe(100);
         expect(r.get('DESC 40')).toMatchObject({ category: CATS[40 % 3], source: 'ai' });
         expect(r.get('DESC 99')).toMatchObject({ category: CATS[99 % 3], source: 'ai' });
+    });
+
+    it('runs up to 3 chunks at once', async () => {
+        let inFlight = 0;
+        let maxInFlight = 0;
+        generateContent.mockImplementation(async (req) => {
+            inFlight += 1;
+            maxInFlight = Math.max(maxInFlight, inFlight);
+            await new Promise((r) => setTimeout(r, 20));
+            inFlight -= 1;
+            return answerFromPrompt(req);
+        });
+        const r = await aiCategorizeBatch(descs(200)); // 5 chunks
+        expect(maxInFlight).toBe(3);
+        expect(r.get('DESC 199').source).toBe('ai');
+    });
+
+    it('retries a rate-limited (429) chunk', async () => {
+        generateContent
+            .mockRejectedValueOnce(Object.assign(new Error('Too Many Requests'), { status: 429 }))
+            .mockImplementation(answerFromPrompt);
+        const r = await aiCategorizeBatch(descs(10));
+        expect(generateContent).toHaveBeenCalledTimes(2);
+        expect(r.get('DESC 0').source).toBe('ai');
+    });
+
+    it('gives up after repeated 429s and marks only that chunk ai_error', async () => {
+        generateContent.mockRejectedValue(Object.assign(new Error('Too Many Requests'), { status: 429 }));
+        const r = await aiCategorizeBatch(descs(10));
+        expect(generateContent).toHaveBeenCalledTimes(3);
+        expect(r.get('DESC 0').source).toBe('ai_error');
     });
 
     it('one failing chunk marks only its own items ai_error', async () => {
