@@ -299,6 +299,7 @@ export const getMe = async (req, res) => {
             select: {
                 id: true, name: true, email: true, app_pin_code: true, role: true,
                 must_change_password: true, terms_accepted_at: true, privacy_accepted_at: true,
+                onboarded_at: true, interests: true,
             }
         });
 
@@ -315,6 +316,8 @@ export const getMe = async (req, res) => {
             must_change_password: user.must_change_password,
             terms_accepted_at: user.terms_accepted_at,
             privacy_accepted_at: user.privacy_accepted_at,
+            onboarded_at: user.onboarded_at,
+            interests: user.interests,
         });
     } catch (error) {
         console.error('GetMe Error:', error);
