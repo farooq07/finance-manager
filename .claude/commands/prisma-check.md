@@ -11,12 +11,12 @@ Check whether the local Prisma schema is in sync with the database. Never run `p
 
 2. Check migration status (pending migrations not yet applied to DB):
    ```bash
-   cd backend && npx prisma migrate status 2>&1
+   cd backend && doppler run -- npx prisma migrate status 2>&1
    ```
 
 3. Check for schema drift (DB has columns/tables not in schema.prisma):
    ```bash
-   cd backend && npx prisma db pull --print 2>&1
+   cd backend && doppler run -- npx prisma db pull --print 2>&1
    ```
    Compare the output against the current `schema.prisma`. Any extra fields or models = drift.
 
@@ -38,5 +38,6 @@ Check whether the local Prisma schema is in sync with the database. Never run `p
 ## Connection note
 
 If commands fail with a connection error, remind the user that:
-- `DIRECT_URL` must be set in `backend/.env` for schema introspection (pooled Supabase URLs don't work for migrations)
-- Check: `cd backend && cat .env | grep DIRECT_URL`
+- Prisma commands get `DATABASE_URL` / `DIRECT_URL` from Doppler (`doppler run --`); there is no `backend/.env`
+- `DIRECT_URL` must be set in the Doppler config for introspection (pooled Supabase URLs don't work for migrations)
+- Check: `cd backend && doppler secrets --only-names | grep DIRECT_URL`
