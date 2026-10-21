@@ -26,6 +26,8 @@ import DesignSystem from './pages/DesignSystem';
 import Personal from './pages/Personal';
 import BeneficiaryDetail from './pages/BeneficiaryDetail';
 import ChangeFirstPassword from './pages/ChangeFirstPassword';
+import Onboarding from './pages/Onboarding';
+import OnboardingGate from './components/OnboardingGate';
 import AiAssistant from './pages/AiAssistant';
 import Help from './pages/Help';
 import Privacy from './pages/Privacy';
@@ -38,12 +40,7 @@ import DebtDetail from './pages/DebtDetail';
 import Ledger from './pages/Ledger';
 
 
-const ProtectedRoute = ({ children }) => {
-  const { user } = useAuth();
-  if (!user) return <Navigate to="/welcome" replace />;
-  if (user.must_change_password) return <Navigate to="/change-password" replace />;
-  return children;
-};
+const ProtectedRoute = ({ children }) => <OnboardingGate mode="app">{children}</OnboardingGate>;
 
 const AdminRoute = ({ children }) => {
   const { user } = useAuth();
@@ -76,6 +73,7 @@ function App() {
             <Route path="/privacy" element={<Privacy />} />
             <Route path="/terms" element={<Terms />} />
             <Route path="/change-password" element={<ChangeFirstPassword />} />
+            <Route path="/onboarding" element={<OnboardingGate mode="onboarding"><Onboarding /></OnboardingGate>} />
 
             <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
               <Route index element={<Dashboard />} />

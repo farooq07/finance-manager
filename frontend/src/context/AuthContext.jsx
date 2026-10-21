@@ -37,7 +37,7 @@ export const AuthProvider = ({ children }) => {
     const verifyOtp = async (userId, otp) => {
         const { data } = await api.post('/auth/verify-otp', { userId, otp });
         localStorage.setItem('token', data.token);
-        setUser(data.user);
+        await refreshUser(); // full profile incl. onboarding fields, not the login reply's subset
         return data; // includes mustChangePassword flag
     };
 
@@ -73,7 +73,7 @@ export const AuthProvider = ({ children }) => {
     const googleLogin = async (credential) => {
         const { data } = await api.post('/auth/google', { credential });
         localStorage.setItem('token', data.token);
-        setUser(data.user);
+        await refreshUser();
         return data;
     };
 
@@ -81,7 +81,7 @@ export const AuthProvider = ({ children }) => {
     const appleLogin = async ({ identityToken, user: appleUser }) => {
         const { data } = await api.post('/auth/apple', { identityToken, user: appleUser });
         localStorage.setItem('token', data.token);
-        setUser(data.user);
+        await refreshUser();
         return data;
     };
 
