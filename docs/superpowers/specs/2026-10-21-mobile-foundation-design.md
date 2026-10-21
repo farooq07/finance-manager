@@ -88,4 +88,4 @@ Every data screen has Skeleton, EmptyState (with its next action) and ErrorState
 
 ## Out of scope (Foundation)
 
-Money, investment, ledger and AI screens (sub-projects 2–4 — Home shows net worth + placeholders linking there), push notifications, offline editing, iOS build, store submission (sub-project 5).
+Money, investment, ledger and AI screens (sub-projects 2–4). Until they exist: Home shows net worth only; Accounts/Invest/More tabs and the Add sheet entries show their EmptyState with "Coming in the next update" (no dead links). Also out: push notifications, offline editing, iOS build, store submission (sub-project 5).
