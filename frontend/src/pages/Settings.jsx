@@ -1,9 +1,11 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Settings as SettingsIcon, Building, CreditCard, Banknote, Plus, Trash2, ShieldAlert, Users, Tags, FileText, ChevronRight, Lock, Briefcase, Loader2, ArrowRight, Shield, Mail, Calendar, Eye, EyeOff, Menu, Save, RotateCcw, Download, Pencil, Key, RotateCcw as Restore } from 'lucide-react';
+import { Settings as SettingsIcon, Building, CreditCard, Banknote, Plus, Trash2, ShieldAlert, Users, Tags, FileText, ChevronRight, Lock, Briefcase, Loader2, ArrowRight, Shield, Mail, Calendar, Eye, EyeOff, Menu, Save, RotateCcw, Download, Pencil, Key, RotateCcw as Restore, SlidersHorizontal } from 'lucide-react';
 import { useInstitutions, useCreateInstitution, useDeleteInstitution, useSeedInstitutions } from '../hooks/useInstitutions';
 import { useBrokerAccounts, useCreateBrokerAccount, useDeleteBrokerAccount } from '../hooks/useBrokerAccounts';
 import { usePin } from '../context/PinContext';
 import { useAuth } from '../context/AuthContext';
+import { useSearchParams } from 'react-router-dom';
+import WhatITrack from '../components/settings/WhatITrack';
 import RolesManagement from './RolesManagement';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../services/api';
@@ -19,7 +21,9 @@ export default function Settings() {
     const isAdmin = currentUser?.role === 'admin';
     // Mirror of the backend rule: super.admin can act on anyone; admin only on regular users.
     const canManage = (target) => isSuperAdmin || (isAdmin && target?.role === 'user');
-    const [activeTab, setActiveTab] = useState('institutions');
+    // ?tab= deep-links to a section (e.g. /settings?tab=tracking from onboarding).
+    const [searchParams] = useSearchParams();
+    const [activeTab, setActiveTab] = useState(() => searchParams.get('tab') || 'institutions');
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [isAddBrokerModalOpen, setIsAddBrokerModalOpen] = useState(false);
 
@@ -295,6 +299,12 @@ export default function Settings() {
     };
 
     const menuGroups = [
+        {
+            title: "You",
+            items: [
+                { id: 'tracking', label: 'What I track', icon: SlidersHorizontal },
+            ]
+        },
         {
             title: "Data Dictionary",
             items: [
@@ -867,6 +877,8 @@ export default function Settings() {
 
 
                 {activeTab === 'export' && <ExportDataView />}
+
+                {activeTab === 'tracking' && <WhatITrack />}
 
                 {/* Add Broker Accounts Modal */}
                 {isAddBrokerModalOpen && (

@@ -25,7 +25,7 @@ You manage Prisma schema changes and database migrations for the FSWealth Axis f
 - **NEVER** run `prisma db push` on production data — it skips migration history and can cause drift
 - **NEVER** auto-approve a migration without showing the user the schema diff first
 - Always use `--name` flag with a descriptive name when creating migrations
-- If `DATABASE_URL` is a pooled Supabase URL, remind the user that `DIRECT_URL` must be set in `.env` for migrations to work
+- If `DATABASE_URL` is a pooled Supabase URL, remind the user that `DIRECT_URL` must be set in Doppler for migrations to work (run Prisma via `doppler run -- npx prisma …`; there is no `.env`)
 - After a migration, always run `prisma generate` to update the client
 
 ## menu_visibility table

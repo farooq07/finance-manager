@@ -6,7 +6,7 @@ import prisma from '../../utils/prisma.js';
 // Jest will automatically use the `__mocks__/email.js` implementation for this module
 jest.unstable_mockModule('../../utils/email.js', () => import('../../utils/__mocks__/email.js'));
 
-const { register, login, setPin, verifyPin } = await import('../auth.controller.js');
+const { register, login, setPin, verifyPin, getMe } = await import('../auth.controller.js');
 
 describe('Auth Controller Tests', () => {
     let mockReq;
@@ -119,6 +119,26 @@ describe('Auth Controller Tests', () => {
                 userId: '123e4567-e89b-12d3-a456-426614174002',
                 email: 'user@email.com',
                 requiresOtp: true
+            }));
+        });
+    });
+
+    describe('getMe', () => {
+        it('returns onboarded_at and interests', async () => {
+            mockReq.user = { id: 'u1' };
+            const onboarded = new Date('2026-10-21T00:00:00Z');
+            jest.spyOn(prisma.user, 'findUnique').mockResolvedValueOnce({
+                id: 'u1', name: 'A', email: 'a@x.com', role: 'user', app_pin_code: null,
+                must_change_password: false, terms_accepted_at: null, privacy_accepted_at: null,
+                onboarded_at: onboarded, interests: ['gold'],
+            });
+
+            await getMe(mockReq, mockRes);
+
+            expect(prisma.user.findUnique.mock.calls[0][0].select).toMatchObject({ onboarded_at: true, interests: true });
+            expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
+                onboarded_at: onboarded,
+                interests: ['gold'],
             }));
         });
     });

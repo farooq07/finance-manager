@@ -29,6 +29,18 @@ export const AuthProvider = ({ children }) => {
         setUser(data);
     };
 
+    // After any successful sign-in: keep the session, then load the full
+    // profile (incl. onboarding fields). If /auth/me fails the sign-in still
+    // stands — fall back to the login reply's user rather than failing it.
+    const adoptSession = async ({ token, user: loginUser }) => {
+        localStorage.setItem('token', token);
+        try {
+            await refreshUser();
+        } catch {
+            setUser(loginUser);
+        }
+    };
+
     const login = async (identifier, password) => {
         const { data } = await api.post('/auth/login', { identifier, password });
         return data; // Returns { userId, email, requiresOtp: true }
@@ -36,8 +48,7 @@ export const AuthProvider = ({ children }) => {
 
     const verifyOtp = async (userId, otp) => {
         const { data } = await api.post('/auth/verify-otp', { userId, otp });
-        localStorage.setItem('token', data.token);
-        setUser(data.user);
+        await adoptSession(data);
         return data; // includes mustChangePassword flag
     };
 
@@ -72,16 +83,14 @@ export const AuthProvider = ({ children }) => {
     // backend which verifies it and returns our session JWT. No OTP step.
     const googleLogin = async (credential) => {
         const { data } = await api.post('/auth/google', { credential });
-        localStorage.setItem('token', data.token);
-        setUser(data.user);
+        await adoptSession(data);
         return data;
     };
 
     // Apple returns identityToken + (first sign-in only) the user's name.
     const appleLogin = async ({ identityToken, user: appleUser }) => {
         const { data } = await api.post('/auth/apple', { identityToken, user: appleUser });
-        localStorage.setItem('token', data.token);
-        setUser(data.user);
+        await adoptSession(data);
         return data;
     };
 

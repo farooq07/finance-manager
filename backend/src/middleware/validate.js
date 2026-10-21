@@ -101,8 +101,10 @@ export const walletSchema = z.object({
 
 export const bankSchema = z.object({
     name: z.string().min(1, 'Bank name is required'),
-    account_no: z.string().min(1, 'Account number is required'),
-    iban_no: z.string().min(1, 'IBAN number is required'),
+    // Optional so onboarding can add a bank from name + balance alone; the
+    // columns are NOT NULL, so absent values are stored as ''.
+    account_no: z.string().optional().default(''),
+    iban_no: z.string().optional().default(''),
     starting_balance: z.coerce.number().min(0, 'Starting balance cannot be negative'),
 });
 
