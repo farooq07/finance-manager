@@ -73,11 +73,32 @@ async function callGroq(descriptions) {
 // tokens, so one request for a whole statement can be cut off mid-JSON and
 // fail every row. Chunks keep each reply small.
 export const AI_BATCH_SIZE = 40;
+// Chunks in flight at once — fast enough for a 300-row first import, low
+// enough to stay inside free-tier rate limits.
+const AI_CONCURRENCY = 3;
+const AI_ATTEMPTS = 3;
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const isRetryable = (err) =>
+    err?.status === 429 || err?.status >= 500 || /\b429\b|RESOURCE_EXHAUSTED|rate limit/i.test(err?.message || '');
+
+// One chunk, retried with exponential back-off on rate limits / server errors.
+// AI_RETRY_BASE_MS sets the first wait (default 1s).
+async function categoriseChunk(provider, chunk) {
+    for (let attempt = 1; ; attempt++) {
+        try {
+            return provider === 'gemini' ? await callGemini(chunk) : await callGroq(chunk);
+        } catch (err) {
+            if (attempt >= AI_ATTEMPTS || !isRetryable(err)) throw err;
+            await sleep(Number(process.env.AI_RETRY_BASE_MS ?? 1000) * 2 ** (attempt - 1));
+        }
+    }
+}
 
 /**
  * Categorise a batch of unique descriptions via the configured AI provider.
- * Sent in chunks of AI_BATCH_SIZE, one after another (provider rate limits);
- * a failed chunk marks only its own descriptions as ai_error.
+ * Sent in chunks of AI_BATCH_SIZE, up to AI_CONCURRENCY at a time; a failed
+ * chunk marks only its own descriptions as ai_error.
  * Returns a Map<description, { category, confidence, source }>.
  */
 export async function aiCategorizeBatch(descriptions) {
@@ -91,30 +112,41 @@ export async function aiCategorizeBatch(descriptions) {
         return results;
     }
 
+    const chunks = [];
     for (let start = 0; start < descriptions.length; start += AI_BATCH_SIZE) {
-        const chunk = descriptions.slice(start, start + AI_BATCH_SIZE);
-        try {
-            const parsed = provider === 'gemini'
-                ? await callGemini(chunk)
-                : await callGroq(chunk);
-
-            chunk.forEach((desc, i) => {
-                const category = parsed[String(i + 1)];
-                if (category && CATEGORIES.includes(category)) {
-                    results.set(desc, { category, confidence: 0.80, source: 'ai' });
-                } else {
-                    results.set(desc, { category: 'Other', confidence: 0.1, source: 'ai' });
-                }
-            });
-
-            logger.log(`[AI_CAT] ${provider} categorised ${chunk.length} descriptions`);
-        } catch (err) {
-            console.error(`[AI_CAT] ${provider} batch failed:`, err.message);
-            chunk.forEach(d => results.set(d, { category: 'Other', confidence: 0.1, source: 'ai_error' }));
-        }
+        chunks.push(descriptions.slice(start, start + AI_BATCH_SIZE));
     }
 
+    let next = 0;
+    const worker = async () => {
+        while (next < chunks.length) {
+            await categoriseInto(results, provider, chunks[next++]);
+        }
+    };
+    await Promise.all(Array.from({ length: Math.min(AI_CONCURRENCY, chunks.length) }, worker));
+
     return results;
+}
+
+// Categorise one chunk and write its results; a failure marks only this chunk.
+async function categoriseInto(results, provider, chunk) {
+    try {
+        const parsed = await categoriseChunk(provider, chunk);
+
+        chunk.forEach((desc, i) => {
+            const category = parsed[String(i + 1)];
+            if (category && CATEGORIES.includes(category)) {
+                results.set(desc, { category, confidence: 0.80, source: 'ai' });
+            } else {
+                results.set(desc, { category: 'Other', confidence: 0.1, source: 'ai' });
+            }
+        });
+
+        logger.log(`[AI_CAT] ${provider} categorised ${chunk.length} descriptions`);
+    } catch (err) {
+        console.error(`[AI_CAT] ${provider} batch failed:`, err.message);
+        chunk.forEach(d => results.set(d, { category: 'Other', confidence: 0.1, source: 'ai_error' }));
+    }
 }
 
 /**
