@@ -88,7 +88,7 @@
 **Files:** `app/(auth)/sign-in.tsx`, `otp.tsx`, `register.tsx`, `forgot-password.tsx`, `reset-password.tsx`, `first-password.tsx`; `src/features/auth/useSignIn.ts`, `src/features/auth/google.ts`; tests `src/features/auth/__tests__/*.test.tsx`
 
 **Consumes:** `useSession.adoptSession`, `api`.
-Endpoints: `POST /auth/login` → `{ userId, requiresOtp }`; `POST /auth/verify-otp { userId, otp }`; `POST /auth/register`; `POST /auth/forgot-password`; `POST /auth/reset-password { email, otp, newPassword }`; `PUT /auth/first-password`; `POST /auth/google { credential }`; `GET /auth/config` → `{ googleClientId }` (web client id → `GoogleSignin.configure({ webClientId })`).
+Endpoints: `POST /auth/login` → `{ userId, requiresOtp }`; `POST /auth/verify-otp { userId, otp }`; `POST /auth/register`; `POST /auth/forgot-password`; `POST /auth/reset-password { email, otp, newPassword }`; `PUT /auth/first-password { newPassword }`; `POST /auth/google { credential }`; `GET /auth/config` → `{ googleClientId }` (web client id → `GoogleSignin.configure({ webClientId })`).
 
 - [ ] Tests: login → OTP screen with userId; wrong OTP shows server message; OTP success calls `adoptSession`; register shows "check your email"; Google success posts `{ credential: idToken }` and adopts session; **Google cancelled (statusCodes.SIGN_IN_CANCELLED) shows nothing and stays**; Google button hidden when `/auth/config` has no client id; first-password submit → `PUT /auth/first-password` then `refreshUser`.
 - [ ] Run → FAIL; implement; run → PASS. Commit. Note for owner in commit body: Android OAuth client steps (package `com.wealthaxis.app`, SHA-1 from `eas credentials`).
