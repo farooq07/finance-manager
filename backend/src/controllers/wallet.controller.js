@@ -551,7 +551,7 @@ export const uploadStatement = async (req, res) => {
 /**
  * Shared finaliser for the wallet mapping/commit flow.
  */
-async function finalizeWalletImport({ userId, walletId, parsedTxs, openingBalance, closingBalance, filePath, fileHash, password }) {
+async function finalizeWalletImport({ userId, walletId, parsedTxs, openingBalance, closingBalance, filePath, fileHash, password, reconciled = true }) {
     let month = new Date().toLocaleString('en-US', { month: 'long' });
     let year = new Date().getFullYear();
     if (parsedTxs.length > 0) {
@@ -570,7 +570,8 @@ async function finalizeWalletImport({ userId, walletId, parsedTxs, openingBalanc
             file_hash: fileHash,
             password_encrypted: encryptSecret(password || ''),
             transaction_count: parsedTxs.length,
-            processing_status: 'pending',
+            // 'unreconciled' = the user imported it despite numbers that don't add up
+            processing_status: reconciled ? 'pending' : 'unreconciled',
             opening_balance: openingBalance !== null && openingBalance !== undefined ? openingBalance : undefined,
             closing_balance: closingBalance !== null && closingBalance !== undefined ? closingBalance : undefined,
         },
@@ -758,6 +759,7 @@ export const commitStatement = async (req, res) => {
 
         const { statement, transactionLogs, duplicateCount } = await finalizeWalletImport({
             userId: req.user.id, walletId, parsedTxs, openingBalance, closingBalance, filePath, fileHash, password,
+            reconciled: reconciliation.ok,
         });
 
         return res.status(201).json({
