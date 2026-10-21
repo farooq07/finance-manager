@@ -80,7 +80,7 @@ Six tick-cards (the interest table), note "Accounts, expenses, Zakat and reports
 
 **Step 2 — Add your accounts**
 Rows of: type (Bank | Wallet), name, today's balance (wallet name suggestions: JazzCash, Easypaisa, SadaPay, NayaPay, Cash). "+ Add another". Live "Net worth so far: {fmtPKR(sum)}". Accounts the user already has (e.g. after a refresh) are listed read-only above the new rows and count toward the total.
-Continue saves new rows one by one via the existing endpoints; failures don't stop the others, failed rows stay with their error, saved rows move to the read-only list. Continue requires ≥ 1 account (existing or newly saved) with a balance.
+Continue saves new rows one by one via the existing endpoints; failures don't stop the others, failed rows stay with their error, saved rows move to the read-only list. Continue requires ≥ 1 account (existing or newly saved); a new row needs a name and a balance entered (0 is allowed — an empty balance field is not).
 
 **Step 3 — You're set up**
 "Your net worth: {fmtPKR}" from `GET /api/dashboard/summary` (`metrics.netWorth`); if that call fails, show the sum of the step-2 balances. Links: import a statement for history (`/accounts`), check your Zakat (`/personal?tab=zakat`), change what you track (`/settings`). "Go to dashboard" → `PATCH { completeOnboarding: true }` → `/`.
