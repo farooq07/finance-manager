@@ -7,7 +7,6 @@
   "scripts": {
     "start": "node server.js",
     "dev": "doppler run -- nodemon server.js",
-    "dev:local": "nodemon server.js",
     "build": "npx prisma generate",
     "seed": "node prisma/seed.js",
     "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
