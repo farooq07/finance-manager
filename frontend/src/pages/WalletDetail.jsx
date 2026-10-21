@@ -150,21 +150,47 @@ export default function WalletDetail() {
         }
     };
 
+    // The server refuses (422) a statement whose numbers don't reconcile.
+    // Ask the user; if they accept, retry with the explicit override.
+    // Returns undefined when the error isn't a mismatch, null when declined.
+    const retryIfMismatchAccepted = async (error, payload, opts) => {
+        if (error.response?.status !== 422 || !error.response.data?.needsConfirmation) return undefined;
+        const ok = await confirm({
+            title: "This statement doesn't add up",
+            description: error.response.data.message,
+            confirmText: 'Import anyway',
+        });
+        if (!ok) return null;
+        return doCommit({ ...payload, acceptMismatch: true }, opts);
+    };
+
     const handleCommit = async (payload) => {
         setCommitting(true);
-        try {
-            const data = await doCommit(payload);
+        const onImported = (data) => {
             invalidateAll();
             setPreview(null);
             resetUploadModal();
             announceResult(data);
+        };
+        try {
+            onImported(await doCommit(payload));
         } catch (error) {
             if (error.response?.status === 409 && error.response.data?.duplicate) {
                 setDuplicate(error.response.data.existing || {});
                 setPendingCommit(payload);
                 return;
             }
-            toast.error(error.response?.data?.message || 'Failed to import statement');
+            let failure = error;
+            try {
+                const data = await retryIfMismatchAccepted(error, payload);
+                if (data !== undefined) {
+                    if (data) onImported(data);
+                    return;
+                }
+            } catch (retryErr) {
+                failure = retryErr;
+            }
+            toast.error(failure.response?.data?.message || 'Failed to import statement');
         } finally {
             setCommitting(false);
         }
@@ -172,16 +198,28 @@ export default function WalletDetail() {
 
     const handleConfirmReplace = async () => {
         setReplacing(true);
-        try {
-            const data = await doCommit(pendingCommit || {}, { force: true });
+        const onReplaced = (data) => {
             invalidateAll();
             setDuplicate(null);
             setPendingCommit(null);
             setPreview(null);
             resetUploadModal();
             announceResult(data);
+        };
+        try {
+            onReplaced(await doCommit(pendingCommit || {}, { force: true }));
         } catch (retryErr) {
-            toast.error(retryErr.response?.data?.message || 'Failed to replace statement');
+            let failure = retryErr;
+            try {
+                const data = await retryIfMismatchAccepted(retryErr, pendingCommit || {}, { force: true });
+                if (data !== undefined) {
+                    if (data) onReplaced(data);
+                    return;
+                }
+            } catch (err) {
+                failure = err;
+            }
+            toast.error(failure.response?.data?.message || 'Failed to replace statement');
         } finally {
             setReplacing(false);
         }
@@ -396,7 +434,7 @@ export default function WalletDetail() {
                     preview={preview}
                     fileName={fileName}
                     committing={committing}
-                    onConfirm={(mapping) => handleCommit(mapping)}
+                    onConfirm={(mapping) => handleCommit({ mapping })}
                     onCancel={() => { setPreview(null); resetUploadModal(); }}
                 />
             )}

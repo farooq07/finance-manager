@@ -1,0 +1,13 @@
+{
+  "source": "Hand-written synthetic statement in Habib Metro layout (DD-Mmm-YYYY, amount then running balance). Not real data.",
+  "reviewed": true,
+  "opening": 100000,
+  "closing": 218299,
+  "transactions": [
+    { "date": "2026-03-01", "net": -5000 },
+    { "date": "2026-03-03", "net": 150000 },
+    { "date": "2026-03-05", "net": -20000 },
+    { "date": "2026-03-10", "net": -7850.5 },
+    { "date": "2026-03-15", "net": 1149.5 }
+  ]
+}

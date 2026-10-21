@@ -88,6 +88,28 @@ export function parseTransactions(rawText) {
         // mistaken for the real amount or balance. Fall back to the full block
         // when the date line itself doesn't carry enough numbers.
         const firstLine = repairTornThousands(blockLines[0]);
+
+        // Explicit Debit / Credit / Balance columns: direction is known.
+        const columns = readDebitCreditBalance(firstLine);
+        if (columns) {
+            const head = firstLine
+                .slice(firstLine.indexOf(marker.dateStr) + marker.dateStr.length, firstLine.length - columns.matchedText.length)
+                .replace(/\s\d{1,2}\s+[A-Za-z]{3}\s+\d{2,4}\s*$/, ''); // trailing value date
+            // Wrapped description lines carry no amounts; footer lines do.
+            const wrapped = blockLines.slice(1).filter((l) => !extractAmountsFromText(l).length && !/:\s*$/.test(l));
+            transactions.push({
+                transaction_date: parseDate(marker.dateStr),
+                description: [head, ...wrapped].join(' ').replace(/\s{2,}/g, ' ').trim().substring(0, 255),
+                withdrawal_amount: columns.debit,
+                deposit_amount: columns.credit,
+                debit_amount: columns.debit,
+                credit_amount: columns.credit,
+                net_amount: columns.credit ? columns.credit : new Decimal(columns.debit).negated().toNumber(),
+                balance: columns.balance,
+            });
+            continue;
+        }
+
         let amounts = extractAmountsFromText(firstLine);
         if (amounts.length < 2) {
             amounts = extractAmountsFromText(blockText);
@@ -293,6 +315,12 @@ function detectDate(line) {
         return { dateStr: nayaMatch[0], format: 'naya' };
     }
 
+    // Bank Alfalah: DD MON YY (e.g., "05 JAN 25") — two-digit year
+    const alfalahMatch = line.match(/^(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{2})(?!\d)/i);
+    if (alfalahMatch) {
+        return { dateStr: alfalahMatch[0], format: 'alfalah' };
+    }
+
     // Generic: DD/MM/YYYY or DD-MM-YYYY (no Mmm)
     const genericMatch = line.match(/^(\d{1,2}[\-\/]\d{1,2}[\-\/]\d{2,4})\b/);
     if (genericMatch) {
@@ -300,6 +328,27 @@ function detectDate(line) {
     }
 
     return null;
+}
+
+/**
+ * Read a row ending in "Debit Credit Balance" where the unused column is
+ * printed as 0.00 (Bank Alfalah; debits may be signed negative). Exactly one
+ * of debit/credit must be non-zero — otherwise this isn't that layout and
+ * the caller falls back to the keyword/balance heuristics.
+ * @returns {{debit:number|null, credit:number|null, balance:number, matchedText:string}|null}
+ */
+function readDebitCreditBalance(line) {
+    const AMT = '(-?(?:\\d{1,3}(?:,\\d{3})+|\\d+)\\.\\d{2})';
+    const m = line.match(new RegExp(`${AMT}\\s+${AMT}\\s+${AMT}\\s*$`));
+    if (!m) return null;
+    const [debit, credit, balance] = m.slice(1, 4).map((v) => parseFloat(v.replace(/,/g, '')));
+    if ((debit === 0) === (credit === 0)) return null;
+    return {
+        debit: debit !== 0 ? Math.abs(debit) : null,
+        credit: credit !== 0 ? Math.abs(credit) : null,
+        balance,
+        matchedText: m[0],
+    };
 }
 
 /**
@@ -501,6 +550,17 @@ function parseDate(dateStr) {
         }
     }
 
+    // Bank Alfalah: DD MON YY (e.g., "05 JAN 25")
+    const alfalahMatch = dateStr.match(/^(\d{1,2})\s+([A-Za-z]{3})\s+(\d{2})$/);
+    if (alfalahMatch) {
+        const day = parseInt(alfalahMatch[1]);
+        const month = monthMap[alfalahMatch[2].toLowerCase()];
+        const year = parseInt(alfalahMatch[3]) + 2000;
+        if (month !== undefined) {
+            return new Date(Date.UTC(year, month, day));
+        }
+    }
+
     // Standard Chartered: DDMmmYY
     const scbMatch = dateStr.match(/^(\d{2})([A-Za-z]{3})(\d{2})$/);
     if (scbMatch) {
@@ -554,7 +614,7 @@ export function parseStatementBalances(rawText) {
         /^b\/f/i,
     ];
     const CLOSING_PATTERNS = [
-        /closing\s+balance/i,
+        /closing\s+balanc/i, // also "CLOSING BALANC" + "E :" when the PDF wraps the label
         /balance\s+c\/?f/i,
         /balance\s+carried\s+forward/i,
         /cb\s*:/i,

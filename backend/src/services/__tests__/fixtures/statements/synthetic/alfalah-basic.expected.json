@@ -1,0 +1,13 @@
+{
+  "source": "Hand-written synthetic statement in Bank Alfalah layout (DD MON YY, Debit/Credit/Balance with 0.00 placeholders, negative debits, wrapped descriptions). Not real data.",
+  "reviewed": true,
+  "opening": 0,
+  "closing": 3500,
+  "transactions": [
+    { "date": "2025-01-02", "net": 5000 },
+    { "date": "2025-01-05", "net": -12.5 },
+    { "date": "2025-01-05", "net": -25 },
+    { "date": "2025-01-11", "net": -1500 },
+    { "date": "2025-01-31", "net": 37.5 }
+  ]
+}

@@ -43,11 +43,16 @@ export default function StatementReviewModal({ preview, fileName, onConfirm, onC
         return isNaN(n) ? 0 : n;
     };
 
+    // Any edit changes what the user would be confirming, so it clears an
+    // earlier "import anyway".
+    const [acceptMismatch, setAcceptMismatch] = useState(false);
+    const edit = (fn) => { setAcceptMismatch(false); fn(); };
+
     const updateRow = (id, field, value) =>
-        setRows((rs) => rs.map((r) => (r._id === id ? { ...r, [field]: value } : r)));
-    const deleteRow = (id) => setRows((rs) => rs.filter((r) => r._id !== id));
+        edit(() => setRows((rs) => rs.map((r) => (r._id === id ? { ...r, [field]: value } : r))));
+    const deleteRow = (id) => edit(() => setRows((rs) => rs.filter((r) => r._id !== id)));
     const addRow = () =>
-        setRows((rs) => [...rs, { _id: Date.now(), date: '', description: '', debit: '', credit: '', balance: '' }]);
+        edit(() => setRows((rs) => [...rs, { _id: Date.now(), date: '', description: '', debit: '', credit: '', balance: '' }]));
 
     // Live reconciliation (totals)
     const recon = useMemo(() => {
@@ -59,6 +64,33 @@ export default function StatementReviewModal({ preview, fileName, onConfirm, onC
         const diff = Math.abs(computed - num(closing));
         return { verifiable: true, ok: diff < 0.01, computed, expected: num(closing), diff };
     }, [rows, opening, closing]);
+
+    // Per-row check: a row's balance must equal the previous balance (or the
+    // opening, for the first row) plus its credit minus its debit. Rows without
+    // a balance can't be checked and reset the chain.
+    // Newest-first statements are checked in reverse; whichever order holds wins.
+    // Like the server, only check when every row carries a balance.
+    const brokenRows = useMemo(() => {
+        if (rows.some((r) => r.balance.trim() === '')) return new Set();
+        const chain = (ordered) => {
+            const broken = new Set();
+            let prev = opening.trim() !== '' ? num(opening) : null;
+            for (const r of ordered) {
+                if (r.balance.trim() === '') { prev = null; continue; }
+                const bal = num(r.balance);
+                if (prev != null && Math.abs(prev + num(r.credit) - num(r.debit) - bal) >= 0.01) broken.add(r._id);
+                prev = bal;
+            }
+            return broken;
+        };
+        const forward = chain(rows);
+        if (forward.size === 0) return forward;
+        const backward = chain([...rows].reverse());
+        return backward.size === 0 ? backward : forward;
+    }, [rows, opening]);
+
+    const mismatched = (recon.verifiable && !recon.ok) || brokenRows.size > 0;
+    const canImport = !mismatched || acceptMismatch;
 
     const totalIn = rows.reduce((s, r) => s + num(r.credit), 0);
     const totalOut = rows.reduce((s, r) => s + num(r.debit), 0);
@@ -82,6 +114,7 @@ export default function StatementReviewModal({ preview, fileName, onConfirm, onC
             transactions,
             opening: opening.trim() === '' ? null : num(opening),
             closing: closing.trim() === '' ? null : num(closing),
+            acceptMismatch: mismatched && acceptMismatch,
         });
     }
 
@@ -150,7 +183,16 @@ export default function StatementReviewModal({ preview, fileName, onConfirm, onC
                                     <td><input value={r.description} onChange={(e) => updateRow(r._id, 'description', e.target.value)} className={cell} placeholder="Description" /></td>
                                     <td><input value={r.debit} onChange={(e) => updateRow(r._id, 'debit', e.target.value)} className={`${cell} text-right tabular-nums`} placeholder="0" inputMode="decimal" /></td>
                                     <td><input value={r.credit} onChange={(e) => updateRow(r._id, 'credit', e.target.value)} className={`${cell} text-right tabular-nums`} placeholder="0" inputMode="decimal" /></td>
-                                    <td><input value={r.balance} onChange={(e) => updateRow(r._id, 'balance', e.target.value)} className={`${cell} text-right tabular-nums`} placeholder="—" inputMode="decimal" /></td>
+                                    <td>
+                                        <input
+                                            value={r.balance}
+                                            onChange={(e) => updateRow(r._id, 'balance', e.target.value)}
+                                            className={`${cell} text-right tabular-nums ${brokenRows.has(r._id) ? 'ring-2 ring-red-400 dark:ring-red-500 border-red-300 dark:border-red-700' : ''}`}
+                                            title={brokenRows.has(r._id) ? "Balance doesn't follow from the previous row" : undefined}
+                                            placeholder="—"
+                                            inputMode="decimal"
+                                        />
+                                    </td>
                                     <td className="text-center">
                                         <button onClick={() => deleteRow(r._id)} className="p-1 rounded-md text-gray-300 dark:text-neutral-600 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors opacity-0 group-hover:opacity-100">
                                             <Trash2 className="w-3.5 h-3.5" />
@@ -174,11 +216,11 @@ export default function StatementReviewModal({ preview, fileName, onConfirm, onC
                 <div className="px-6 py-3 border-t border-gray-100 dark:border-neutral-800 grid grid-cols-2 sm:grid-cols-4 gap-3">
                     <label className="block">
                         <span className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 dark:text-neutral-500">Opening</span>
-                        <input value={opening} onChange={(e) => setOpening(e.target.value)} className={`${cell} mt-1 tabular-nums`} placeholder="—" inputMode="decimal" />
+                        <input value={opening} onChange={(e) => edit(() => setOpening(e.target.value))} className={`${cell} mt-1 tabular-nums`} placeholder="—" inputMode="decimal" />
                     </label>
                     <label className="block">
                         <span className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 dark:text-neutral-500">Closing</span>
-                        <input value={closing} onChange={(e) => setClosing(e.target.value)} className={`${cell} mt-1 tabular-nums`} placeholder="—" inputMode="decimal" />
+                        <input value={closing} onChange={(e) => edit(() => setClosing(e.target.value))} className={`${cell} mt-1 tabular-nums`} placeholder="—" inputMode="decimal" />
                     </label>
                     <div>
                         <span className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 dark:text-neutral-500">Total In</span>
@@ -192,12 +234,23 @@ export default function StatementReviewModal({ preview, fileName, onConfirm, onC
 
                 {/* Footer */}
                 <div className="px-6 py-4 border-t border-gray-100 dark:border-neutral-800 flex items-center justify-end gap-2">
+                    {mismatched && (
+                        <label className="mr-auto inline-flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={acceptMismatch}
+                                onChange={(e) => setAcceptMismatch(e.target.checked)}
+                                className="rounded border-gray-300 dark:border-neutral-600 text-red-500 focus:ring-red-500/40"
+                            />
+                            I've checked these rows — import anyway
+                        </label>
+                    )}
                     <button onClick={onCancel} className="px-4 py-2 rounded-xl text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors">
                         Cancel
                     </button>
                     <button
                         onClick={handleImport}
-                        disabled={committing || rows.length === 0}
+                        disabled={committing || rows.length === 0 || !canImport}
                         className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white text-sm font-medium transition-colors"
                     >
                         {committing ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
