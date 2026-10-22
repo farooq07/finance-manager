@@ -82,6 +82,7 @@
 
 **Produces:** `routeFor({ status, user, locked }): '/(auth)/sign-in' | '/(auth)/first-password' | '/(onboarding)' | '/lock' | '/(tabs)/home' | null` (null = stay while loading).
 
+- [ ] Root layout clears the TanStack Query cache whenever `useSession` status becomes `signedOut` (moved here from Task 3 — the query client lives in the root layout). Test: `cache is cleared on sign-out`.
 - [ ] Tests: loading → null; signedOut → sign-in; `must_change_password` → first-password; `onboarded_at === null` → onboarding; `onboarded_at` undefined → home (never trapped); locked → `/lock` (beats onboarding/home); signedIn onboarded → home. TabBar renders Home · Accounts · Add · Invest · More and Add press opens the sheet with Expense / Transfer / Import statement / Ask AI each showing `Coming in the next update`. Accounts/Invest/More screens render EmptyState with that copy.
 - [ ] Run → FAIL; implement; run → PASS; `npm run typecheck` → 0. Commit.
 
