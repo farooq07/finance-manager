@@ -73,11 +73,25 @@ async function loadPsx(userId) {
  * (a purchase is never worth zero just because no price has synced yet).
  */
 function valueManualStock(stock, livePrice) {
-    const quantity = sum(stock.transactions, (t) => t.quantity);
-    const cost = sum(stock.transactions, (t) => Number(t.buy_price) * Number(t.quantity) + Number(t.brokerage_fee || 0));
+    // Lots in date order. Sales (negative shares) take out cost at the average
+    // cost of the shares held at the time; what's left is the cost of what you own.
+    const lots = [...stock.transactions].sort((a, b) => new Date(a.buy_date) - new Date(b.buy_date));
+    let quantity = 0;
+    let cost = 0;
+    for (const t of lots) {
+        const q = Number(t.quantity || 0);
+        if (q > 0) {
+            quantity += q;
+            cost += Number(t.buy_price) * q + Number(t.brokerage_fee || 0);
+        } else if (q < 0 && quantity > 0) {
+            const sold = Math.min(-q, quantity);
+            cost -= (cost / quantity) * sold;
+            quantity -= sold;
+        }
+    }
     const saved = Number(stock.current_market_price || 0);
-    const paid = quantity ? sum(stock.transactions, (t) => Number(t.buy_price) * Number(t.quantity)) / quantity : 0;
-    const price = livePrice ?? (saved || paid);
+    const averageCost = quantity ? cost / quantity : 0;
+    const price = livePrice ?? (saved || averageCost);
     return { quantity, cost, price, value: quantity * price, stale: livePrice == null };
 }
 

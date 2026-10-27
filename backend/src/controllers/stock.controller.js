@@ -73,11 +73,25 @@ export const updateStockPrice = async (req, res) => {
 export const createStockTransaction = async (req, res) => {
     try {
         const { id } = req.params; // stock id
-        const { buy_date, buy_price, quantity, brokerage_fee } = req.body;
+        const { buy_date, buy_price, quantity, brokerage_fee, side = 'buy' } = req.body;
 
-        const existing = await prisma.stock.findUnique({ where: { id } });
+        // A sale is stored as a lot with negative shares at the sale price.
+        const shares = Number(quantity);
+        const price = Number(buy_price);
+        const fee = brokerage_fee == null || brokerage_fee === '' ? 0 : Number(brokerage_fee);
+        if (!['buy', 'sell'].includes(side)) return res.status(400).json({ message: "side must be 'buy' or 'sell'" });
+        if (!Number.isInteger(shares) || shares <= 0) return res.status(400).json({ message: 'Shares must be a whole number above 0' });
+        if (!(price > 0)) return res.status(400).json({ message: 'Price must be greater than 0' });
+        if (!(fee >= 0)) return res.status(400).json({ message: 'Fees cannot be negative' });
+        if (!buy_date || Number.isNaN(Date.parse(buy_date))) return res.status(400).json({ message: 'A valid date is required' });
+
+        const existing = await prisma.stock.findUnique({ where: { id }, include: { transactions: true } });
         if (!existing || existing.user_id !== req.user.id) {
             return res.status(404).json({ message: 'Stock not found' });
+        }
+        if (side === 'sell') {
+            const held = existing.transactions.reduce((q, t) => q + Number(t.quantity || 0), 0);
+            if (shares > held) return res.status(400).json({ message: `You hold ${held} shares — you can't sell ${shares}` });
         }
 
         const transaction = await prisma.stockTransaction.create({
@@ -85,9 +99,9 @@ export const createStockTransaction = async (req, res) => {
                 user_id: req.user.id,
                 stock_id: id,
                 buy_date: new Date(buy_date),
-                buy_price,
-                quantity,
-                brokerage_fee: brokerage_fee || 0
+                buy_price: price,
+                quantity: side === 'sell' ? -shares : shares,
+                brokerage_fee: fee
             }
         });
 

@@ -8,6 +8,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiError } from '../../api/client';
 import { commitStatement, deleteStatement, previewStatement, type AccountKind, type CommitResult, type PickedFile, type Preview } from '../../api/money';
 import { parseBalance } from '../../lib/parseBalance';
+import { ColumnMapper, mappingProblem, type ColumnMapping } from './ColumnMapper';
 import { BackHeader, Button, EmptyState, Field, ListRow, Screen, Text, tokens, useTheme } from '../../ui';
 import { accountsKey, loadAccounts } from '../accounts/AccountsScreen';
 
@@ -32,6 +33,8 @@ export function ImportScreen() {
     const [opening, setOpening] = useState('');
     const [closing, setClosing] = useState('');
     const [result, setResult] = useState<CommitResult | null>(null);
+    const [mapping, setMapping] = useState<ColumnMapping | null>(null);
+    const [showMapper, setShowMapper] = useState(false);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -42,6 +45,12 @@ export function ImportScreen() {
         try {
             const p = await previewStatement(account.kind, account.id, picked, pdfPassword);
             setPreview(p);
+            if (p.type === 'csv') {
+                const m: ColumnMapping = { date: -1, description: -1, amount: -1, debit: -1, credit: -1, balance: -1, type: -1, ...p.autoMap };
+                setMapping(m);
+                // Couldn't recognise the columns: open the picker straight away.
+                setShowMapper(mappingProblem(m) !== null);
+            }
             const o = p.type === 'csv' ? p.meta.opening : p.opening;
             const c = p.type === 'csv' ? p.meta.closing : p.closing;
             setOpening(o != null ? String(o) : '');
@@ -74,7 +83,7 @@ export function ImportScreen() {
         const o = parseBalance(opening).value;
         const c = parseBalance(closing).value;
         const payload: Record<string, unknown> = preview.type === 'csv'
-            ? { uploadId: preview.uploadId, type: 'csv', mapping: { headerRowIndex: preview.headerRowIndex, ...preview.autoMap, opening: o ?? '', closing: c ?? '' } }
+            ? { uploadId: preview.uploadId, type: 'csv', mapping: { headerRowIndex: preview.headerRowIndex, ...(mapping ?? preview.autoMap), opening: o ?? '', closing: c ?? '' } }
             : { uploadId: preview.uploadId, type: 'pdf', transactions: preview.transactions, opening: o, closing: c, password: password || undefined };
         setBusy(true);
         setError(null);
@@ -169,10 +178,18 @@ export function ImportScreen() {
                             {preview.reconciliation.ok ? ' The balances add up.' : preview.reconciliation.message ? ` ${preview.reconciliation.message}` : ''}
                         </Text>
                     ) : (
-                        <Text variant="body">
-                            {preview.rowCount} rows in {file?.name}.
-                            {preview.autoMap.date < 0 || preview.autoMap.description < 0 ? ' The date or description column wasn\'t recognised — import this CSV from the web app, where you can pick the columns.' : ''}
-                        </Text>
+                        <>
+                            <Text variant="body">
+                                {preview.rowCount} rows in {file?.name}.
+                                {mapping && mappingProblem(mapping) ? " Some columns weren't recognised — pick them below." : ''}
+                            </Text>
+                            {mapping && (showMapper ? (
+                                <ColumnMapper headers={preview.headers} sampleRows={preview.sampleRows ?? []} value={mapping} onChange={setMapping} />
+                            ) : (
+                                <Button label="Check which columns are used" variant="text" onPress={() => setShowMapper(true)} />
+                            ))}
+                            {mapping && mappingProblem(mapping) ? <Text variant="caption" style={{ color: colors.danger }}>{mappingProblem(mapping)}</Text> : null}
+                        </>
                     )}
                     {preview.alreadyImported && <Text variant="caption">This file was imported before — importing again will offer to replace it.</Text>}
                     {preview.type === 'pdf' && preview.transactions.slice(0, 5).map((t, i) => (
@@ -182,7 +199,7 @@ export function ImportScreen() {
                     <Field label="Closing balance" value={closing} onChangeText={setClosing} keyboardType="decimal-pad" placeholder="From the statement" />
                     <Text variant="caption">Both balances let WealthAxis check that nothing was missed.</Text>
                     <Button label="Import" onPress={() => void commit()} loading={busy}
-                        disabled={busy || (preview.type === 'pdf' && preview.transactions.length === 0) || (preview.type === 'csv' && (preview.autoMap.date < 0 || preview.autoMap.description < 0))} />
+                        disabled={busy || (preview.type === 'pdf' && preview.transactions.length === 0) || (preview.type === 'csv' && (!mapping || mappingProblem(mapping) !== null))} />
                 </>
             )}
 

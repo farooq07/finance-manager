@@ -1,4 +1,7 @@
+import fs from 'fs';
 import prisma from '../utils/prisma.js';
+import { parseCdcHoldings } from '../services/cdcHoldings.service.js';
+import { karachiDateKey } from '../utils/dates.js';
 
 // ========== BANK INVESTMENTS ==========
 
@@ -254,5 +257,30 @@ export const updatePsxSummary = async (req, res) => {
     } catch (error) {
         console.error('Update PSX Summary Error:', error);
         res.status(500).json({ message: 'Server error updating snapshot summary' });
+    }
+};
+
+// POST /api/psx/snapshots/upload — a CDC / broker holdings file (CSV or Excel,
+// field "file", optional snapshot_date). Parsed here so every app reads it
+// the same way, then saved like any other snapshot.
+export const uploadPsxSnapshotFile = async (req, res) => {
+    if (!req.file) return res.status(400).json({ message: 'No file provided' });
+    try {
+        let parsed;
+        try {
+            parsed = parseCdcHoldings(req.file.path);
+        } catch {
+            return res.status(422).json({ message: 'Could not read that file. Upload the holdings CSV or Excel export from CDC or your broker.' });
+        }
+        if (parsed.holdings.length === 0) {
+            return res.status(422).json({ message: 'No holdings found. The file needs columns like Security/Symbol, Quantity and Current Price.' });
+        }
+        const date = req.body?.snapshot_date && !Number.isNaN(Date.parse(req.body.snapshot_date))
+            ? req.body.snapshot_date
+            : karachiDateKey().toISOString().slice(0, 10);
+        req.body = { snapshot_date: date, total_custody: parsed.totalCustody, holdings_data: parsed.holdings };
+        await uploadPsxSnapshot(req, res);
+    } finally {
+        fs.promises.unlink(req.file.path).catch(() => {});
     }
 };

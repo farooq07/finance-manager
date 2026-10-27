@@ -12,10 +12,11 @@ const today = () => {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
-type Props = { visible: boolean; onClose: () => void; holdings: StockHolding[]; initialSymbol?: string | null };
+type Props = { visible: boolean; onClose: () => void; holdings: StockHolding[]; initialSymbol?: string | null; side?: 'buy' | 'sell' };
 
-/** Record a PSX purchase: ticker (suggested from the market list), shares, price, date. */
-export function AddStockSheet({ visible, onClose, holdings, initialSymbol }: Props) {
+/** Record a PSX purchase or sale: ticker (suggested from the market list), shares, price, date. */
+export function AddStockSheet({ visible, onClose, holdings, initialSymbol, side = 'buy' }: Props) {
+    const selling = side === 'sell';
     const qc = useQueryClient();
     const market = useQuery({ queryKey: ['psx-market'], queryFn: getPsxMarket, enabled: visible, staleTime: 5 * 60_000 });
     const [symbol, setSymbol] = useState('');
@@ -55,6 +56,8 @@ export function AddStockSheet({ visible, onClose, holdings, initialSymbol }: Pro
         if (qty.error || !qty.value || !Number.isInteger(qty.value)) return setError('Shares must be a whole number');
         if (p.error || !p.value) return setError(p.error ?? 'Enter the price per share');
         if (f.error) return setError(f.error);
+        const held = holdings.find((h) => h.symbol === ticker)?.quantity ?? 0;
+        if (selling && qty.value > held) return setError(`You hold ${held.toLocaleString()} ${ticker} shares`);
         if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(Date.parse(date))) return setError('Date must look like 2026-10-27');
         setBusy(true);
         setError(null);
@@ -62,7 +65,7 @@ export function AddStockSheet({ visible, onClose, holdings, initialSymbol }: Pro
             await addStockLot({
                 existingId: holdings.find((h) => h.symbol === ticker)?.id ?? null,
                 symbol: ticker, name: quote?.companyName ?? null,
-                quantity: qty.value, price: p.value, date, fee: f.value ?? 0,
+                quantity: qty.value, price: p.value, date, fee: f.value ?? 0, side,
             });
             await qc.invalidateQueries();
             setSymbol(''); setQuantity(''); setPrice(''); setFee(''); setDate(today());
@@ -78,7 +81,7 @@ export function AddStockSheet({ visible, onClose, holdings, initialSymbol }: Pro
     const priceValue = parseBalance(price).value ?? 0;
 
     return (
-        <Sheet visible={visible} onClose={onClose} title="Record a stock purchase">
+        <Sheet visible={visible} onClose={onClose} title={selling ? 'Record a sale' : 'Record a stock purchase'}>
             <Field label="Ticker" value={symbol} onChangeText={setSymbol} autoCapitalize="characters" autoCorrect={false} placeholder="e.g. ENGRO" />
             {quote && <Text variant="caption">{quote.companyName} · last {fmtPKR(quote.price)}</Text>}
             {suggestions.length > 0 && (
@@ -88,10 +91,10 @@ export function AddStockSheet({ visible, onClose, holdings, initialSymbol }: Pro
             )}
             <Field label="Shares" value={quantity} onChangeText={setQuantity} keyboardType="number-pad" placeholder="e.g. 100" />
             <Field label="Price per share (PKR)" value={price} onChangeText={setPrice} keyboardType="decimal-pad" />
-            <Field label="Bought on" value={date} onChangeText={setDate} placeholder="YYYY-MM-DD" autoCorrect={false} />
+            <Field label={selling ? 'Sold on' : 'Bought on'} value={date} onChangeText={setDate} placeholder="YYYY-MM-DD" autoCorrect={false} />
             <Field label="Brokerage & fees (optional)" value={fee} onChangeText={setFee} keyboardType="decimal-pad" error={error} />
-            {qtyValue > 0 && priceValue > 0 && <Text variant="caption">Total {fmtPKR(qtyValue * priceValue + (parseBalance(fee).value ?? 0))}</Text>}
-            <Button label="Save purchase" onPress={save} loading={busy} disabled={!ticker || !quantity || !price || busy} />
+            {qtyValue > 0 && priceValue > 0 && <Text variant="caption">{selling ? 'You receive' : 'Total'} {fmtPKR(qtyValue * priceValue + (selling ? -1 : 1) * (parseBalance(fee).value ?? 0))}</Text>}
+            <Button label={selling ? 'Save sale' : 'Save purchase'} onPress={save} loading={busy} disabled={!ticker || !quantity || !price || busy} />
         </Sheet>
     );
 }

@@ -55,7 +55,7 @@ export type ParsedTx = {
 };
 export type Reconciliation = { ok: boolean; hasBalances: boolean; message?: string };
 export type Preview =
-    | { type: 'csv'; uploadId: string; alreadyImported: boolean; headers: string[]; headerRowIndex: number; rowCount: number;
+    | { type: 'csv'; uploadId: string; alreadyImported: boolean; headers: string[]; headerRowIndex: number; rowCount: number; sampleRows?: string[][];
         autoMap: Record<string, number>; meta: { opening: number | null; closing: number | null } }
     | { type: 'pdf'; uploadId: string; alreadyImported: boolean; transactions: ParsedTx[];
         opening: number | null; closing: number | null; reconciliation: Reconciliation };

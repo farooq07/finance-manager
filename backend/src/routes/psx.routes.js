@@ -1,4 +1,5 @@
 import express from 'express';
+import multer from 'multer';
 import {
     getBankInvestments,
     addBankInvestment,
@@ -8,7 +9,8 @@ import {
     syncPsxData,
     updatePsxSummary,
     deletePsxSnapshot,
-    deleteSymbolFromSnapshot
+    deleteSymbolFromSnapshot,
+    uploadPsxSnapshotFile
 } from '../controllers/psx.controller.js';
 import verifyToken from '../middleware/auth.middleware.js';
 import validate, { psxSnapshotSchema, bankInvestmentSchema } from '../middleware/validate.js';
@@ -25,6 +27,7 @@ router.delete('/investments/:id', deleteBankInvestment);
 // PSX Snapshots
 router.get('/snapshots', getPsxSnapshots);
 router.post('/snapshots', validate(psxSnapshotSchema), uploadPsxSnapshot);
+router.post('/snapshots/upload', multer({ dest: 'uploads/', limits: { fileSize: 10 * 1024 * 1024 } }).single('file'), uploadPsxSnapshotFile);
 router.post('/sync-data', syncPsxData);
 router.put('/snapshots/:id/summary', updatePsxSummary);
 router.delete('/snapshots/:id', deletePsxSnapshot);
