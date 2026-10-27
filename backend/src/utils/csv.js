@@ -2,9 +2,19 @@
 // Wraps a field in quotes when it contains a quote, comma, or newline; doubles
 // embedded quotes.
 
+// A text cell starting with one of these is run as a formula by Excel/Sheets
+// (e.g. a transaction description "=HYPERLINK(...)"). Prefixing an apostrophe
+// makes the spreadsheet show it as plain text.
+const FORMULA_START = /^[=+\-@\t\r]/;
+
+const isNumeric = (value) =>
+    typeof value === 'number' || typeof value === 'bigint'
+    || (value !== null && typeof value === 'object' && typeof value.toFixed === 'function'); // Prisma Decimal
+
 function escapeField(value) {
     if (value === null || value === undefined) return '';
-    const str = value instanceof Date ? value.toISOString() : String(value);
+    let str = value instanceof Date ? value.toISOString() : String(value);
+    if (!isNumeric(value) && !(value instanceof Date) && FORMULA_START.test(str)) str = `'${str}`;
     if (/[",\n\r]/.test(str)) {
         return `"${str.replace(/"/g, '""')}"`;
     }
