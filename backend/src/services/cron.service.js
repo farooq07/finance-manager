@@ -57,7 +57,7 @@ export const stopCronJobs = () => {
 export const initCronJobs = () => {
     schedule('weekly-summary-email', WEEKLY_SUMMARY_SCHEDULE, async () => {
         const users = await prisma.user.findMany({
-            where: { deleted_at: null },
+            where: { deleted_at: null, notify_weekly_summary: true },
             select: { id: true, name: true, email: true },
         });
         let failed = 0;

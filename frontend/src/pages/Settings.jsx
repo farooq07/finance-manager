@@ -7,6 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import { useSearchParams } from 'react-router-dom';
 import WhatITrack from '../components/settings/WhatITrack';
 import RolesManagement from './RolesManagement';
+import PrivacyControls from '../components/settings/PrivacyControls';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../services/api';
 import { TableSkeleton } from '../components/Skeleton';
@@ -316,7 +317,7 @@ export default function Settings() {
                 // People and roles are managed by admins only (the server refuses others).
                 ...(isAdmin || isSuperAdmin ? [{ id: 'access', label: 'Access Control', icon: Shield }] : []),
                 ...(isSuperAdmin ? [{ id: 'deletion_requests', label: 'Deletion Requests', icon: Trash2 }] : []),
-                { id: 'security', label: 'Security & PIN', icon: ShieldAlert },
+                { id: 'security', label: 'Security & Privacy', icon: ShieldAlert },
             ]
         },
         {
@@ -802,6 +803,8 @@ export default function Settings() {
 
                         <div className="flex-1 overflow-auto p-8 bg-gray-50/30 dark:bg-neutral-900/50 transition-colors">
                             <PinSettingsView setFeedbackModal={setFeedbackModal} />
+                            <h3 className="mt-10 mb-3 text-lg font-bold text-gray-900 dark:text-gray-100">Privacy</h3>
+                            <PrivacyControls />
                         </div>
                     </div>
                 )}

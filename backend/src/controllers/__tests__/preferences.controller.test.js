@@ -1,7 +1,8 @@
 import { jest } from '@jest/globals';
 import { Prisma } from '@prisma/client';
 import prisma from '../../utils/prisma.js';
-import { updatePreferences } from '../preferences.controller.js';
+import bcrypt from 'bcrypt';
+import { updatePreferences, requestAccountDeletion } from '../preferences.controller.js';
 
 describe('updatePreferences', () => {
     let req, res, update;
@@ -13,6 +14,8 @@ describe('updatePreferences', () => {
         update = jest.spyOn(prisma.user, 'update').mockImplementation(async ({ data }) => ({
             onboarded_at: data.onboarded_at ?? null,
             interests: 'interests' in data ? data.interests : null,
+            notify_weekly_summary: data.notify_weekly_summary ?? true,
+            notify_bill_reminders: data.notify_bill_reminders ?? true,
         }));
         jest.spyOn(console, 'error').mockImplementation(() => {});
     });
@@ -28,7 +31,10 @@ describe('updatePreferences', () => {
         req.body = { interests: ['gold', 'gold', 'stocks'] };
         await updatePreferences(req, res);
         expect(update.mock.calls[0][0].data.interests).toEqual(['gold', 'stocks']);
-        expect(res.json).toHaveBeenCalledWith({ onboarded_at: null, interests: ['gold', 'stocks'] });
+        expect(res.json).toHaveBeenCalledWith({
+            onboarded_at: null, interests: ['gold', 'stocks'],
+            notifications: { weeklySummary: true, billReminders: true },
+        });
     });
 
     it('accepts null (show everything) and [] (core only)', async () => {
@@ -75,5 +81,53 @@ describe('updatePreferences', () => {
         req.body = { completeOnboarding: true };
         await updatePreferences(req, res);
         expect(update.mock.calls[0][0].data).not.toHaveProperty('interests');
+    });
+});
+
+describe('notification preferences', () => {
+    afterEach(() => jest.restoreAllMocks());
+
+    it('turns emails on and off', async () => {
+        const update = jest.spyOn(prisma.user, 'update').mockResolvedValue({ onboarded_at: null, interests: null, notify_weekly_summary: false, notify_bill_reminders: true });
+        const res = { status: jest.fn().mockReturnThis(), json: jest.fn() };
+        await updatePreferences({ user: { id: 'u1' }, body: { notifications: { weeklySummary: false } } }, res);
+        expect(update.mock.calls[0][0].data).toEqual({ notify_weekly_summary: false });
+        expect(res.json.mock.calls[0][0].notifications).toEqual({ weeklySummary: false, billReminders: true });
+    });
+
+    it('rejects anything but true/false', async () => {
+        const res = { status: jest.fn().mockReturnThis(), json: jest.fn() };
+        await updatePreferences({ user: { id: 'u1' }, body: { notifications: { weeklySummary: 'no' } } }, res);
+        expect(res.status).toHaveBeenCalledWith(400);
+    });
+});
+
+describe('requestAccountDeletion', () => {
+    const res = () => ({ status: jest.fn().mockReturnThis(), json: jest.fn() });
+    afterEach(() => jest.restoreAllMocks());
+
+    it('needs the right password, then deactivates and signs out everywhere', async () => {
+        jest.spyOn(prisma.user, 'findUnique').mockResolvedValue({ password_hash: 'h', role: 'user' });
+        jest.spyOn(bcrypt, 'compare').mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+        const update = jest.spyOn(prisma.user, 'update').mockResolvedValue({});
+
+        const wrong = res();
+        await requestAccountDeletion({ user: { id: 'u1' }, body: { password: 'nope' } }, wrong);
+        expect(wrong.status).toHaveBeenCalledWith(400);
+        expect(update).not.toHaveBeenCalled();
+
+        await requestAccountDeletion({ user: { id: 'u1' }, body: { password: 'right' } }, res());
+        expect(update.mock.calls[0][0]).toMatchObject({
+            where: { id: 'u1' },
+            data: { deletion_requested_by: 'u1', token_version: { increment: 1 } },
+        });
+        expect(update.mock.calls[0][0].data.deleted_at).toBeInstanceOf(Date);
+    });
+
+    it('accounts without a password need a fresh sign-in', async () => {
+        jest.spyOn(prisma.user, 'findUnique').mockResolvedValue({ password_hash: null, role: 'user' });
+        const r = res();
+        await requestAccountDeletion({ user: { id: 'u1' }, auth: { iat: Math.floor(Date.now() / 1000) - 3600 }, body: {} }, r);
+        expect(r.json.mock.calls[0][0].code).toBe('REAUTH_REQUIRED');
     });
 });

@@ -341,6 +341,7 @@ export const getMe = async (req, res) => {
                 id: true, name: true, email: true, app_pin_code: true, role: true,
                 must_change_password: true, terms_accepted_at: true, privacy_accepted_at: true,
                 onboarded_at: true, interests: true,
+                notify_weekly_summary: true, notify_bill_reminders: true,
             }
         });
 
@@ -359,6 +360,7 @@ export const getMe = async (req, res) => {
             privacy_accepted_at: user.privacy_accepted_at,
             onboarded_at: user.onboarded_at,
             interests: user.interests,
+            notifications: { weeklySummary: user.notify_weekly_summary, billReminders: user.notify_bill_reminders },
         });
     } catch (error) {
         console.error('GetMe Error:', error);

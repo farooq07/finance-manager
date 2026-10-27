@@ -17,6 +17,8 @@ export async function dispatchBillReminders() {
         where: {
             is_active: true,
             next_due_date: { lte: horizon },
+            // Only people who want reminders, and never deactivated accounts.
+            user: { notify_bill_reminders: true, deleted_at: null },
         },
         include: { user: { select: { email: true, name: true } } },
     });
