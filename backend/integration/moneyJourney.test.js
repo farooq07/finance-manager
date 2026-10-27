@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import prisma from '../src/utils/prisma.js';
 import * as bank from '../src/controllers/bank.controller.js';
-import { getInsights } from '../src/controllers/insights.controller.js';
+import { getInsights, getAnnualSummary } from '../src/controllers/insights.controller.js';
 import { exportTransactions } from '../src/controllers/export.controller.js';
 import { fetchDashboardData } from '../src/controllers/dashboard.controller.js';
 
@@ -162,6 +162,16 @@ describe('a month of money, end to end', () => {
         const feb = await insights(A, '2026-02-15');
         expect(feb.currentSpend).toBe(0);
         expect(feb.cashWithdrawn).toBe(10000);
+    });
+
+    test('the annual summary agrees with the monthly figures in one request', async () => {
+        const r = res();
+        await getAnnualSummary({ user: A, query: { year: '2026' } }, r);
+        const feb = r.body.months[1];
+        const mar = r.body.months[2];
+        expect(mar).toMatchObject({ spending: 15500, income: 150000, hasData: true });
+        expect(feb).toMatchObject({ spending: 0, hasData: true });
+        expect(r.body.months[0].hasData).toBe(false);
     });
 
     test('export has every row, duplicates marked', async () => {

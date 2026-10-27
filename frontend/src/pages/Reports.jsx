@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { useQuery, useQueries } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import Papa from 'papaparse';
 import {
     FileText, Calendar, PieChart, TrendingUp, ChevronRight,
@@ -571,26 +571,26 @@ function AnnualSummaryReport() {
         })),
     [year]);
 
-    const results = useQueries({
-        queries: months.map(m => ({
-            queryKey: ['report-annual', m.anchor],
-            queryFn: () => api.get('/dashboard/insights', { params: { period: 'month', anchor: m.anchor } }).then(r => r.data),
-            staleTime: 5 * 60_000,
-        })),
+    // One request for the whole year (it used to be 12 monthly ones).
+    const annual = useQuery({
+        queryKey: ['report-annual', year],
+        queryFn: () => api.get('/dashboard/annual', { params: { year } }).then(r => r.data),
+        staleTime: 5 * 60_000,
     });
 
-    const isLoading = results.some(r => r.isLoading);
+    const isLoading = annual.isLoading;
 
     const tableData = useMemo(() => months.map((m, i) => {
-        const d = results[i]?.data;
+        const d = annual.data?.months?.[i];
+        const has = d?.hasData;
         return {
             month: m.label,
-            income: d?.totals?.currentIncome ?? null,
-            spending: d?.totals?.currentSpend ?? null,
-            net: d?.totals?.net ?? null,
-            topCat: d?.categoryBreakdown?.[0]?.category ?? '—',
+            income: has ? d.income : null,
+            spending: has ? d.spending : null,
+            net: has ? d.net : null,
+            topCat: d?.topCategory ?? '—',
         };
-    }), [results, months]);
+    }), [annual.data, months]);
 
     const totIncome   = tableData.filter(r => r.income !== null).reduce((s, r) => s + r.income, 0);
     const totSpending = tableData.filter(r => r.spending !== null).reduce((s, r) => s + r.spending, 0);

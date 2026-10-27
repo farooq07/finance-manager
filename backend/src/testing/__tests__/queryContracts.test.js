@@ -3,7 +3,7 @@ import { recordPrismaReads, queryShapeErrors } from '../prismaShape.js';
 import { computeWealth } from '../../services/wealth.service.js';
 import { loadMoneyEvents } from '../../services/moneyFlow.service.js';
 import { fetchDashboardData } from '../../controllers/dashboard.controller.js';
-import { getInsights, getSpendingRows } from '../../controllers/insights.controller.js';
+import { getInsights, getSpendingRows, getAnnualSummary } from '../../controllers/insights.controller.js';
 
 afterEach(() => jest.restoreAllMocks());
 
@@ -32,6 +32,7 @@ describe('money queries match the schema and stay scoped to the user', () => {
         ['fetchDashboardData', () => fetchDashboardData('u1')],
         ['getInsights', () => getInsights({ user: { id: 'u1' }, query: { period: 'month' } }, res())],
         ['getSpendingRows', () => getSpendingRows({ user: { id: 'u1' }, query: {} }, res())],
+        ['getAnnualSummary', () => getAnnualSummary({ user: { id: 'u1' }, query: { year: '2026' } }, res())],
     ])('%s', async (_name, run) => {
         const calls = recordPrismaReads();
         await run();

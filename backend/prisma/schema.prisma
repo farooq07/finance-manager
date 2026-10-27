@@ -302,6 +302,7 @@ model ChatMessage {
   created_at DateTime    @default(now())
   session    ChatSession @relation(fields: [session_id], references: [id], onDelete: Cascade)
 
+  @@index([session_id, created_at])
   @@map("chat_messages")
 }
 
@@ -351,6 +352,7 @@ model Expense {
   created_at          DateTime @default(now()) @db.Timestamptz(6)
   user                User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
+  @@index([user_id, expense_date])
   @@map("expenses")
 }
 
@@ -436,6 +438,7 @@ model DuesTransaction {
   user             User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
   person           Person   @relation(fields: [person_id], references: [id], onDelete: Cascade)
 
+  @@index([user_id])
   @@map("dues_transactions")
 }
 
@@ -514,6 +517,7 @@ model Wallet {
   user                 User              @relation(fields: [user_id], references: [id], onDelete: Cascade)
   statements           WalletStatement[]
 
+  @@index([user_id])
   @@map("wallets")
 }
 
@@ -537,6 +541,7 @@ model WalletStatement {
   wallet              Wallet                 @relation(fields: [wallet_id], references: [id], onDelete: Cascade)
   parsed_transactions WalletTransactionLog[]
 
+  @@index([wallet_id])
   @@map("wallet_statements")
 }
 
@@ -572,6 +577,7 @@ model WalletTransactionLog {
   @@index([wallet_statement_id])
   @@index([user_approved])
   @@index([processing_status])
+  @@index([transaction_date])
   @@map("wallet_transaction_logs")
 }
 
@@ -594,6 +600,7 @@ model Bank {
   user                 User            @relation(fields: [user_id], references: [id], onDelete: Cascade)
   statements           BankStatement[]
 
+  @@index([user_id])
   @@map("banks")
 }
 
@@ -617,6 +624,7 @@ model BankStatement {
   bank                Bank                 @relation(fields: [bank_id], references: [id], onDelete: Cascade)
   parsed_transactions BankTransactionLog[]
 
+  @@index([bank_id])
   @@map("bank_statements")
 }
 
@@ -652,6 +660,7 @@ model BankTransactionLog {
   @@index([bank_statement_id])
   @@index([user_approved])
   @@index([processing_status])
+  @@index([transaction_date])
   @@map("bank_transaction_logs")
 }
 

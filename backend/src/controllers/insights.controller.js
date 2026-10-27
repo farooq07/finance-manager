@@ -317,3 +317,34 @@ export const getSpendingRows = async (req, res) => {
         res.status(500).json({ message: 'Server error loading spending rows' });
     }
 };
+
+// GET /api/dashboard/annual?year=2026 — income, spending, net and top category
+// for each month of a year, from ONE load of the year's money events (the
+// Annual Summary used to make 12 insights requests, 24 loads).
+export const getAnnualSummary = async (req, res) => {
+    try {
+        const year = Number.parseInt(req.query.year, 10) || new Date().getFullYear();
+        if (year < 2000 || year > 2100) return res.status(400).json({ message: 'year must be between 2000 and 2100' });
+
+        const events = await loadMoneyEvents(req.user.id, new Date(year, 0, 1), new Date(year + 1, 0, 1));
+        const byMonth = Array.from({ length: 12 }, () => []);
+        for (const e of events) byMonth[new Date(e.date).getMonth()].push(e);
+
+        const months = byMonth.map((monthEvents, i) => {
+            const { totals, spendByCategory } = summarizeFlows(monthEvents);
+            const top = [...spendByCategory].sort((a, b) => b[1] - a[1])[0];
+            return {
+                month: i + 1,
+                income: totals.income,
+                spending: totals.spend,
+                net: totals.income - totals.spend,
+                topCategory: top ? top[0] : null,
+                hasData: monthEvents.length > 0,
+            };
+        });
+        res.json({ year, months });
+    } catch (error) {
+        logger.error('[ANNUAL] failed:', error);
+        res.status(500).json({ message: 'Server error building the annual summary' });
+    }
+};
