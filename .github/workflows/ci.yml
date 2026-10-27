@@ -32,7 +32,8 @@ jobs:
       - run: npm test
 
   # The migration history must build the exact schema in schema.prisma on an
-  # empty database — what `prisma migrate deploy` does on every deploy.
+  # empty database — what `prisma migrate deploy` does on every deploy — and
+  # the import → approve → report → export journeys must hold on it.
   migrations:
     runs-on: ubuntu-latest
     defaults:
@@ -63,6 +64,11 @@ jobs:
         run: npx prisma migrate deploy
       - name: Fail if the migrated database differs from schema.prisma
         run: npx prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --exit-code
+      - run: npx prisma generate
+      - name: Money journeys on the migrated database
+        run: npm run test:integration
+        env:
+          INTEGRATION_DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/fresh
 
   frontend:
     runs-on: ubuntu-latest

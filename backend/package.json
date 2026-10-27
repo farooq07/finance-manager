@@ -10,7 +10,8 @@
     "build": "npx prisma generate",
     "seed": "node prisma/seed.js",
     "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
-    "fixture:statement": "node scripts/make-statement-fixture.js"
+    "fixture:statement": "node scripts/make-statement-fixture.js",
+    "test:integration": "cross-env NODE_OPTIONS=--experimental-vm-modules jest -c jest.integration.config.js"
   },
   "keywords": [],
   "author": "",

@@ -36,13 +36,18 @@ export function statementEndDate(parsedTxs) {
 
 /**
  * Should a statement closing on `statementEnd` replace the account's balance?
- * Only when the account has no dated balance yet, or the statement is at
- * least as recent as it — an older statement never overwrites a newer balance.
+ *  - no dated balance yet, or only the starting balance typed when the account
+ *    was created → yes: a statement is the first real figure
+ *  - a balance from another statement → only if this one is at least as recent
+ *  - a balance typed in by hand → only if this statement ends on or after the
+ *    day it was typed
+ * So an older statement never overwrites a newer balance.
  */
 export function shouldTakeBalance(account, statementEnd) {
-    if (!account?.balance_as_of) return true;
+    if (!account?.balance_as_of || !account.balance_source || account.balance_source === 'opening') return true;
     if (!statementEnd) return false;
-    return statementEnd.getTime() >= new Date(account.balance_as_of).getTime();
+    const day = (d) => new Date(d).toISOString().slice(0, 10);
+    return day(statementEnd) >= day(account.balance_as_of);
 }
 
 /**
@@ -117,7 +122,7 @@ export async function saveStatementImport({ kind, userId, accountId, statementDa
 
         let balanceUpdated = false;
         if (hasValue(closingBalance)) {
-            const account = await k.account(db).findUnique({ where: { id: accountId }, select: { balance_as_of: true } });
+            const account = await k.account(db).findUnique({ where: { id: accountId }, select: { balance_as_of: true, balance_source: true } });
             if (shouldTakeBalance(account, statementEnd)) {
                 await k.account(db).update({
                     where: { id: accountId },

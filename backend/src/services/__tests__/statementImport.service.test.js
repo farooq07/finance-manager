@@ -52,7 +52,7 @@ describe('saveStatementImport', () => {
     });
 
     it('an older statement does not overwrite a newer balance', async () => {
-        jest.spyOn(prisma.bank, 'findUnique').mockResolvedValue({ balance_as_of: new Date('2026-05-31') });
+        jest.spyOn(prisma.bank, 'findUnique').mockResolvedValue({ balance_as_of: new Date('2026-05-31'), balance_source: 'statement' });
         const update = jest.spyOn(prisma.bank, 'update');
         const out = await saveStatementImport({ ...base, closingBalance: 9000 });
         expect(update).not.toHaveBeenCalled();
@@ -60,7 +60,7 @@ describe('saveStatementImport', () => {
     });
 
     it('a newer statement updates the balance with its date and source', async () => {
-        jest.spyOn(prisma.bank, 'findUnique').mockResolvedValue({ balance_as_of: new Date('2026-02-28') });
+        jest.spyOn(prisma.bank, 'findUnique').mockResolvedValue({ balance_as_of: new Date('2026-02-28'), balance_source: 'statement' });
         const update = jest.spyOn(prisma.bank, 'update').mockResolvedValue({});
         await saveStatementImport({ ...base, closingBalance: 9000 });
         expect(update.mock.calls[0][0].data).toEqual({
@@ -92,9 +92,20 @@ describe('balance helpers', () => {
         expect(statementEndDate([])).toBeNull();
     });
     it('shouldTakeBalance', () => {
+        const st = (d) => ({ balance_as_of: new Date(d), balance_source: 'statement' });
         expect(shouldTakeBalance({ balance_as_of: null }, null)).toBe(true);
-        expect(shouldTakeBalance({ balance_as_of: new Date('2026-03-28') }, new Date('2026-03-28'))).toBe(true);
-        expect(shouldTakeBalance({ balance_as_of: new Date('2026-03-29') }, new Date('2026-03-28'))).toBe(false);
-        expect(shouldTakeBalance({ balance_as_of: new Date('2026-03-29') }, null)).toBe(false);
+        expect(shouldTakeBalance(st('2026-03-28'), new Date('2026-03-28'))).toBe(true);
+        expect(shouldTakeBalance(st('2026-03-29'), new Date('2026-03-28'))).toBe(false);
+        expect(shouldTakeBalance(st('2026-03-29'), null)).toBe(false);
+    });
+
+    it('the starting balance typed at account creation gives way to the first statement', () => {
+        expect(shouldTakeBalance({ balance_as_of: new Date('2026-10-27'), balance_source: 'opening' }, new Date('2026-03-10'))).toBe(true);
+    });
+
+    it('a balance typed by hand wins over statements that end before it', () => {
+        const manual = { balance_as_of: new Date('2026-10-20'), balance_source: 'manual' };
+        expect(shouldTakeBalance(manual, new Date('2026-10-19'))).toBe(false);
+        expect(shouldTakeBalance(manual, new Date('2026-10-20'))).toBe(true);
     });
 });
