@@ -38,10 +38,10 @@ api.interceptors.response.use(
             config._retried = true;
             return api(config);
         }
-        // The backend answers a wrong PIN with 401 too — that's a failed
-        // attempt, not an expired session (the web excludes it the same way).
-        const isPinCheck = /\/auth\/(verify-pin|pin\/change)$/.test(config?.url ?? '');
-        if (error.response?.status === 401 && !isPinCheck) onUnauthorized?.();
+        // Only a SESSION_* code ends the session (expired, revoked, signed out
+        // everywhere). A wrong PIN, a 403 or a validation error is a refused
+        // action on a session that is still valid.
+        if (isSessionEnded(error)) onUnauthorized?.();
         return Promise.reject(error);
     },
 );
@@ -54,6 +54,13 @@ export function apiError(err: unknown): string {
         if (!err.response) return "Can't reach WealthAxis. Check your internet connection.";
     }
     return 'Something went wrong. Please try again.';
+}
+
+/** The server says this session is over: sign out. */
+export function isSessionEnded(err: unknown): boolean {
+    if (!axios.isAxiosError(err) || err.response?.status !== 401) return false;
+    const code = (err.response.data as { code?: unknown } | undefined)?.code;
+    return typeof code === 'string' && code.startsWith('SESSION_');
 }
 
 /** True when a request failed without any answer from the server. */

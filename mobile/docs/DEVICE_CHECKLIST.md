@@ -25,7 +25,7 @@ Install the APK from the link EAS prints (or scan its QR code).
 | 2 | Create an account | "Check your email"; the link in the email confirms the address |
 | 3 | Sign in with email + password | 6-digit code screen; code arrives by email |
 | 4 | Enter a wrong code | The server's message under the form |
-| 5 | Enter the right code | **Choose a 4-digit PIN** → **Enter it again** |
+| 5 | Enter the right code | **Choose a 6-digit PIN** → **Enter it again** |
 | 6 | Enter a different PIN the second time | "PINs didn't match. Try again." |
 | 7 | Finish the PIN | Fingerprint offer (if the phone has one) → turn it on, scan |
 | 8 | Onboarding: pick Gold, add a bank `Meezan` with `1,50,000` | Net worth so far shows PKR 150,000 |

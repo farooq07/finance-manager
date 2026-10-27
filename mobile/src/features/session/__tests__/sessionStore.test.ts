@@ -31,7 +31,7 @@ describe('session store', () => {
 
     it('boot with an expired token (401) → signed out and token removed', async () => {
         store.set('auth_token', 'old');
-        serve((config) => httpError(config, 401));
+        serve((config) => httpError(config, 401, { code: 'SESSION_EXPIRED' }));
         await useSession.getState().boot();
         expect(useSession.getState().status).toBe('signedOut');
         expect(store.has('auth_token')).toBe(false);
@@ -81,7 +81,7 @@ describe('session store', () => {
     it('a 401 on any request signs the user out', async () => {
         store.set('auth_token', 'jwt');
         useSession.setState({ status: 'signedIn', user: me });
-        serve((config) => httpError(config, 401));
+        serve((config) => httpError(config, 401, { code: 'SESSION_EXPIRED' }));
         await api.get('/banks').catch(() => {});
         await Promise.resolve();
         expect(useSession.getState().status).toBe('signedOut');

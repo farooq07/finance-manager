@@ -20,7 +20,7 @@ jest.mock('expo-local-authentication', () => ({
 const api = jest.mocked(auth);
 const bio = jest.mocked(LocalAuthentication);
 const wrongPin = () => new AxiosError('Invalid PIN', 'ERR_BAD_REQUEST', undefined, {},
-    { data: { message: 'Invalid PIN code' }, status: 401, statusText: '', headers: {}, config: {} as never });
+    { data: { message: 'Invalid PIN code', code: 'WRONG_PIN', attemptsLeft: 4 }, status: 401, statusText: '', headers: {}, config: {} as never });
 
 const signOut = jest.fn(async () => {});
 const refreshUser = jest.fn(async () => {});
@@ -96,12 +96,12 @@ describe('lock store', () => {
 });
 
 describe('LockScreen', () => {
-    it('unlocks after 4 correct digits', async () => {
+    it('unlocks after 6 correct digits', async () => {
         api.verifyPin.mockResolvedValue({ success: true });
         useLock.setState({ locked: true });
         await render(<LockScreen />);
-        await typePin('1234');
-        await waitFor(() => expect(api.verifyPin).toHaveBeenCalledWith('1234'));
+        await typePin('123456');
+        await waitFor(() => expect(api.verifyPin).toHaveBeenCalledWith('123456'));
         expect(useLock.getState().locked).toBe(false);
     });
 
@@ -109,7 +109,7 @@ describe('LockScreen', () => {
         api.verifyPin.mockRejectedValue(wrongPin());
         useLock.setState({ locked: true });
         await render(<LockScreen />);
-        await typePin('0000');
+        await typePin('000000');
         expect(await screen.findByText('Wrong PIN. 4 tries left.')).toBeTruthy();
     });
 
@@ -124,19 +124,19 @@ describe('LockScreen', () => {
 });
 
 describe('PinSetupScreen', () => {
-    it('needs the same 4 digits twice, then saves and reloads the user', async () => {
+    it('needs the same 6 digits twice, then saves and reloads the user', async () => {
         api.setPin.mockResolvedValue({});
         await render(<PinSetupScreen />);
-        expect(screen.getByText('Choose a 4-digit PIN')).toBeTruthy();
-        await typePin('1234');
+        expect(screen.getByText('Choose a 6-digit PIN')).toBeTruthy();
+        await typePin('123456');
         expect(await screen.findByText('Enter it again')).toBeTruthy();
-        await typePin('9999');
+        await typePin('999999');
         expect(await screen.findByText("PINs didn't match. Try again.")).toBeTruthy();
         expect(api.setPin).not.toHaveBeenCalled();
 
-        await typePin('1234');
-        await typePin('1234');
-        await waitFor(() => expect(api.setPin).toHaveBeenCalledWith('1234'));
+        await typePin('123456');
+        await typePin('123456');
+        await waitFor(() => expect(api.setPin).toHaveBeenCalledWith('123456'));
         expect(await screen.findByRole('button', { name: 'Turn on fingerprint' })).toBeTruthy();
     });
 
@@ -144,9 +144,9 @@ describe('PinSetupScreen', () => {
         api.setPin.mockResolvedValue({});
         bio.authenticateAsync.mockResolvedValue({ success: true } as never);
         await render(<PinSetupScreen />);
-        await typePin('1234');
+        await typePin('123456');
         await screen.findByText('Enter it again');
-        await typePin('1234');
+        await typePin('123456');
         await fireEvent.press(await screen.findByRole('button', { name: 'Turn on fingerprint' }));
         await waitFor(() => expect(refreshUser).toHaveBeenCalled());
         expect(useLock.getState().biometricsEnabled).toBe(true);

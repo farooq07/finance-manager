@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { forgotPassword, resetPassword } from '../../api/auth';
 import { apiError } from '../../api/client';
+import { passwordProblem } from '../../lib/passwords';
 import { Button, Field } from '../../ui';
 import { AuthForm } from './AuthForm';
 
@@ -42,6 +43,8 @@ export function ResetPasswordScreen() {
     const [error, setError] = useState<string | null>(null);
 
     async function submit() {
+        const problem = passwordProblem(password);
+        if (problem) return setError(problem);
         setBusy(true);
         setError(null);
         try {

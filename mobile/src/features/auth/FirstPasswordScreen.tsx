@@ -1,6 +1,8 @@
 import { useState } from 'react';
+import * as SecureStore from 'expo-secure-store';
 import { firstPassword } from '../../api/auth';
-import { apiError } from '../../api/client';
+import { apiError, TOKEN_KEY } from '../../api/client';
+import { passwordProblem } from '../../lib/passwords';
 import { useSession } from '../session/sessionStore';
 import { Button, Field } from '../../ui';
 import { AuthForm } from './AuthForm';
@@ -15,11 +17,14 @@ export function FirstPasswordScreen() {
     const [error, setError] = useState<string | null>(null);
 
     async function submit() {
+        const problem = passwordProblem(password);
+        if (problem) return setError(problem);
         if (password !== confirm) return setError("Passwords don't match");
         setBusy(true);
         setError(null);
         try {
-            await firstPassword(password);
+            const { token } = await firstPassword(password);
+            if (token) await SecureStore.setItemAsync(TOKEN_KEY, token);
             await refreshUser(); // must_change_password is now false → route guard moves on
         } catch (err) {
             setError(apiError(err));

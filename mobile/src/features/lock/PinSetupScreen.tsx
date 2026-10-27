@@ -8,7 +8,7 @@ import { biometricsAvailable, useLock } from './lockStore';
 import { PinPad } from './PinPad';
 
 /**
- * First sign-in: choose a 4-digit PIN (entered twice), then optionally turn
+ * First sign-in: choose a 6-digit PIN (entered twice), then optionally turn
  * on fingerprint. Reloading the user (hasPin now true) lets the route guard
  * move on to onboarding / Home.
  */
@@ -68,7 +68,7 @@ export function PinSetupScreen() {
     return (
         <Screen>
             <View style={{ alignItems: 'center', gap: tokens.space.sm, marginTop: tokens.space.xxl }}>
-                <Text variant="title" accessibilityRole="header">{stage === 'choose' ? 'Choose a 4-digit PIN' : 'Enter it again'}</Text>
+                <Text variant="title" accessibilityRole="header">{stage === 'choose' ? 'Choose a 6-digit PIN' : 'Enter it again'}</Text>
                 <Text variant="caption">You'll use it to unlock WealthAxis.</Text>
                 {message ? <Text variant="caption" accessibilityRole="alert" style={{ color: colors.danger }}>{message}</Text> : null}
             </View>

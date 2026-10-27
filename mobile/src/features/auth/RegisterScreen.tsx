@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useRouter } from 'expo-router';
 import { register } from '../../api/auth';
 import { apiError } from '../../api/client';
+import { passwordProblem } from '../../lib/passwords';
 import { Button, Field, Text } from '../../ui';
 import { AuthForm } from './AuthForm';
 
@@ -15,6 +16,8 @@ export function RegisterScreen() {
     const [sentTo, setSentTo] = useState<string | null>(null);
 
     async function submit() {
+        const problem = passwordProblem(password);
+        if (problem) return setError(problem);
         setBusy(true);
         setError(null);
         try {

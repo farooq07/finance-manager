@@ -62,19 +62,24 @@ describe('api client', () => {
         expect(handler).toHaveBeenCalledTimes(1);
     });
 
-    it('401 calls the unauthorized handler', async () => {
+    it('a 401 SESSION_* code ends the session', async () => {
         const onUnauthorized = jest.fn();
         setUnauthorizedHandler(onUnauthorized);
-        handler.mockImplementation((config) => httpError(config, 401, { message: 'Invalid token' }));
+        handler.mockImplementation((config) => httpError(config, 401, { code: 'SESSION_REVOKED', message: 'Signed out' }));
         await expect(api.get('/auth/me')).rejects.toThrow();
         expect(onUnauthorized).toHaveBeenCalledTimes(1);
     });
 
-    it('a wrong PIN (401 from /auth/verify-pin) does not end the session', async () => {
+    it.each([
+        [401, { code: 'WRONG_PIN', message: 'Invalid PIN code' }],   // a wrong PIN is one failed try
+        [403, { code: 'FORBIDDEN', message: 'Not allowed' }],        // refused action, valid session
+        [403, { code: 'VAULT_LOCKED' }],
+        [401, { message: 'Invalid Google token.' }],                 // no session code
+    ])('%i %j does not end the session', async (status, data) => {
         const onUnauthorized = jest.fn();
         setUnauthorizedHandler(onUnauthorized);
-        handler.mockImplementation((config) => httpError(config, 401, { message: 'Invalid PIN code' }));
-        await expect(api.post('/auth/verify-pin', { pin: '0000' })).rejects.toThrow();
+        handler.mockImplementation((config) => httpError(config, status, data));
+        await expect(api.post('/auth/verify-pin', { pin: '000000' })).rejects.toThrow();
         expect(onUnauthorized).not.toHaveBeenCalled();
     });
 

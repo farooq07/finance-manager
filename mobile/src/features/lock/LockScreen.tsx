@@ -5,7 +5,7 @@ import { Button, Screen, Text, tokens, useTheme } from '../../ui';
 import { MAX_PIN_ATTEMPTS, useLock } from './lockStore';
 import { PinPad } from './PinPad';
 
-/** Unlock with the 4-digit PIN or fingerprint. 5 wrong PINs sign out. */
+/** Unlock with the 6-digit PIN or fingerprint. 5 wrong PINs sign out. */
 export function LockScreen() {
     const { colors } = useTheme();
     const name = useSession((s) => s.user?.name);

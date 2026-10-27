@@ -15,8 +15,10 @@ export const forgotPassword = async (email: string) =>
     (await api.post<{ message: string }>('/auth/forgot-password', { email })).data;
 export const resetPassword = async (email: string, otp: string, newPassword: string) =>
     (await api.post<{ message: string }>('/auth/reset-password', { email, otp, newPassword })).data;
+// Changing the password signs out every other session; the reply carries a
+// fresh token for this device.
 export const firstPassword = async (newPassword: string) =>
-    (await api.put<{ message: string }>('/auth/first-password', { newPassword })).data;
+    (await api.put<{ message: string; token?: string }>('/auth/first-password', { newPassword })).data;
 export const googleAuth = async (credential: string) =>
     (await api.post<SessionResult>('/auth/google', { credential })).data;
 export const getMe = async () => (await api.get<User>('/auth/me')).data;
