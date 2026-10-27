@@ -50,6 +50,12 @@ describe('api client', () => {
         expect(handler).toHaveBeenCalledTimes(2);
     });
 
+    it('never retries a write — the server may have applied it', async () => {
+        handler.mockImplementation(networkError);
+        await expect(api.post('/expenses', { amount: 500 })).rejects.toThrow('Network Error');
+        expect(handler).toHaveBeenCalledTimes(1);
+    });
+
     it('does not retry a 500', async () => {
         handler.mockImplementation((config) => httpError(config, 500));
         await expect(api.get('/banks')).rejects.toThrow();

@@ -31,8 +31,10 @@ api.interceptors.response.use(
     async (error: AxiosError) => {
         const config = error.config as RetryableConfig | undefined;
         // No response = the request never got an answer (flaky mobile data).
-        // Retry once; never retry a real server reply (4xx/5xx).
-        if (!error.response && config && !config._retried) {
+        // Retry reads once; never retry a real server reply (4xx/5xx). Writes
+        // are never retried: no reply doesn't mean the server didn't apply it.
+        const isRead = ['get', 'head'].includes((config?.method ?? 'get').toLowerCase());
+        if (!error.response && config && isRead && !config._retried) {
             config._retried = true;
             return api(config);
         }
