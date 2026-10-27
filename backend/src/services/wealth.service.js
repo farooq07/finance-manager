@@ -45,6 +45,7 @@ async function loadPsx(userId) {
             cost: sum(holdings, (h) => h.total_cost ?? Number(h.holding || 0) * Number(h.cost_per_unit || 0)),
             tradingCash: Number(latestWithSummary?.summary_data?.trading_cash || 0),
             syncedAt: latest.snapshot_date,
+            staleHoldings: holdings.filter((h) => h.price_stale).length,
         };
     }
 
@@ -55,7 +56,7 @@ async function loadPsx(userId) {
         const qty = stock.transactions.reduce((q, tx) => q + Number(tx.quantity || 0), 0);
         value += qty * Number(stock.current_market_price || 0);
     }
-    return { value, cost: 0, tradingCash: 0, syncedAt: null };
+    return { value, cost: 0, tradingCash: 0, syncedAt: null, staleHoldings: 0 };
 }
 
 async function loadMutualFunds(userId) {
@@ -135,6 +136,9 @@ export async function computeWealth(userId, { valuationDate = new Date() } = {})
             psxSyncedAt: psx.syncedAt,
             mutualFundsSyncedAt: mf.syncedAt,
             goldPriceDate: priceRow?.date ?? null,
+            // Gold is owned but there is no price: its value is unknown, not zero.
+            goldPriceMissing: goldItems.length > 0 && !perGram,
+            psxStaleHoldings: psx.staleHoldings,
             oldestBalanceAsOf: balanceDates.length ? new Date(Math.min(...balanceDates)) : null,
         },
     };

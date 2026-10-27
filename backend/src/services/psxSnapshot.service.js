@@ -64,6 +64,8 @@ export async function snapshotUserPortfolio(userId, { at = new Date() } = {}) {
             symbol,
             market_rate: rate.toNumber(),
             custody_val: custodyVal.toNumber(),
+            // No price today: valued at the last known price — shown as stale.
+            price_stale: !livePrice,
         };
     });
 

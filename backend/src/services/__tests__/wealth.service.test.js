@@ -37,11 +37,18 @@ describe('computeWealth — net worth v2', () => {
         expect(w.investments.mutualFunds).toEqual({ value: 120000, cost: 100000 });
     });
 
-    it('gold without a price is unknown, not zero', async () => {
+    it('gold without a price is unknown, not zero — and flagged', async () => {
         mockWealthData({ priceRow: null });
         const w = await computeWealth('u1');
         expect(w.gold.value).toBeNull();
         expect(w.gold.pricePerGram24k).toBeNull();
+        expect(w.sources.goldPriceMissing).toBe(true);
+    });
+
+    it('counts PSX holdings valued at a stale price', async () => {
+        mockWealthData({ psx: { snapshot_date: new Date('2026-10-21'), total_custody: '1000', holdings_data: [{ symbol: 'A', price_stale: true }, { symbol: 'B' }] } });
+        const w = await computeWealth('u1');
+        expect(w.sources.psxStaleHoldings).toBe(1);
     });
 
     it('reports the oldest dated balance for freshness', async () => {

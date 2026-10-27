@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import api from '../services/api';
 import { fmtPKR } from '../utils/currency';
+import { usePin } from '../context/PinContext';
 import { fmtDate } from '../utils/dates';
 import MaskedBalance from '../components/MaskedBalance';
 import { useTheme } from '../context/ThemeContext';
@@ -283,6 +284,7 @@ function OverviewStrip({ summary, trend, phrase, loading }) {
                             {delta == null ? 'No trend data yet' : `vs ${phrase}`}
                         </p>
                     </div>
+                    <NetWorthMakeup breakdown={summary.netWorthBreakdown} />
                 </div>
 
                 <StripCell
@@ -306,6 +308,26 @@ function OverviewStrip({ summary, trend, phrase, loading }) {
                 />
             </div>
         </div>
+    );
+}
+
+// What the headline adds up: cash + investments + gold + assets − debts.
+// Rent received (income history) and ledger dues are shown elsewhere.
+function NetWorthMakeup({ breakdown: b }) {
+    const { isUnlocked } = usePin();
+    // Hidden like the headline itself until the PIN unlocks balances.
+    if (!b || !isUnlocked) return null;
+    const parts = [
+        ['Cash', b.cash],
+        ['Investments', b.investments],
+        ['Gold', b.gold],
+        ['Assets', b.assets],
+    ].filter(([, v]) => v);
+    return (
+        <p className="mt-2 text-[11px] leading-relaxed text-gray-500 dark:text-gray-400" title="Rent received and money owed between people are not part of net worth.">
+            {parts.map(([label, v]) => `${label} ${fmtPKR(v)}`).join(' + ')}
+            {b.debts ? ` − Debts ${fmtPKR(b.debts)}` : ''}
+        </p>
     );
 }
 
@@ -412,9 +434,9 @@ function TrustStrip({ summary, lastSnapshotAt, isError, isFetching, onRefresh })
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-gray-200 dark:border-neutral-800 bg-gray-50/60 dark:bg-neutral-900/40 px-4 py-2.5 text-xs">
             <span className="inline-flex items-center gap-1.5 text-gray-600 dark:text-gray-300">
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-                Live balances refreshed{' '}
+                Balances as of{' '}
                 <span className="font-medium text-gray-900 dark:text-gray-100">
-                    {relativeFromNow(summary?.generatedAt) || 'now'}
+                    {sources.oldestBalanceAsOf ? fmtDate(sources.oldestBalanceAsOf) : 'when last updated'}
                 </span>
             </span>
             <span className="hidden sm:inline text-gray-300 dark:text-neutral-700">·</span>
@@ -427,7 +449,21 @@ function TrustStrip({ summary, lastSnapshotAt, isError, isFetching, onRefresh })
             </span>
             <span className="hidden sm:inline text-gray-300 dark:text-neutral-700">·</span>
             <SourceChip label="PSX" syncedAt={sources.psxSyncedAt} />
+            {sources.psxStaleHoldings > 0 && (
+                <span className="inline-flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                    {sources.psxStaleHoldings} holding{sources.psxStaleHoldings === 1 ? '' : 's'} at last known price
+                </span>
+            )}
             <SourceChip label="Mutual funds" syncedAt={sources.mutualFundsSyncedAt} />
+            {sources.goldPriceMissing ? (
+                <span className="inline-flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                    Gold · price unavailable (not counted)
+                </span>
+            ) : sources.goldPriceDate ? (
+                <SourceChip label="Gold price" syncedAt={sources.goldPriceDate} />
+            ) : null}
 
             <button
                 onClick={onRefresh}
