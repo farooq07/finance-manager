@@ -1,6 +1,7 @@
 import { jest } from '@jest/globals';
 import { recordPrismaReads, queryShapeErrors } from '../prismaShape.js';
 import { computeWealth } from '../../services/wealth.service.js';
+import { budgetOverview } from '../../services/budget.service.js';
 import { loadMoneyEvents } from '../../services/moneyFlow.service.js';
 import { fetchDashboardData } from '../../controllers/dashboard.controller.js';
 import { getInsights, getSpendingRows, getAnnualSummary } from '../../controllers/insights.controller.js';
@@ -28,6 +29,7 @@ const res = () => ({ status: jest.fn().mockReturnThis(), json: jest.fn() });
 describe('money queries match the schema and stay scoped to the user', () => {
     it.each([
         ['computeWealth', () => computeWealth('u1')],
+        ['budgetOverview', () => budgetOverview('u1')],
         ['loadMoneyEvents', () => loadMoneyEvents('u1', new Date('2026-01-01'), new Date('2026-02-01'))],
         ['fetchDashboardData', () => fetchDashboardData('u1')],
         ['getInsights', () => getInsights({ user: { id: 'u1' }, query: { period: 'month' } }, res())],

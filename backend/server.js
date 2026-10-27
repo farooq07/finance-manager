@@ -31,6 +31,7 @@ import goldRoutes from './src/routes/gold.routes.js';
 import feedbackRoutes from './src/routes/feedback.routes.js';
 import watchlistRoutes from './src/routes/watchlist.routes.js';
 import healthRoutes from './src/routes/health.routes.js';
+import budgetRoutes from './src/routes/budget.routes.js';
 import { initCronJobs, stopCronJobs } from './src/services/cron.service.js';
 import prisma from './src/utils/prisma.js';
 import logger from './src/utils/logger.js';
@@ -122,6 +123,7 @@ app.use('/api/gold', goldRoutes);
 app.use('/api/feedback', feedbackRoutes);
 app.use('/api/watchlist', watchlistRoutes);
 app.use('/api/health', healthRoutes);
+app.use('/api/budgets', budgetRoutes);
 
 // Root route / Health check
 app.get('/', (req, res) => {

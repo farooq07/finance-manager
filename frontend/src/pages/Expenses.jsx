@@ -16,6 +16,7 @@ import { useConfirm } from '../components/ui/confirm-dialog';
 import MaskedBalance from '../components/MaskedBalance';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
 import { invalidateMoney } from '../lib/queryKeys';
+import BudgetsPanel from '../components/BudgetsPanel';
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Period helpers — client computes the anchor date for the insights call so
@@ -111,6 +112,9 @@ export default function Expenses() {
                 onShift={(dir) => setAnchor((a) => shiftPeriod(period, a, dir))}
                 onReset={() => setAnchor(anchorForPeriod(period))}
             />
+
+            {/* Budgets are monthly: shown on the current month's view. */}
+            {period === 'month' && anchor.getFullYear() === new Date().getFullYear() && anchor.getMonth() === new Date().getMonth() && <BudgetsPanel />}
 
             <Story insights={insights} period={period} />
 

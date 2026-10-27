@@ -8,6 +8,7 @@ export const qk = {
     banks: ['banks'],
     wallets: ['wallets'],
     zakat: ['zakat'],
+    budgets: ['budgets'],
 };
 
 /**
@@ -15,7 +16,7 @@ export const qk = {
  * that moves money: approvals, imports, deletes, balance edits, expenses.
  */
 export function invalidateMoney(queryClient) {
-    for (const queryKey of [qk.dashboardSummary, qk.insights, qk.spending, qk.expenses, qk.banks, qk.wallets, qk.zakat]) {
+    for (const queryKey of [qk.dashboardSummary, qk.insights, qk.spending, qk.expenses, qk.banks, qk.wallets, qk.zakat, qk.budgets]) {
         queryClient.invalidateQueries({ queryKey });
     }
 }
