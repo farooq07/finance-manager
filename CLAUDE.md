@@ -26,6 +26,8 @@ cd frontend && npm run test:e2e     # Playwright E2E (needs both servers)
 - **NEVER** run `prisma db push` without verifying schema drift first (`/prisma-check`)
 - Migrations: edit `schema.prisma` + add a migration in `prisma/migrations/` → commit → Railway redeploys and the Dockerfile runs `prisma migrate deploy` (never `db push`)
 - Use `DIRECT_URL` for migrations, `DATABASE_URL` (pooled) for queries
+- New migrations: make data-changing ones idempotent where possible. CI (`.github/workflows/ci.yml`) applies the whole history to an empty pgvector Postgres and fails on any difference from `schema.prisma`
+- `0_init_catchup` and `20261027170000_db_push_drift` recreate what production once got from `db push`; both are no-ops on production
 - `menu_visibility` table controls which sidebar items are visible — **always update it** when adding new routes
 
 ## Currency & Formatting

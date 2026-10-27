@@ -313,7 +313,8 @@ export default function Settings() {
         {
             title: "System",
             items: [
-                { id: 'access', label: 'Access Control', icon: Shield },
+                // People and roles are managed by admins only (the server refuses others).
+                ...(isAdmin || isSuperAdmin ? [{ id: 'access', label: 'Access Control', icon: Shield }] : []),
                 ...(isSuperAdmin ? [{ id: 'deletion_requests', label: 'Deletion Requests', icon: Trash2 }] : []),
                 { id: 'security', label: 'Security & PIN', icon: ShieldAlert },
             ]
@@ -598,7 +599,7 @@ export default function Settings() {
                     </div>
                 )}
 
-                {activeTab === 'access' && (
+                {activeTab === 'access' && (isAdmin || isSuperAdmin) && (
                     <div className="flex-1 flex flex-col h-full overflow-hidden">
                         {/* Header: title + segmented sub-tabs + contextual action */}
                         <div className="px-8 py-5 border-b border-gray-200 dark:border-neutral-800 flex flex-wrap gap-3 justify-between items-center bg-white dark:bg-neutral-900 shrink-0 transition-colors">
