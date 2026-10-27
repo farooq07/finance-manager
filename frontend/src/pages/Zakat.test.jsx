@@ -33,6 +33,13 @@ const baseSummary = {
     isNisabMet: true,
     zakatDue: 25000,
     goldPriceDate: '2026-10-19',
+    details: {
+        cash: [{ kind: 'bank', name: 'Meezan', value: 500000, asOf: '2026-10-01' }],
+        investments: [],
+        gold: { grams24k: 10, pricePerGram24k: 20000 },
+        debts: [{ name: 'Car loan', outstanding: 900000, deductible: 50000, rule: 'Long-term loan: next 12 monthly payments' }],
+    },
+    assumptions: ['Deducted: only the next 12 monthly payments of long-term loans (mortgage, car loan).'],
 };
 
 const renderPage = () => render(<Zakat />, { wrapper: BrowserRouter });
@@ -68,7 +75,10 @@ describe('Zakat page', () => {
 
     it('explains how long loans are deducted', () => {
         renderPage();
-        expect(screen.getByText('Mortgages and car loans count only the next 12 monthly payments.')).toBeInTheDocument();
+        // The server's rules are listed, and each loan says which rule applied.
+        expect(screen.getByText(/only the next 12 monthly payments of long-term loans/)).toBeInTheDocument();
+        expect(screen.getByText('Long-term loan: next 12 monthly payments')).toBeInTheDocument();
+        expect(screen.getByText(/10\.00 g \(24K equivalent\)/)).toBeInTheDocument();
     });
 
     it('summary request failed: shows error, not a PKR 0 estimate', () => {

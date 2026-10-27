@@ -32,12 +32,12 @@ export default function Zakat() {
     const summaryUnavailable = summaryFailed || !summary;
     const breakdown = summary?.breakdown || {};
     const breakdownRows = [
-        { label: 'Cash & bank', value: breakdown.cash, sign: '+' },
-        { label: 'Investments', value: breakdown.investments, sign: '+' },
-        { label: 'Gold', value: breakdown.goldValue, sign: '+' },
+        { label: 'Cash & bank', value: breakdown.cash, sign: '+', items: (summary?.details?.cash || []).map(a => ({ name: a.name, value: a.value, note: a.asOf ? `as of ${fmtDateLong(a.asOf)}` : null })) },
+        { label: 'Investments', value: breakdown.investments, sign: '+', items: summary?.details?.investments || [] },
+        { label: 'Gold', value: breakdown.goldValue, sign: '+', note: summary?.details?.gold?.pricePerGram24k ? `${Number(summary.details.gold.grams24k || 0).toFixed(2)} g (24K equivalent) × ${fmtPKR(summary.details.gold.pricePerGram24k)}/g` : null },
         { label: 'Owed to you', value: breakdown.receivables, sign: '+' },
         { label: 'You owe', value: breakdown.payables, sign: '−' },
-        { label: 'Debts', value: breakdown.debts, sign: '−' },
+        { label: 'Debts', value: breakdown.debts, sign: '−', items: (summary?.details?.debts || []).map(d => ({ name: d.name, value: d.deductible, note: d.rule })) },
     ];
     const nisabStatus = summary?.isNisabMet === true
         ? { text: 'Zakat is due on your wealth', className: 'text-emerald-600 dark:text-emerald-400' }
@@ -141,12 +141,31 @@ export default function Zakat() {
                 <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-4">How this is calculated</h3>
                 <dl className="divide-y divide-gray-100 dark:divide-neutral-800 text-sm">
                     {breakdownRows.map(row => (
-                        <div key={row.label} className="flex items-center justify-between py-2">
-                            <dt className="text-gray-600 dark:text-gray-300">{row.label}</dt>
-                            <dd className="flex items-center gap-1 font-medium text-gray-900 dark:text-gray-100">
-                                <span className="text-gray-400 dark:text-gray-500">{row.sign}</span>
-                                <MaskedBalance value={row.value ?? 0} />
-                            </dd>
+                        <div key={row.label} className="py-2">
+                            <div className="flex items-center justify-between">
+                                <dt className="text-gray-600 dark:text-gray-300">{row.label}</dt>
+                                <dd className="flex items-center gap-1 font-medium text-gray-900 dark:text-gray-100">
+                                    <span className="text-gray-400 dark:text-gray-500">{row.sign}</span>
+                                    <MaskedBalance value={row.value ?? 0} />
+                                </dd>
+                            </div>
+                            {row.note && <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{row.note}</p>}
+                            {row.items?.length > 0 && (
+                                <details className="mt-1">
+                                    <summary className="cursor-pointer text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">Show {row.items.length} item{row.items.length === 1 ? '' : 's'}</summary>
+                                    <ul className="mt-1 space-y-1 pl-3 border-l border-gray-100 dark:border-neutral-800">
+                                        {row.items.map((item, i) => (
+                                            <li key={i} className="flex items-start justify-between gap-3 text-xs">
+                                                <span className="text-gray-600 dark:text-gray-300">
+                                                    {item.name}
+                                                    {item.note && <span className="block text-gray-400 dark:text-gray-500">{item.note}</span>}
+                                                </span>
+                                                <MaskedBalance value={item.value ?? 0} className="text-gray-700 dark:text-gray-200" />
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </details>
+                            )}
                         </div>
                     ))}
                     <div className="flex items-center justify-between pt-3">
@@ -156,8 +175,17 @@ export default function Zakat() {
                         </dd>
                     </div>
                 </dl>
-                <p className="text-xs text-gray-400 dark:text-gray-500 mt-3">Your home, car and other personal-use assets are not included.</p>
-                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Mortgages and car loans count only the next 12 monthly payments.</p>
+                {summary?.assumptions?.length > 0 && (
+                    <details className="mt-4">
+                        <summary className="cursor-pointer text-sm font-medium text-gray-700 dark:text-gray-300">The rules used</summary>
+                        <ul className="mt-2 list-disc pl-5 space-y-1 text-xs text-gray-500 dark:text-gray-400">
+                            {summary.assumptions.map((a) => <li key={a}>{a}</li>)}
+                        </ul>
+                    </details>
+                )}
+                {summary?.valuationDate && (
+                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">Calculated {fmtDateLong(summary.valuationDate)}. Each payment you record keeps this calculation with it.</p>
+                )}
             </Card>}
 
             {/* Form & Table */}

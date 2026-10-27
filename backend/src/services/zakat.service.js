@@ -22,17 +22,34 @@ const LONG_TERM_MONTHS = 12;
  * overstate Zakat.
  */
 export function zakatDeductibleDebt(debts) {
-    let total = new Decimal(0);
-    for (const d of debts) {
+    return round2(debtDeductions(debts).reduce((s, d) => s.plus(d.deductible), new Decimal(0)));
+}
+
+/** Each debt's deductible amount and the rule applied — for the drill-down. */
+export function debtDeductions(debts) {
+    return debts.map((d) => {
         const outstanding = toDecimal(d.outstanding);
         const monthly = toDecimal(d.minimum_payment);
-        const deductible = LONG_TERM_DEBT_TYPES.has(d.debt_type) && monthly.greaterThan(0)
-            ? Decimal.min(outstanding, monthly.times(LONG_TERM_MONTHS))
-            : outstanding;
-        total = total.plus(deductible);
-    }
-    return round2(total);
+        const longTerm = LONG_TERM_DEBT_TYPES.has(d.debt_type) && monthly.greaterThan(0);
+        const deductible = longTerm ? Decimal.min(outstanding, monthly.times(LONG_TERM_MONTHS)) : outstanding;
+        return {
+            name: d.name || d.debt_type,
+            outstanding: round2(outstanding),
+            deductible: round2(deductible),
+            rule: longTerm ? 'Long-term loan: next 12 monthly payments' : 'Short-term debt: full amount',
+        };
+    });
 }
+
+/** The rules behind the figure, in plain words (shown on the Zakat page). */
+export const ZAKAT_ASSUMPTIONS = Object.freeze([
+    'Zakat is 2.5% of zakatable wealth held for a lunar year, once it reaches nisab.',
+    'Nisab is the value of 85 g of 24K gold at the latest recorded gold price.',
+    'Counted: bank and wallet balances, investments at market value (stocks, mutual funds, brokerage cash), gold at the current price, and money people owe you.',
+    'Deducted: money you owe people, short-term debts in full, and only the next 12 monthly payments of long-term loans (mortgage, car loan).',
+    'Not counted: your home, car and other personal-use assets, and rent you have already received (it is already in your balances).',
+    'Balances are as last imported or entered; check them before paying.',
+]);
 
 /**
  * Zakat on the user's whole wealth.

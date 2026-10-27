@@ -47,12 +47,26 @@ export const createZakatEntry = async (req, res) => {
         const userId = req.user.id;
         const { amount, description, date } = req.body;
 
+        // Keep the calculation this payment was based on — the annual record.
+        let computation;
+        try {
+            const z = zakatFromWealth(await computeWealth(userId));
+            computation = {
+                zakatableAssets: z.zakatableAssets, deductions: z.deductions, netZakatable: z.netZakatable,
+                nisabValue: z.nisabValue, isNisabMet: z.isNisabMet, zakatDue: z.zakatDue,
+                goldPriceDate: z.goldPriceDate, valuationDate: z.valuationDate, breakdown: z.breakdown,
+            };
+        } catch {
+            computation = undefined; // the payment is still recorded
+        }
+
         const entry = await prisma.zakat.create({
             data: {
                 user_id: userId,
                 amount: Number(amount),
                 description,
-                date: date ? new Date(date) : new Date()
+                date: date ? new Date(date) : new Date(),
+                computation,
             }
         });
 

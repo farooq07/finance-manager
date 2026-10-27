@@ -731,6 +731,9 @@ model Zakat {
   amount      Decimal  @db.Decimal(15, 2)
   description String?
   date        DateTime @default(now()) @db.Date // When it was paid
+  // The calculation at the time of payment (zakatable, nisab, due, gold
+  // price date, rules version) — the record of why this amount was paid.
+  computation Json?
   created_at  DateTime @default(now()) @db.Timestamptz(6)
   user        User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
 

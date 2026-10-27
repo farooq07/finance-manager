@@ -1,7 +1,7 @@
 import { Prisma } from '@prisma/client';
 import prisma from '../utils/prisma.js';
 import { NISAB_GRAMS, getLatestPriceRow, summarizeGold } from './goldValuation.service.js';
-import { computeZakat, zakatDeductibleDebt } from './zakat.service.js';
+import { computeZakat, zakatDeductibleDebt, debtDeductions, ZAKAT_ASSUMPTIONS } from './zakat.service.js';
 import { summarizeDues } from './dues.service.js';
 
 /**
@@ -110,12 +110,16 @@ export async function computeWealth(userId, { valuationDate = new Date() } = {})
     const netWorth = bank + wallet + investments + (goldValue ?? 0) + assetTotal - debtOutstanding;
 
     const balanceDates = [...banks, ...wallets].map((a) => a.balance_as_of).filter(Boolean).map((d) => new Date(d));
+    const accounts = [
+        ...banks.map((b) => ({ kind: 'bank', name: b.name, value: Number(b.current_balance) * Number(b.exchange_rate || 1), asOf: b.balance_as_of ?? null })),
+        ...wallets.map((w) => ({ kind: 'wallet', name: w.name, value: Number(w.balance) * Number(w.exchange_rate || 1), asOf: w.balance_as_of ?? null })),
+    ];
 
     return {
         definition: NET_WORTH_DEFINITION,
         valuationDate,
         netWorth,
-        cash: { bank, wallet, total: bank + wallet },
+        cash: { bank, wallet, total: bank + wallet, accounts },
         investments: {
             stocks: { value: psx.value, cost: psx.cost },
             mutualFunds: { value: mf.value, cost: mf.cost },
@@ -129,7 +133,7 @@ export async function computeWealth(userId, { valuationDate = new Date() } = {})
             itemCount: goldItems.length,
         },
         assets: assetTotal,
-        debts: { outstanding: debtOutstanding, zakatDeductible: zakatDeductibleDebt(debts) },
+        debts: { outstanding: debtOutstanding, zakatDeductible: zakatDeductibleDebt(debts), items: debtDeductions(debts) },
         dues: { receivable: totalReceivable, payable: totalPayable },
         rentReceived: Number(rent._sum.amount || 0),
         sources: {
@@ -160,5 +164,17 @@ export function zakatFromWealth(w) {
         ...computeZakat({ ...breakdown, nisabValue }),
         goldPriceDate: w.sources.goldPriceDate,
         valuationDate: w.valuationDate,
+        // Drill-down: where each line comes from, and the rules used.
+        details: {
+            cash: w.cash.accounts,
+            investments: [
+                { name: 'Stocks (PSX)', value: w.investments.stocks.value },
+                { name: 'Mutual funds', value: w.investments.mutualFunds.value },
+                { name: 'Brokerage cash', value: w.investments.tradingCash },
+            ].filter((i) => i.value),
+            gold: { grams24k: w.gold.grams24k, pricePerGram24k: w.gold.pricePerGram24k, items: w.gold.itemCount },
+            debts: w.debts.items,
+        },
+        assumptions: ZAKAT_ASSUMPTIONS,
     };
 }

@@ -2,7 +2,7 @@ import { jest } from '@jest/globals';
 import prisma from '../../utils/prisma.js';
 import { mockWealthData } from '../../testing/mockWealthData.js';
 
-const { getZakatSummary } = await import('../zakat.controller.js');
+const { getZakatSummary, createZakatEntry } = await import('../zakat.controller.js');
 
 // Gold: 10 g 24K at 20,000/g = 200,000. Nisab = 85 × 20,000 = 1,700,000.
 describe('getZakatSummary', () => {
@@ -68,5 +68,34 @@ describe('getZakatSummary', () => {
         await getZakatSummary(req, res);
         expect(res.status).toHaveBeenCalledWith(500);
         expect(res.json).toHaveBeenCalledWith({ message: expect.any(String) });
+    });
+});
+
+describe('explainable zakat', () => {
+    let res;
+    beforeEach(() => {
+        res = { status: jest.fn().mockReturnThis(), json: jest.fn() };
+        mockWealthData({
+            banks: [{ name: 'Meezan', current_balance: '400000', exchange_rate: '1', balance_as_of: new Date('2026-10-01') }],
+            debts: [{ name: 'Car loan', debt_type: 'car_loan', outstanding: '900000', minimum_payment: '25000' }],
+        });
+    });
+    afterEach(() => jest.restoreAllMocks());
+
+    it('shows where each line comes from and the rules used', async () => {
+        await getZakatSummary({ user: { id: 'u1' } }, res);
+        const body = res.json.mock.calls[0][0];
+        expect(body.details.cash[0]).toMatchObject({ kind: 'bank', name: 'Meezan', value: 400000 });
+        expect(body.details.debts[0]).toEqual({ name: 'Car loan', outstanding: 900000, deductible: 300000, rule: 'Long-term loan: next 12 monthly payments' });
+        expect(body.details.gold).toMatchObject({ grams24k: 10, pricePerGram24k: 20000 });
+        expect(body.assumptions.length).toBeGreaterThan(3);
+    });
+
+    it('a recorded payment keeps the calculation it was based on', async () => {
+        const create = jest.spyOn(prisma.zakat, 'create').mockResolvedValue({ id: 'z1' });
+        await createZakatEntry({ user: { id: 'u1' }, body: { amount: 5000, description: 'Ramadan' } }, res);
+        const { computation } = create.mock.calls[0][0].data;
+        expect(computation).toMatchObject({ nisabValue: 1700000, goldPriceDate: new Date('2026-10-19') });
+        expect(computation.breakdown.debts).toBe(300000);
     });
 });
