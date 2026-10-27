@@ -151,7 +151,30 @@ export const remove = async (req, res) => {
     }
 };
 
-// POST /api/debts/:id/payments — record a payment and decrement outstanding.
+/**
+ * Split a payment into principal and interest. Both are optional; when both
+ * are given they must add up to the amount. Returns { principal, interest }
+ * or { error }.
+ */
+export function splitPayment(amount, principalIn, interestIn) {
+    const has = (v) => v !== undefined && v !== null && v !== '';
+    const principal = has(principalIn) ? Number(principalIn) : null;
+    const interest = has(interestIn) ? Number(interestIn) : null;
+    for (const [name, v] of [['principal_portion', principal], ['interest_portion', interest]]) {
+        if (v !== null && !(Number.isFinite(v) && v >= 0)) return { error: `${name} must be a number ≥ 0` };
+        if (v !== null && v > amount + 0.005) return { error: `${name} cannot exceed the payment amount` };
+    }
+    if (principal !== null && interest !== null && Math.abs(principal + interest - amount) > 0.01) {
+        return { error: 'principal_portion + interest_portion must equal the amount' };
+    }
+    const p = principal ?? (interest !== null ? amount - interest : amount);
+    return { principal: Math.round(p * 100) / 100, interest: Math.round((amount - p) * 100) / 100 };
+}
+
+// POST /api/debts/:id/payments — record a payment and reduce outstanding.
+// The reduction is applied by the database (outstanding = outstanding - x)
+// inside the same transaction as the payment row, so two payments at the
+// same time both count.
 export const addPayment = async (req, res) => {
     try {
         const debt = await prisma.debt.findFirst({ where: { id: req.params.id, user_id: req.user.id } });
@@ -160,34 +183,31 @@ export const addPayment = async (req, res) => {
         const amount = Number(req.body.amount);
         if (!(amount > 0)) return res.status(400).json({ message: 'amount must be > 0' });
 
-        const principalPortion = req.body.principal_portion !== undefined ? Number(req.body.principal_portion) : null;
-        const interestPortion  = req.body.interest_portion  !== undefined ? Number(req.body.interest_portion)  : null;
+        const split = splitPayment(amount, req.body.principal_portion, req.body.interest_portion);
+        if (split.error) return res.status(400).json({ message: split.error });
         const paidAt = req.body.paid_at ? new Date(req.body.paid_at) : new Date();
 
-        // Use the principal portion if supplied, else assume the whole amount goes to principal.
-        const principalApplied = principalPortion !== null ? principalPortion : amount;
-        const newOutstanding = Math.max(0, Number(debt.outstanding) - principalApplied);
-
-        const [payment, updated] = await prisma.$transaction([
-            prisma.debtPayment.create({
+        const { payment, updated } = await prisma.$transaction(async (tx) => {
+            const payment = await tx.debtPayment.create({
                 data: {
                     debt_id: debt.id,
                     user_id: req.user.id,
                     amount,
                     paid_at: paidAt,
-                    principal_portion: principalPortion,
-                    interest_portion:  interestPortion,
+                    principal_portion: split.principal,
+                    interest_portion: split.interest,
                     notes: req.body.notes || null,
                 },
-            }),
-            prisma.debt.update({
+            });
+            let updated = await tx.debt.update({
                 where: { id: debt.id },
-                data: {
-                    outstanding: newOutstanding,
-                    is_active: newOutstanding > 0,
-                },
-            }),
-        ]);
+                data: { outstanding: { decrement: split.principal } },
+            });
+            if (Number(updated.outstanding) <= 0) {
+                updated = await tx.debt.update({ where: { id: debt.id }, data: { outstanding: 0, is_active: false } });
+            }
+            return { payment, updated };
+        });
 
         res.status(201).json({ payment, debt: updated });
     } catch (error) {

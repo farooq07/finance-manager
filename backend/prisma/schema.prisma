@@ -122,6 +122,8 @@ model RecurringPayment {
   category         String?
   frequency        String    @db.VarChar(16) // "weekly" | "monthly" | "yearly"
   next_due_date    DateTime  @db.Date
+  // Intended day of the month (1–31); short months fall on their last day
+  due_day          Int?
   auto_debit       Boolean   @default(false)
   bank_id          String?   @db.Uuid // optional debit-from account (not FK)
   reminder_days    Int       @default(3)

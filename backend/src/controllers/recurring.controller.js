@@ -1,15 +1,8 @@
 import prisma from '../utils/prisma.js';
 import logger from '../utils/logger.js';
+import { nextDueDate, anchorDayOf } from '../utils/recurrence.js';
 
 const VALID_FREQUENCIES = new Set(['weekly', 'monthly', 'yearly']);
-
-function bumpDueDate(date, frequency) {
-    const next = new Date(date);
-    if (frequency === 'weekly')  next.setDate(next.getDate() + 7);
-    if (frequency === 'monthly') next.setMonth(next.getMonth() + 1);
-    if (frequency === 'yearly')  next.setFullYear(next.getFullYear() + 1);
-    return next;
-}
 
 function validatePayload(body) {
     const errors = [];
@@ -71,6 +64,7 @@ export const create = async (req, res) => {
                 category:      req.body.category || null,
                 frequency:     req.body.frequency,
                 next_due_date: new Date(req.body.next_due_date),
+                due_day:       anchorDayOf(req.body.next_due_date),
                 auto_debit:    Boolean(req.body.auto_debit),
                 bank_id:       req.body.bank_id || null,
                 reminder_days: Number(req.body.reminder_days ?? 3),
@@ -95,7 +89,10 @@ export const update = async (req, res) => {
         const data = {};
         const fields = ['name', 'amount', 'currency', 'category', 'frequency', 'auto_debit', 'bank_id', 'reminder_days', 'is_active', 'notes'];
         for (const f of fields) if (f in req.body) data[f] = req.body[f];
-        if (req.body.next_due_date) data.next_due_date = new Date(req.body.next_due_date);
+        if (req.body.next_due_date) {
+            data.next_due_date = new Date(req.body.next_due_date);
+            data.due_day = anchorDayOf(req.body.next_due_date);
+        }
 
         if (data.frequency && !VALID_FREQUENCIES.has(data.frequency)) {
             return res.status(400).json({ message: 'frequency must be weekly|monthly|yearly' });
@@ -123,37 +120,44 @@ export const remove = async (req, res) => {
     }
 };
 
-// POST /api/recurring/:id/paid — mark current cycle as paid; advance next_due_date.
+// POST /api/recurring/:id/paid — mark the current cycle paid and advance it.
+// One transaction: the cycle advances only if it is still the one the user
+// saw (a double click can't skip a month), and the optional expense is
+// written with it or not at all.
 export const markPaid = async (req, res) => {
     try {
         const { id } = req.params;
         const existing = await prisma.recurringPayment.findFirst({ where: { id, user_id: req.user.id } });
         if (!existing) return res.status(404).json({ message: 'Not found' });
 
-        const nextDue = bumpDueDate(existing.next_due_date, existing.frequency);
+        const nextDue = nextDueDate(existing.next_due_date, existing.frequency, existing.due_day ?? anchorDayOf(existing.next_due_date));
 
-        const updated = await prisma.recurringPayment.update({
-            where: { id },
-            data: {
-                last_paid_at: new Date(),
-                next_due_date: nextDue,
-                last_reminder_at: null,
-            },
+        const updated = await prisma.$transaction(async (tx) => {
+            const advanced = await tx.recurringPayment.updateMany({
+                where: { id, user_id: req.user.id, next_due_date: existing.next_due_date },
+                data: { last_paid_at: new Date(), next_due_date: nextDue, last_reminder_at: null },
+            });
+            if (advanced.count === 0) return null; // already marked paid by another request
+
+            // Optionally record an expense so it shows in spend totals.
+            if (req.body.record_expense) {
+                await tx.expense.create({
+                    data: {
+                        user_id: req.user.id,
+                        category: existing.category || 'Bills',
+                        amount: existing.amount,
+                        notes: existing.name,
+                        payment_method: 'Recurring',
+                        expense_date: new Date(),
+                    },
+                });
+            }
+            return tx.recurringPayment.findUnique({ where: { id } });
         });
 
-        // Optionally record an expense so it shows in spend totals.
-        if (req.body.record_expense) {
-            await prisma.expense.create({
-                data: {
-                    user_id: req.user.id,
-                    category: existing.category || 'Bills',
-                    amount: existing.amount,
-                    description: existing.name,
-                    expense_date: new Date(),
-                },
-            });
+        if (!updated) {
+            return res.status(409).json({ message: 'This bill was already marked paid.', item: await prisma.recurringPayment.findUnique({ where: { id } }) });
         }
-
         res.json(updated);
     } catch (error) {
         logger.error('[RECURRING] markPaid failed:', error);
