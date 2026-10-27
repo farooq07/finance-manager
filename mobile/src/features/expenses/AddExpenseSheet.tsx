@@ -6,6 +6,7 @@ import { apiError } from '../../api/client';
 import { SPEND_CATEGORIES } from '../../lib/categories';
 import { parseBalance } from '../../lib/parseBalance';
 import { Button, Chip, Field, Sheet, Text, tokens } from '../../ui';
+import { usePaymentMethods } from './usePaymentMethods';
 
 const isoDay = (offset: number) => {
     const d = new Date();
@@ -13,13 +14,15 @@ const isoDay = (offset: number) => {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
-/** Record a cash or card expense that isn't in an imported statement. */
+/** Record an expense that isn't in an imported statement (cash, or a card/account not imported yet). */
 export function AddExpenseSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
     const qc = useQueryClient();
     const [amount, setAmount] = useState('');
     const [category, setCategory] = useState<string>('Food & Dining');
     const [day, setDay] = useState(0);
     const [note, setNote] = useState('');
+    const [method, setMethod] = useState('Cash');
+    const methods = usePaymentMethods(visible);
     const [error, setError] = useState<string | null>(null);
     const [busy, setBusy] = useState(false);
 
@@ -29,9 +32,9 @@ export function AddExpenseSheet({ visible, onClose }: { visible: boolean; onClos
         setBusy(true);
         setError(null);
         try {
-            await addExpense({ amount: parsed.value, category, expense_date: isoDay(day), notes: note.trim() || undefined, payment_method: 'Cash' });
+            await addExpense({ amount: parsed.value, category, expense_date: isoDay(day), notes: note.trim() || undefined, payment_method: method });
             await qc.invalidateQueries();
-            setAmount(''); setNote(''); setDay(0);
+            setAmount(''); setNote(''); setDay(0); setMethod('Cash');
             onClose();
         } catch (err) {
             setError(apiError(err));
@@ -50,6 +53,10 @@ export function AddExpenseSheet({ visible, onClose }: { visible: boolean; onClos
             <View style={{ flexDirection: 'row', gap: tokens.space.sm }}>
                 <Chip label="Today" selected={day === 0} onPress={() => setDay(0)} />
                 <Chip label="Yesterday" selected={day === -1} onPress={() => setDay(-1)} />
+            </View>
+            <Text variant="label">Paid with</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: tokens.space.sm }}>
+                {methods.map((m) => <Chip key={m} label={m} selected={method === m} onPress={() => setMethod(m)} />)}
             </View>
             <Field label="Note (optional)" value={note} onChangeText={setNote} placeholder="e.g. Imtiaz groceries" />
             <Button label="Save expense" onPress={save} loading={busy} disabled={!amount || busy} />

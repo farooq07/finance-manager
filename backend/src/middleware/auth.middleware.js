@@ -42,7 +42,8 @@ const verifyToken = async (req, res, next) => {
         }
 
         req.user = { id: user.id, email: user.email, name: user.name, role: user.role };
-        req.auth = { iat: decoded.iat, tokenVersion: user.token_version };
+        // Tokens from before `at` existed: their issue time is their sign-in time.
+        req.auth = { iat: decoded.iat, authAt: decoded.at ?? decoded.iat, tokenVersion: user.token_version };
         next();
     } catch (error) {
         console.error('[AUTH] session check failed:', error.message);

@@ -77,7 +77,7 @@ describe('Auth Middleware', () => {
         jest.spyOn(prisma.user, 'findUnique').mockResolvedValueOnce(activeUser);
         await verifyToken(req, res, next);
         expect(req.user).toEqual({ id: 'u1', email: 'a@b.c', name: 'Ali', role: 'user' });
-        expect(req.auth).toEqual({ iat: 1234, tokenVersion: 0 });
+        expect(req.auth).toEqual({ iat: 1234, authAt: 1234, tokenVersion: 0 });
         expect(next).toHaveBeenCalled();
     });
 

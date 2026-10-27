@@ -624,7 +624,7 @@ export const firstPasswordChange = async (req, res) => {
             select: { id: true, email: true, token_version: true },
         });
 
-        res.json({ message: 'Password updated successfully', token: signSessionToken(updated) });
+        res.json({ message: 'Password updated successfully', token: signSessionToken(updated, { authAt: req.auth?.authAt }) });
     } catch (error) {
         console.error('First Password Change Error:', error);
         res.status(500).json({ message: 'Server error updating password' });
@@ -636,7 +636,7 @@ export const firstPasswordChange = async (req, res) => {
 export const revokeAllSessions = async (req, res) => {
     try {
         const updated = await revokeSessions(req.user.id);
-        res.json({ message: 'Signed out of every other device', token: signSessionToken(updated) });
+        res.json({ message: 'Signed out of every other device', token: signSessionToken(updated, { authAt: req.auth?.authAt }) });
     } catch (error) {
         console.error('Revoke sessions error:', error);
         res.status(500).json({ message: 'Could not sign out other devices' });

@@ -44,18 +44,25 @@ export function pinProblem(pin) {
 }
 
 /** A session token tied to the user's current token_version. */
-export function signSessionToken(user) {
+/**
+ * `authAt` (seconds) is when the user last proved who they are (password +
+ * emailed code, or Google/Apple). A real sign-in leaves it out — now. Anything
+ * that only re-issues a token for an existing session (sign out other devices,
+ * forced password change) passes the old value on, so it can't make a session
+ * look freshly signed in.
+ */
+export function signSessionToken(user, { authAt } = {}) {
     return jwt.sign(
-        { id: user.id, email: user.email, tv: user.token_version ?? 0 },
+        { id: user.id, email: user.email, tv: user.token_version ?? 0, at: authAt ?? Math.floor(Date.now() / 1000) },
         process.env.JWT_SECRET,
         { expiresIn: SESSION_TTL },
     );
 }
 
-/** True when the request's token was issued by a sign-in in the last few minutes. */
+/** True when the user really signed in (not just got a re-issued token) in the last few minutes. */
 export function isFreshLogin(req, now = Date.now()) {
-    const iat = req.auth?.iat;
-    return typeof iat === 'number' && now - iat * 1000 <= FRESH_LOGIN_MS;
+    const at = req.auth?.authAt ?? req.auth?.iat;
+    return typeof at === 'number' && now - at * 1000 <= FRESH_LOGIN_MS;
 }
 
 /**

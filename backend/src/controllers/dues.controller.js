@@ -240,6 +240,10 @@ export const uploadDuesCSV = async (req, res) => {
                     if (isNaN(amount) || amount === 0) continue;
 
                     const transaction_type = amount > 0 ? 'receivable' : 'payable';
+                    // Optional Date column; rows without a readable date are dated today.
+                    const dateRaw = String(row.Date || row.date || row.DATE || '').trim();
+                    const parsedDate = dateRaw ? new Date(dateRaw) : null;
+                    const transaction_date = parsedDate && !Number.isNaN(parsedDate.getTime()) ? parsedDate : new Date();
 
                     await prisma.duesTransaction.create({
                         data: {
@@ -247,7 +251,7 @@ export const uploadDuesCSV = async (req, res) => {
                             person_id: id,
                             transaction_type,
                             amount: Math.abs(amount),
-                            transaction_date: new Date(),
+                            transaction_date,
                             description: detail.trim()
                         }
                     });
@@ -298,6 +302,13 @@ export const updateTransaction = async (req, res) => {
     try {
         const { txId } = req.params;
         const { description, amount, transaction_date, transaction_type } = req.body;
+
+        if (transaction_type !== undefined && !['receivable', 'payable'].includes(transaction_type)) {
+            return res.status(400).json({ message: "transaction_type must be 'receivable' or 'payable'" });
+        }
+        if (amount !== undefined && !(Math.abs(Number(amount)) > 0)) {
+            return res.status(400).json({ message: 'Amount must be greater than 0' });
+        }
 
         const existing = await prisma.duesTransaction.findUnique({ where: { id: txId } });
         if (!existing || existing.user_id !== req.user.id) {

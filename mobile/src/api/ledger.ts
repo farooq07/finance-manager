@@ -43,6 +43,16 @@ export const updatePerson = async (id: string, name: string, email?: string | nu
 export const deletePerson = async (id: string) => (await api.delete(`/dues/${id}`)).data;
 export const addDuesEntry = async (personId: string, entry: { transaction_type: DuesType; amount: number; transaction_date: string; description?: string }) =>
     (await api.post(`/dues/${personId}/transactions`, entry)).data;
+export const updateDuesEntry = async (id: string, entry: { transaction_type: DuesType; amount: number; transaction_date: string; description?: string | null }) =>
+    (await api.put(`/dues/transactions/${id}`, entry)).data;
+/** CSV columns: Detail, Dues (positive = they owe you, negative = you owe them), optional Date. */
+export async function uploadDuesCsv(personId: string, file: { uri: string; name: string; mimeType?: string | null }) {
+    const form = new FormData();
+    form.append('duesCSV', { uri: file.uri, name: file.name, type: file.mimeType || 'text/csv' } as unknown as Blob);
+    return (await api.post<{ message: string; imported: number }>(`/dues/${personId}/upload-csv`, form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+    })).data;
+}
 export const deleteDuesEntry = async (id: string) => (await api.post('/dues/transactions/delete', { ids: [id] })).data;
 export const sendReminder = async (personId: string) => (await api.post<{ message: string }>(`/dues/${personId}/reminder`)).data;
 
@@ -53,6 +63,10 @@ export const addDebt = async (debt: {
     name: string; debt_type: DebtType; principal: number; outstanding: number;
     interest_rate?: number | null; minimum_payment?: number | null; due_day?: number | null;
 }) => (await api.post<Debt>('/debts', debt)).data;
+export const updateDebt = async (id: string, fields: Partial<{
+    name: string; debt_type: DebtType; principal: number; outstanding: number;
+    interest_rate: number | null; minimum_payment: number | null; due_day: number | null; notes: string | null;
+}>) => (await api.patch<Debt>(`/debts/${id}`, fields)).data;
 export const setDebtActive = async (id: string, is_active: boolean) => (await api.patch(`/debts/${id}`, { is_active })).data;
 export const deleteDebt = async (id: string) => (await api.delete(`/debts/${id}`)).data;
 export const addDebtPayment = async (id: string, amount: number, notes?: string) =>

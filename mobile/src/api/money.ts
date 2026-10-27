@@ -86,7 +86,8 @@ export async function commitStatement(kind: AccountKind, accountId: string, body
 // Expenses and spending -------------------------------------------------------
 
 export type SpendingRow = {
-    id: string; source: 'bank' | 'wallet' | 'manual'; sourceLabel: string; date: string; description: string;
+    /** "manual:<expenseId>", "bank:<txId>" or "wallet:<txId>" */
+    id: string; source: 'bank' | 'wallet' | 'manual'; sourceId: string | null; sourceLabel: string; date: string; description: string;
     category: string; amount: number; kind: 'credit' | 'debit'; flow: string; status: string; possibleDuplicate?: boolean;
 };
 export type Insights = {
@@ -96,6 +97,12 @@ export type Insights = {
 
 export const addExpense = async (e: { amount: number; category: string; expense_date: string; notes?: string; payment_method?: string }) =>
     (await api.post('/expenses', e)).data;
+export type ExpenseInput = { amount: number; category: string; expense_date: string; notes?: string | null; payment_method?: string | null };
+export const updateExpense = async (id: string, e: ExpenseInput) => (await api.put(`/expenses/${id}`, e)).data;
+export const deleteExpense = async (id: string) => (await api.delete(`/expenses/${id}`)).data;
+/** Re-file an imported transaction; its linked expense follows. */
+export const recategorizeTransaction = async (kind: AccountKind, accountId: string, txId: string, approvedCategory: string) =>
+    (await api.put(`/${base(kind)}/${accountId}/transactions/${txId}`, { approvedCategory })).data;
 export const getSpending = async (anchor?: string) =>
     (await api.get<{ rows: SpendingRow[] }>('/dashboard/spending', { params: { period: 'month', anchor } })).data;
 export const getInsights = async (anchor?: string) =>
@@ -145,3 +152,10 @@ export const goldVerifyPin = async (pin: string) =>
 export const goldItems = async () => (await api.get<GoldItemsResponse>('/gold/items', { headers: vaultHeaders() })).data;
 export const addGoldItem = async (item: { name: string; type: string; weight_grams: number; carats: number }) =>
     (await api.post('/gold/items', item, { headers: vaultHeaders() })).data;
+export const updateGoldItem = async (id: string, item: Partial<{ name: string; type: string; weight_grams: number; carats: number }>) =>
+    (await api.put(`/gold/items/${id}`, item, { headers: vaultHeaders() })).data;
+export const deleteGoldItem = async (id: string) =>
+    (await api.delete(`/gold/items/${id}`, { headers: vaultHeaders() })).data;
+/** Forgot the vault PIN: allowed only within 10 minutes of a full sign-in. */
+export const goldResetPin = async (pin: string) =>
+    (await api.post<{ vaultToken?: string; expiresIn?: number }>('/gold/reset-pin', { pin })).data;

@@ -8,6 +8,7 @@ import { fmtPKR } from '../../lib/currency';
 import { fmtDateLong } from '../../lib/dates';
 import { BackHeader, Button, EmptyState, ErrorState, HeroCard, ListRow, Screen, Skeleton, Text, tokens, useTheme } from '../../ui';
 import { AddExpenseSheet } from './AddExpenseSheet';
+import { EditTransactionSheet } from './EditTransactionSheet';
 
 const monthAnchor = (offset: number) => {
     const d = new Date();
@@ -26,6 +27,7 @@ export function SpendingScreen() {
     const { colors } = useTheme();
     const [offset, setOffset] = useState(0);
     const [adding, setAdding] = useState(false);
+    const [editing, setEditing] = useState<SpendingRow | null>(null);
     const anchor = monthAnchor(offset);
     const insights = useQuery({ queryKey: ['insights', anchor], queryFn: () => getInsights(anchor) });
     const rows = useQuery({ queryKey: ['spending', anchor], queryFn: () => getSpending(anchor) });
@@ -94,14 +96,18 @@ export function SpendingScreen() {
                             {items.map((r) => (
                                 <ListRow key={r.id} title={r.description || r.category}
                                     subtitle={`${FLOW_NOTE[r.flow] ?? r.category} · ${r.sourceLabel}`}
-                                    amount={r.kind === 'credit' ? r.amount : -r.amount} signed />
+                                    amount={r.kind === 'credit' ? r.amount : -r.amount} signed
+                                    onPress={() => setEditing(r)} />
                             ))}
                         </View>
                     ))}
                 </View>
             )}
 
+            {groups.length > 0 && <Text variant="caption">Tap a transaction to change its category, or to edit or delete an expense you added.</Text>}
+
             <AddExpenseSheet visible={adding} onClose={() => setAdding(false)} />
+            <EditTransactionSheet row={editing} onClose={() => setEditing(null)} />
         </Screen>
     );
 }
