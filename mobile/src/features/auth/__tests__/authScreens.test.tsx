@@ -16,7 +16,7 @@ const mockRouter = { push: jest.fn(), replace: jest.fn(), back: jest.fn() };
 let mockParams: Record<string, string> = {};
 jest.mock('expo-router', () => ({ useRouter: () => mockRouter, useLocalSearchParams: () => mockParams }));
 jest.mock('../../../api/auth');
-jest.mock('../google', () => ({ configureGoogle: jest.fn(), signInWithGoogle: jest.fn() }));
+jest.mock('../google', () => ({ configureGoogle: jest.fn(), signInWithGoogle: jest.fn(), googleSignInAvailable: true }));
 
 const api = jest.mocked(auth);
 const serverError = (message: string, status = 400) =>

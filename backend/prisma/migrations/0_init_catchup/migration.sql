@@ -7,7 +7,14 @@
 -- Every statement is IF NOT EXISTS, so on production (where all of these
 -- already exist) this migration changes nothing.
 
-CREATE EXTENSION IF NOT EXISTS "vector";
+-- pgvector powers the AI assistant's document search. Production and CI
+-- have it; a plain local Postgres may not, and then only document search is
+-- unavailable (the embedding column is added when the extension exists).
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM pg_available_extensions WHERE name = 'vector') THEN
+        CREATE EXTENSION IF NOT EXISTS "vector";
+    END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS "menu_visibility" (
     "path" VARCHAR(100) NOT NULL,
@@ -59,7 +66,6 @@ CREATE TABLE IF NOT EXISTS "document_chunks" (
     "document_id" TEXT NOT NULL,
     "chunk_index" INTEGER NOT NULL,
     "content" TEXT NOT NULL,
-    "embedding" vector(3072),
 
     CONSTRAINT "document_chunks_pkey" PRIMARY KEY ("id")
 );
@@ -190,6 +196,12 @@ CREATE TABLE IF NOT EXISTS "beneficiary_transactions" (
 );
 
 CREATE INDEX IF NOT EXISTS "menu_visibility_parent_path_idx" ON "menu_visibility"("parent_path");
+
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'vector') THEN
+        EXECUTE 'ALTER TABLE "document_chunks" ADD COLUMN IF NOT EXISTS "embedding" vector(3072)';
+    END IF;
+END $$;
 
 CREATE INDEX IF NOT EXISTS "document_chunks_document_id_idx" ON "document_chunks"("document_id");
 

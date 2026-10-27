@@ -6,7 +6,7 @@ import { apiError } from '../../api/client';
 import { useSession } from '../session/sessionStore';
 import { Button, Field } from '../../ui';
 import { AuthForm } from './AuthForm';
-import { configureGoogle, signInWithGoogle } from './google';
+import { configureGoogle, googleSignInAvailable, signInWithGoogle } from './google';
 
 export function SignInScreen() {
     const router = useRouter();
@@ -53,7 +53,7 @@ export function SignInScreen() {
             <Field label="Email or username" value={identifier} onChangeText={setIdentifier} autoCapitalize="none" autoComplete="email" keyboardType="email-address" />
             <Field label="Password" value={password} onChangeText={setPassword} secureTextEntry autoComplete="password" />
             <Button label="Sign in" onPress={submit} loading={busy === 'email'} disabled={!identifier.trim() || !password || busy !== null} />
-            {config.data?.googleClientId ? (
+            {googleSignInAvailable && config.data?.googleClientId ? (
                 <Button label="Continue with Google" variant="secondary" onPress={google} loading={busy === 'google'} disabled={busy !== null} />
             ) : null}
             <Button label="Forgot password?" variant="text" onPress={() => router.push('/(auth)/forgot-password')} />

@@ -16,3 +16,6 @@ uploads/
 test-statement.pdf
 test-statement.txt
 test-parser.js
+
+# Local development database (npm run db:local)
+.localdb/

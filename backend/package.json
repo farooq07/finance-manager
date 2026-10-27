@@ -11,7 +11,9 @@
     "seed": "node prisma/seed.js",
     "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
     "fixture:statement": "node scripts/make-statement-fixture.js",
-    "test:integration": "cross-env NODE_OPTIONS=--experimental-vm-modules jest -c jest.integration.config.js"
+    "test:integration": "cross-env NODE_OPTIONS=--experimental-vm-modules jest -c jest.integration.config.js",
+    "db:local": "node scripts/local-db.mjs",
+    "dev:localdb": "cross-env DATABASE_URL=postgresql://wealthaxis:wealthaxis@127.0.0.1:54329/wealthaxis DIRECT_URL=postgresql://wealthaxis:wealthaxis@127.0.0.1:54329/wealthaxis doppler run --preserve-env=DATABASE_URL,DIRECT_URL -- nodemon server.js"
   },
   "keywords": [],
   "author": "",
@@ -51,9 +53,11 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^25.3.0",
     "cross-env": "^10.1.0",
+    "embedded-postgres": "^17.5.0-beta.15",
     "jest": "^30.2.0",
     "jest-mock-extended": "^4.0.0",
     "nodemon": "^3.1.14",
+    "pg": "^8.23.1",
     "prisma": "^5.10.2",
     "supertest": "^7.2.2"
   }
