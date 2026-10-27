@@ -38,7 +38,7 @@ export function PinPad({ onComplete, disabled = false, resetKey = 0 }: { onCompl
                 ))}
             </View>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', width: 264, justifyContent: 'space-between', rowGap: 14 }}>
-                {KEYS.map((key, i) => key === '' ? <View key={i} style={{ width: 72, height: 72 }} /> : (
+                {KEYS.map((key) => key === '' ? <View key="blank" style={{ width: 72, height: 72 }} /> : (
                     <Pressable
                         key={key}
                         accessibilityRole="button"
