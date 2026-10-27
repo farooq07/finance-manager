@@ -1,6 +1,5 @@
-import { ComingSoon } from '../../src/features/shell/ComingSoon';
+import { AccountsScreen } from '../../src/features/accounts/AccountsScreen';
 
-// Banks, wallets and statement import arrive with the Money core sub-project.
 export default function AccountsTab() {
-    return <ComingSoon title="Accounts" />;
+    return <AccountsScreen />;
 }

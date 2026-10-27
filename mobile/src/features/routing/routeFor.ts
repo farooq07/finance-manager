@@ -7,7 +7,8 @@ type RouteInput = { status: 'loading' | 'signedOut' | 'signedIn'; user: User | n
 /**
  * Is the current screen (expo-router segments) already where `target` wants
  * the user? Any signed-out screen satisfies sign-in (register, OTP, forgot
- * password), any tab satisfies home — only first-password and lock are exact.
+ * password), any tab or signed-in screen in (app) satisfies home — only
+ * first-password and lock are exact.
  */
 export function isOnTarget(segments: string[], target: AppRoute): boolean {
     const [group, screen] = segments;
@@ -17,7 +18,7 @@ export function isOnTarget(segments: string[], target: AppRoute): boolean {
         case '/(onboarding)': return group === '(onboarding)';
         case '/lock': return group === 'lock';
         case '/pin-setup': return group === 'pin-setup';
-        case '/(tabs)/home': return group === '(tabs)';
+        case '/(tabs)/home': return group === '(tabs)' || group === '(app)';
     }
 }
 

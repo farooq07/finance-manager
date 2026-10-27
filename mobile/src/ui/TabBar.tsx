@@ -19,9 +19,11 @@ const TABS: { name: TabName | 'add'; label: string; icon: IconName }[] = [
     { name: 'more', label: 'More', icon: 'grid-outline' },
 ];
 
-// Quick actions behind the centre button. They open real screens once the
-// Money core / Ledger + AI sub-projects land.
-const QUICK_ADD: { label: string; icon: IconName }[] = [
+export type QuickAction = { label: string; icon: IconName; onPress?: () => void };
+
+// Quick actions behind the centre button. Ones without onPress show as
+// "Coming in the next update"; the tabs layout passes the real ones.
+const QUICK_ADD: QuickAction[] = [
     { label: 'Expense', icon: 'receipt-outline' },
     { label: 'Transfer', icon: 'swap-horizontal-outline' },
     { label: 'Import statement', icon: 'document-text-outline' },
@@ -29,7 +31,7 @@ const QUICK_ADD: { label: string; icon: IconName }[] = [
 ];
 
 /** Bottom bar: Home · Accounts · (raised) Add · Invest · More. Add opens a sheet. */
-export function TabBar({ active, onSelect }: { active: TabName; onSelect: (tab: TabName) => void }) {
+export function TabBar({ active, onSelect, quickActions = QUICK_ADD }: { active: TabName; onSelect: (tab: TabName) => void; quickActions?: QuickAction[] }) {
     const { colors } = useTheme();
     const [adding, setAdding] = useState(false);
     const tap = () => void Haptics.selectionAsync().catch(() => {});
@@ -67,14 +69,21 @@ export function TabBar({ active, onSelect }: { active: TabName; onSelect: (tab: 
             </View>
 
             <Sheet visible={adding} onClose={() => setAdding(false)} title="Add">
-                {QUICK_ADD.map((item) => (
-                    <View key={item.label} style={{ flexDirection: 'row', alignItems: 'center', gap: tokens.space.md, paddingVertical: 6, opacity: 0.6 }}>
+                {quickActions.map((item) => (
+                    <Pressable
+                        key={item.label}
+                        accessibilityRole="button"
+                        accessibilityLabel={item.label}
+                        disabled={!item.onPress}
+                        onPress={() => { setAdding(false); item.onPress?.(); }}
+                        style={{ flexDirection: 'row', alignItems: 'center', gap: tokens.space.md, paddingVertical: 6, opacity: item.onPress ? 1 : 0.6 }}
+                    >
                         <Ionicons name={item.icon} size={22} color={colors.text} />
                         <View>
                             <Text variant="heading">{item.label}</Text>
-                            <Text variant="caption">Coming in the next update</Text>
+                            {!item.onPress && <Text variant="caption">Coming in the next update</Text>}
                         </View>
-                    </View>
+                    </Pressable>
                 ))}
             </Sheet>
         </SafeAreaView>

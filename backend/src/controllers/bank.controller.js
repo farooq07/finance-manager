@@ -70,7 +70,11 @@ export const getBankById = async (req, res) => {
         const { id } = req.params;
         const bank = await prisma.bank.findUnique({
             where: { id, user_id: req.user.id },
-            include: { statements: true }
+            // Never send the encrypted PDF password or the server file path.
+            include: { statements: { select: {
+                id: true, month: true, year: true, upload_date: true, opening_balance: true, closing_balance: true,
+                total_credits: true, total_debits: true, transaction_count: true, processing_status: true,
+            }, orderBy: { upload_date: 'desc' } } }
         });
 
         if (!bank) return res.status(404).json({ message: 'Bank not found' });

@@ -1,6 +1,5 @@
-import { ComingSoon } from '../../src/features/shell/ComingSoon';
+import { MoreScreen } from '../../src/features/shell/MoreScreen';
 
-// Ledger, AI assistant and Settings arrive in later sub-projects.
 export default function MoreTab() {
-    return <ComingSoon title="More" />;
+    return <MoreScreen />;
 }
