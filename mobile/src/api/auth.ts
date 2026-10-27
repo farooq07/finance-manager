@@ -24,3 +24,13 @@ export const googleAuth = async (credential: string) =>
 export const getMe = async () => (await api.get<User>('/auth/me')).data;
 export const setPin = async (pin: string) => (await api.put('/auth/pin', { pin })).data;
 export const verifyPin = async (pin: string) => (await api.post('/auth/verify-pin', { pin })).data;
+
+// Settings -------------------------------------------------------------------
+export const changePin = async (currentPin: string, newPin: string) =>
+    (await api.put('/auth/pin/change', { currentPin, newPin })).data;
+/** Signs out every other device; returns a fresh token for this one (old tokens stop working). */
+export const revokeOtherSessions = async () =>
+    (await api.post<{ message: string; token: string }>('/auth/sessions/revoke-all')).data;
+/** Deactivates the account and queues it for deletion. Password-less (Google) accounts need a sign-in in the last 10 minutes. */
+export const requestAccountDeletion = async (password?: string) =>
+    (await api.post<{ message: string }>('/users/me/deletion-request', { password })).data;

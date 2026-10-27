@@ -11,6 +11,7 @@ export type User = {
     onboarded_at?: string | null;
     /** null/undefined = show everything; [] = core only */
     interests?: string[] | null;
+    notifications?: { weeklySummary: boolean; billReminders: boolean };
 };
 
 export type LoginResult = { userId: string; email: string; requiresOtp: true };

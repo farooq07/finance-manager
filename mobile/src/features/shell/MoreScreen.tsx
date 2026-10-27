@@ -3,7 +3,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter, type Href } from 'expo-router';
 import { useSession } from '../session/sessionStore';
 import { Button, ListRow, Screen, Text, tokens, useTheme } from '../../ui';
-import { COMING_SOON } from './ComingSoon';
 
 type IconName = React.ComponentProps<typeof Ionicons>['name'];
 const ITEMS: { label: string; hint: string; icon: IconName; href?: string }[] = [
@@ -12,7 +11,7 @@ const ITEMS: { label: string; hint: string; icon: IconName; href?: string }[] = 
     { label: 'Gold Vault', hint: 'Your gold at today\'s price', icon: 'diamond-outline', href: '/(app)/gold' },
     { label: 'Ledger', hint: 'Who owes you, who you owe, and loans', icon: 'people-outline', href: '/(app)/ledger' },
     { label: 'AI assistant', hint: 'Ask about your money in plain words', icon: 'sparkles-outline', href: '/(app)/assistant' },
-    { label: 'Settings', hint: COMING_SOON, icon: 'settings-outline' },
+    { label: 'Settings', hint: 'PIN, emails, what you track, your account', icon: 'settings-outline', href: '/(app)/settings' },
 ];
 
 export function MoreScreen() {

@@ -34,7 +34,7 @@ function extractPkr(text) {
     return Number.isFinite(num) && num > 0 ? num : null;
 }
 
-// Sanity range — Pakistani 24K per-tola is currently ~330k PKR. Reject
+// Sanity range — Pakistani 24K per-tola is currently ~420k PKR. Reject
 // scrapes that fall wildly outside this band, since the page structure
 // has almost certainly changed.
 function isPlausibleTolaPrice(price) {
@@ -42,64 +42,34 @@ function isPlausibleTolaPrice(price) {
 }
 
 /**
- * Try hamariweb first. Looks for the "24K" row in the rates table and
- * pulls the per-tola PKR figure. Returns null on any failure.
+ * Pull the 24K per-tola price out of a rates page's text. Both sources state
+ * it in a sentence — "… is PKR 419,500 per tola for 24K gold …" — which is
+ * far steadier than table layouts. No guessing from other numbers on the
+ * page: a wrong gold price silently skews net worth and the Zakat nisab.
  */
-async function scrapeHamariweb(page) {
-    try {
-        await page.goto('https://www.hamariweb.com/finance/gold_rates.aspx', {
-            waitUntil: 'domcontentloaded',
-            timeout: TIMEOUT_MS,
-        });
-
-        // The page renders rates in a table; the row for 24K typically
-        // includes "24" in the carat cell and a PKR figure in the
-        // per-tola cell. We grab the raw text and pattern-match.
-        const bodyText = await page.evaluate(() => document.body.innerText);
-
-        // Heuristic: look for "24K" or "24 Karat" within ~80 chars before
-        // a PKR-looking number — that's the per-tola price.
-        const re24k = /24\s*[Kk](?:arat)?[\s\S]{0,200}?Rs?\.?\s*([\d,]+(?:\.\d+)?)/;
-        const match = bodyText.match(re24k);
-        if (match) {
-            const price = extractPkr(match[1]);
-            if (price && isPlausibleTolaPrice(price)) return { price, source: 'hamariweb' };
-        }
-
-        // Fallback: find the largest PKR number in the page that's
-        // within the sanity range (assumes 24K per-tola is the headline).
-        const allMoney = [...bodyText.matchAll(/Rs?\.?\s*([\d,]+(?:\.\d+)?)/gi)]
-            .map((m) => extractPkr(m[1]))
-            .filter((n) => n && isPlausibleTolaPrice(n))
-            .sort((a, b) => b - a);
-        if (allMoney.length) return { price: allMoney[0], source: 'hamariweb' };
-
-        return null;
-    } catch (err) {
-        logger.warn('[GOLD_SCRAPE] hamariweb failed:', err.message);
-        return null;
-    }
+export function parse24kPerTola(text) {
+    if (!text) return null;
+    const m = text.match(/(?:PKR|Rs\.?)\s*([\d,]+(?:\.\d+)?)\s*(?:\/-)?\s*per\s+tola\s+for\s+24\s*K/i);
+    if (!m) return null;
+    const price = extractPkr(m[1]);
+    return price && isPlausibleTolaPrice(price) ? price : null;
 }
 
-/**
- * Fallback to geo.tv if hamariweb didn't return a usable number.
- */
-async function scrapeGeo(page) {
+// Tried in order; the first usable price wins. hamariweb's old
+// /finance/gold_rates.aspx and geo.tv/gold-rate both went 404 in 2026.
+const SOURCES = [
+    { name: 'hamariweb', url: 'https://hamariweb.com/finance/gold_rate/' },
+    { name: 'urdupoint', url: 'https://www.urdupoint.com/business/gold-rates.html' },
+];
+
+async function scrapeSource(page, { name, url }) {
     try {
-        await page.goto('https://www.geo.tv/gold-rate', {
-            waitUntil: 'domcontentloaded',
-            timeout: TIMEOUT_MS,
-        });
-        const bodyText = await page.evaluate(() => document.body.innerText);
-        const re = /(?:tola|24[\s-]*[Kk])[\s\S]{0,200}?Rs?\.?\s*([\d,]+(?:\.\d+)?)/;
-        const match = bodyText.match(re);
-        if (match) {
-            const price = extractPkr(match[1]);
-            if (price && isPlausibleTolaPrice(price)) return { price, source: 'geo' };
-        }
-        return null;
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: TIMEOUT_MS });
+        const price = parse24kPerTola(await page.evaluate(() => document.body.innerText));
+        if (!price) logger.warn(`[GOLD_SCRAPE] ${name}: no 24K per-tola price found on the page`);
+        return price ? { price, source: name } : null;
     } catch (err) {
-        logger.warn('[GOLD_SCRAPE] geo failed:', err.message);
+        logger.warn(`[GOLD_SCRAPE] ${name} failed:`, err.message);
         return null;
     }
 }
@@ -108,7 +78,7 @@ async function scrapeGeo(page) {
  * Scrapes the latest 24K-per-tola PKR price and writes today's row to
  * gold_price_history (upsert by date). Returns the upserted row.
  *
- * Throws if both sources fail — the caller (cron, manual endpoint)
+ * Throws if every source fails — the caller (cron, manual endpoint)
  * decides how loud to be about it.
  */
 export async function syncGoldPrice() {
@@ -120,8 +90,11 @@ export async function syncGoldPrice() {
         });
         const page = await context.newPage();
 
-        let scraped = await scrapeHamariweb(page);
-        if (!scraped) scraped = await scrapeGeo(page);
+        let scraped = null;
+        for (const source of SOURCES) {
+            scraped = await scrapeSource(page, source);
+            if (scraped) break;
+        }
 
         if (!scraped) {
             throw new Error('All gold price sources failed to return a usable 24K/tola price');

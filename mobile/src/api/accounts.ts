@@ -10,5 +10,8 @@ export const createWallet = async (name: string, balance: number) =>
 
 export const getDashboardSummary = async () => (await api.get<DashboardSummary>('/dashboard/summary')).data;
 
-export const updatePreferences = async (body: { interests?: string[] | null; completeOnboarding?: true }) =>
+export const updatePreferences = async (body: {
+    interests?: string[] | null; completeOnboarding?: true;
+    notifications?: { weeklySummary?: boolean; billReminders?: boolean };
+}) =>
     (await api.patch<Preferences>('/users/me/preferences', body)).data;
