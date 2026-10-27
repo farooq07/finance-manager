@@ -7,6 +7,8 @@ export const login = async (identifier: string, password: string) =>
     (await api.post<LoginResult>('/auth/login', { identifier, password })).data;
 export const verifyOtp = async (userId: string, otp: string) =>
     (await api.post<SessionResult>('/auth/verify-otp', { userId, otp })).data;
+export const resendOtp = async (userId: string) =>
+    (await api.post<{ message: string }>('/auth/resend-otp', { userId })).data;
 export const register = async (name: string, email: string, password: string) =>
     (await api.post<{ message: string; email: string }>('/auth/register', { name, email, password })).data;
 export const forgotPassword = async (email: string) =>

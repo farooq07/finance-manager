@@ -1,6 +1,3 @@
-import { ComingSoon } from '../../src/features/shell/ComingSoon';
+import { SignInScreen } from '../../src/features/auth/SignInScreen';
 
-// Replaced by the real sign-in screen in Task 6.
-export default function SignIn() {
-    return <ComingSoon title="Sign in" />;
-}
+export default SignInScreen;
