@@ -15,14 +15,28 @@ import path from 'node:path';
 export const LOCAL_DB_URL = 'postgresql://wealthaxis:wealthaxis@127.0.0.1:54329/wealthaxis';
 
 const dataDir = path.resolve(import.meta.dirname, '..', '.localdb');
-const pg = new EmbeddedPostgres({ databaseDir: dataDir, user: 'wealthaxis', password: 'wealthaxis', port: 54329, persistent: true });
+// UTF-8 explicitly: on Windows initdb otherwise picks the system code page
+// (WIN1252), which rejects Urdu text, arrows and other non-Latin characters.
+const pg = new EmbeddedPostgres({
+    databaseDir: dataDir, user: 'wealthaxis', password: 'wealthaxis', port: 54329, persistent: true,
+    initdbFlags: ['--encoding=UTF8', '--locale=C'],
+});
 
 if (!fs.existsSync(path.join(dataDir, 'PG_VERSION'))) {
     console.log('[local-db] creating a new local database in .localdb …');
     await pg.initialise();
 }
 await pg.start();
-try { await pg.createDatabase('wealthaxis'); } catch { /* already there */ }
+const admin = pg.getPgClient();
+await admin.connect();
+const { rows } = await admin.query("SELECT pg_encoding_to_char(encoding) AS enc FROM pg_database WHERE datname = 'wealthaxis'");
+if (rows.length === 0) {
+    await admin.query("CREATE DATABASE wealthaxis ENCODING 'UTF8' TEMPLATE template0 LC_COLLATE 'C' LC_CTYPE 'C'");
+} else if (rows[0].enc !== 'UTF8') {
+    console.warn(`[local-db] WARNING: the local database is ${rows[0].enc}, not UTF8 — non-English text will fail.`);
+    console.warn('[local-db] Recreate it: stop everything, delete backend/.localdb, run npm run db:local again.');
+}
+await admin.end();
 
 console.log('[local-db] applying migrations …');
 execSync('npx prisma migrate deploy', {

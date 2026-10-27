@@ -23,14 +23,16 @@ import { karachiDateKey } from '../utils/dates.js';
 const FAILURE_ABORT_RATIO = 0.5;
 
 /**
- * Tickers to sync: the union of every user's watchlist and every symbol
- * anyone actually holds in their latest snapshot. Previously this was a
+ * Tickers to sync: the union of every user's watchlist, every stock entered
+ * by hand, and every symbol anyone actually holds in their latest snapshot. Previously this was a
  * hardcoded 14-symbol array, so a user who held anything else got no live
  * price for it at all.
  */
 export async function resolveSyncTickers() {
-    const [watched, snapshots] = await Promise.all([
+    const [watched, manual, snapshots] = await Promise.all([
         prisma.watchlist.findMany({ select: { ticker: true }, distinct: ['ticker'] }),
+        // Stocks entered by hand (no CDC upload) need prices too.
+        prisma.stock.findMany({ select: { stock_symbol: true }, distinct: ['stock_symbol'] }),
         prisma.psxSnapshot.findMany({
             select: { holdings_data: true },
             orderBy: { snapshot_date: 'desc' },
@@ -38,7 +40,7 @@ export async function resolveSyncTickers() {
         }),
     ]);
 
-    const tickers = new Set(watched.map(w => w.ticker));
+    const tickers = new Set([...watched.map(w => w.ticker), ...manual.map(m => m.stock_symbol.trim().toUpperCase())]);
     for (const snap of snapshots) {
         const holdings = Array.isArray(snap.holdings_data) ? snap.holdings_data : [];
         for (const h of holdings) {

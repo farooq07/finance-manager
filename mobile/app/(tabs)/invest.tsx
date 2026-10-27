@@ -1,6 +1,5 @@
-import { ComingSoon } from '../../src/features/shell/ComingSoon';
+import { InvestScreen } from '../../src/features/invest/InvestScreen';
 
-// Stocks, mutual funds and gold arrive with the Investments sub-project.
 export default function InvestTab() {
-    return <ComingSoon title="Invest" />;
+    return <InvestScreen />;
 }

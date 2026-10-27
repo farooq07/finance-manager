@@ -51,12 +51,34 @@ async function loadPsx(userId) {
 
     // No CDC upload yet: value manually entered stocks.
     const stocks = await prisma.stock.findMany({ where: { user_id: userId }, include: { transactions: true } });
+    const quotes = stocks.length
+        ? await prisma.psxStock.findMany({ where: { ticker: { in: stocks.map((s) => s.stock_symbol.toUpperCase()) } } })
+        : [];
+    const live = new Map(quotes.map((q) => [q.ticker, Number(q.price)]));
     let value = 0;
+    let cost = 0;
+    let staleHoldings = 0;
     for (const stock of stocks) {
-        const qty = stock.transactions.reduce((q, tx) => q + Number(tx.quantity || 0), 0);
-        value += qty * Number(stock.current_market_price || 0);
+        const lots = valueManualStock(stock, live.get(stock.stock_symbol.toUpperCase()));
+        value += lots.value;
+        cost += lots.cost;
+        if (lots.quantity > 0 && lots.stale) staleHoldings++;
     }
-    return { value, cost: 0, tradingCash: 0, syncedAt: null, staleHoldings: 0 };
+    return { value, cost, tradingCash: 0, syncedAt: null, staleHoldings };
+}
+
+/**
+ * A hand-entered stock: shares and cost from its buy lots, priced at the
+ * latest PSX close — else the price saved on the stock, else what was paid
+ * (a purchase is never worth zero just because no price has synced yet).
+ */
+function valueManualStock(stock, livePrice) {
+    const quantity = sum(stock.transactions, (t) => t.quantity);
+    const cost = sum(stock.transactions, (t) => Number(t.buy_price) * Number(t.quantity) + Number(t.brokerage_fee || 0));
+    const saved = Number(stock.current_market_price || 0);
+    const paid = quantity ? sum(stock.transactions, (t) => Number(t.buy_price) * Number(t.quantity)) / quantity : 0;
+    const price = livePrice ?? (saved || paid);
+    return { quantity, cost, price, value: quantity * price, stale: livePrice == null };
 }
 
 async function loadMutualFunds(userId) {
@@ -176,5 +198,88 @@ export function zakatFromWealth(w) {
             debts: w.debts.items,
         },
         assumptions: ZAKAT_ASSUMPTIONS,
+    };
+}
+
+/**
+ * The investments part of net worth, line by line: the same totals as
+ * computeWealth (so the Invest screen, dashboard and Zakat agree), plus the
+ * holdings behind them and today's PSX move for each ticker.
+ *
+ * Stocks come from the latest CDC snapshot when there is one; otherwise from
+ * stocks entered by hand (quantity from their buy lots, priced at the latest
+ * PSX quote, falling back to the price saved on the stock).
+ */
+export async function investmentOverview(userId) {
+    const [psx, mf, latest, manual, funds] = await Promise.all([
+        loadPsx(userId),
+        loadMutualFunds(userId),
+        prisma.psxSnapshot.findFirst({ where: { user_id: userId }, orderBy: { snapshot_date: 'desc' } }),
+        prisma.stock.findMany({ where: { user_id: userId }, include: { transactions: true }, orderBy: { stock_symbol: 'asc' } }),
+        prisma.mutualFund.findMany({ where: { user_id: userId }, orderBy: { current_value: 'desc' } }),
+    ]);
+
+    const holdings = latest && Array.isArray(latest.holdings_data) ? latest.holdings_data : [];
+    const tickers = [
+        ...holdings.map((h) => String(h.symbol || '').trim().toUpperCase()),
+        ...manual.map((s) => s.stock_symbol.toUpperCase()),
+    ].filter(Boolean);
+    const quotes = tickers.length
+        ? await prisma.psxStock.findMany({ where: { ticker: { in: [...new Set(tickers)] } } })
+        : [];
+    const quote = new Map(quotes.map((q) => [q.ticker, q]));
+    const dayChangePct = (symbol) => (quote.has(symbol) ? Number(quote.get(symbol).changePct) : null);
+
+    let stocks;
+    if (latest) {
+        stocks = holdings.map((h) => {
+            const symbol = String(h.symbol || '').trim().toUpperCase();
+            const quantity = Number(h.holding || 0);
+            const cost = Number(h.total_cost ?? quantity * Number(h.cost_per_unit || 0)) || null;
+            const value = Number(h.custody_val ?? quantity * Number(h.market_rate || 0));
+            return {
+                id: null, symbol, name: quote.get(symbol)?.companyName ?? null, quantity,
+                price: Number(h.market_rate || 0), value, cost,
+                gain: cost ? value - cost : null,
+                dayChangePct: dayChangePct(symbol),
+                stale: Boolean(h.price_stale),
+            };
+        }).sort((a, b) => b.value - a.value);
+    } else {
+        stocks = manual.map((s) => {
+            const symbol = s.stock_symbol.toUpperCase();
+            const live = quote.get(symbol);
+            const v = valueManualStock(s, live ? Number(live.price) : undefined);
+            return {
+                id: s.id, symbol, name: s.company_name ?? live?.companyName ?? null, quantity: v.quantity,
+                price: v.price, value: v.value, cost: v.cost || null,
+                gain: v.cost ? v.value - v.cost : null,
+                dayChangePct: dayChangePct(symbol),
+                stale: v.stale,
+            };
+        }).filter((s) => s.quantity > 0).sort((a, b) => b.value - a.value);
+    }
+
+    return {
+        total: psx.value + psx.tradingCash + mf.value,
+        stocks: {
+            source: latest ? 'cdc' : 'manual',
+            asOf: psx.syncedAt,
+            value: psx.value,
+            cost: psx.cost || sum(stocks, (s) => s.cost),
+            holdings: stocks,
+        },
+        tradingCash: psx.tradingCash,
+        mutualFunds: {
+            asOf: mf.syncedAt,
+            value: mf.value,
+            cost: mf.cost,
+            funds: funds.map((f) => ({
+                id: f.id, name: f.fund_name, symbol: f.fund_symbol,
+                units: Number(f.units), nav: Number(f.current_nav),
+                value: Number(f.current_value), invested: Number(f.invested_amount),
+                gain: Number(f.current_value) - Number(f.invested_amount),
+            })),
+        },
     };
 }
