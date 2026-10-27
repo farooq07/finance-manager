@@ -71,8 +71,6 @@ export default function Settings() {
     const [selectedRole, setSelectedRole] = useState(null);
     const [userFormData, setUserFormData] = useState({ name: '', email: '', password: '', role: 'user' });
 
-    // Add-role control lifted into the Roles tab header (see RolesManagement)
-    const [isAddRoleOpen, setIsAddRoleOpen] = useState(false);
 
     // Segmented sub-tab inside the unified Access Control page
     const [accessTab, setAccessTab] = useState('users');
@@ -629,11 +627,6 @@ export default function Settings() {
                                     <Plus className="w-4 h-4 mr-2" /> Add User
                                 </Button>
                             )}
-                            {accessTab === 'roles' && (
-                                <Button color="blue" onClick={() => setIsAddRoleOpen(true)}>
-                                    <Plus className="w-4 h-4 mr-2" /> Add Role
-                                </Button>
-                            )}
                         </div>
 
                         {/* Users sub-tab */}
@@ -786,7 +779,7 @@ export default function Settings() {
                         {/* Roles sub-tab */}
                         {accessTab === 'roles' && (
                             <div className="flex-1 overflow-auto p-8 bg-gray-50/30 dark:bg-neutral-900/50">
-                                <RolesManagement addOpen={isAddRoleOpen} onAddOpenChange={setIsAddRoleOpen} hideInternalAddButton />
+                                <RolesManagement />
                             </div>
                         )}
 
