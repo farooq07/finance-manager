@@ -168,7 +168,7 @@ function DocumentsPanel() {
     const file = e.target.files?.[0];
     if (!file) return;
     upload(file, {
-      onSuccess: (data) => toast.success(`"${file.name}" processed — ${data.chunkCount} chunks indexed`),
+      onSuccess: (data) => (data.truncated ? toast.warning : toast.success)(`"${file.name}": ${data.message}`),
       onError: (err) => toast.error(err?.response?.data?.message || 'Failed to process document')
     });
     e.target.value = '';
@@ -237,9 +237,15 @@ function DocumentsPanel() {
                 <FileIcon className="w-3 h-3 mt-0.5 shrink-0 text-primary-400 dark:text-emerald-500" />
                 <div className="flex-1 min-w-0">
                   <p className="text-[11px] font-medium text-gray-700 dark:text-gray-300 truncate">{doc.filename}</p>
-                  <p className="text-[10px] text-gray-400 dark:text-gray-500">
-                    {doc._count?.chunks || 0} chunks · {formatSize(doc.char_count)}
-                  </p>
+                  {doc.status === 'embedding' ? (
+                    <p className="text-[10px] text-amber-600 dark:text-amber-400">Indexing…</p>
+                  ) : doc.status === 'failed' ? (
+                    <p className="text-[10px] text-red-600 dark:text-red-400" title={doc.error || ''}>Couldn't index — delete and upload again</p>
+                  ) : (
+                    <p className="text-[10px] text-gray-400 dark:text-gray-500">
+                      {doc._count?.chunks || 0} chunks · {formatSize(doc.char_count)}{doc.truncated ? ' · partly indexed' : ''}
+                    </p>
+                  )}
                 </div>
                 <button
                   onClick={() => handleDelete(doc)}

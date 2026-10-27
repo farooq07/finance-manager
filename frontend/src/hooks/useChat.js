@@ -43,7 +43,9 @@ export const useSendMessage = (sessionId) => {
 export const useDocuments = () =>
   useQuery({
     queryKey: ['chat-documents'],
-    queryFn: () => api.get('/chat/documents').then(r => r.data)
+    queryFn: () => api.get('/chat/documents').then(r => r.data),
+    // Indexing runs in the background — check again until it finishes.
+    refetchInterval: (query) => (query.state.data || []).some(d => d.status === 'embedding') ? 3000 : false
   });
 
 export const useUploadDocument = () => {

@@ -87,12 +87,21 @@ export const uploadDocument = async (req, res) => {
 
     if (!text?.trim()) {
       fs.unlinkSync(fPath);
-      return res.status(400).json({ message: 'Could not extract any text from the file' });
+      const isPdf = mimetype === 'application/pdf' || originalname.toLowerCase().endsWith('.pdf');
+      return res.status(422).json(isPdf
+        ? { code: 'SCANNED_PDF', message: "This PDF has no text in it — it looks like a scan or photo. Scanned PDFs can't be read yet; upload a PDF with selectable text, or a .txt / .csv file." }
+        : { code: 'EMPTY_FILE', message: 'Could not find any text in this file.' });
     }
 
-    const result = await processDocument(req.user.id, originalname, mimetype, text);
+    const { done, ...result } = await processDocument(req.user.id, originalname, mimetype, text);
     fs.unlinkSync(fPath); // Don't keep the file — chunks are stored in DB
-    res.status(201).json({ message: 'Document processed', ...result });
+    done.catch(() => {}); // indexing continues in the background; status shows the outcome
+    res.status(202).json({
+      message: result.truncated
+        ? 'Indexing started. This document is long — only its first ~85,000 words will be searchable.'
+        : 'Indexing started. It will be searchable in a moment.',
+      ...result,
+    });
   } catch (err) {
     if (filePath && fs.existsSync(filePath)) fs.unlinkSync(filePath);
     console.error('Document upload error:', err.message);

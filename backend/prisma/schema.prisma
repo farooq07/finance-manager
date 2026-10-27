@@ -311,6 +311,11 @@ model ChatDocument {
   filename   String          @db.VarChar(255)
   mime_type  String          @db.VarChar(100)
   char_count Int             @default(0)
+  // embedding → ready | failed. Only ready documents are searched.
+  status     String          @default("ready") @db.VarChar(20)
+  error      String?
+  // true when the document was longer than the indexing limit
+  truncated  Boolean         @default(false)
   created_at DateTime        @default(now())
   user       User            @relation(fields: [user_id], references: [id], onDelete: Cascade)
   chunks     DocumentChunk[]
