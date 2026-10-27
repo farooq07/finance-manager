@@ -59,7 +59,10 @@ async function callGroq(descriptions) {
 
     const numbered = descriptions.map((d, i) => `${i + 1}. ${d}`).join('\n');
     const completion = await groqClient.chat.completions.create({
-        model: 'llama-3.3-70b-versatile',
+        // Groq retired llama-3.3-70b-versatile (2026). gpt-oss reasons before
+        // answering; low effort keeps that inside max_tokens for a short JSON reply.
+        model: process.env.GROQ_CATEGORIZER_MODEL || 'openai/gpt-oss-120b',
+        reasoning_effort: 'low',
         messages: [{ role: 'user', content: PROMPT_TEMPLATE(numbered) }],
         temperature: 0.1,
         max_tokens: 1024,

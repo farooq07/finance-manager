@@ -14,7 +14,8 @@ import prisma from '../utils/prisma.js';
 //                     Google retires old versions (2.0 and 1.5 are gone).
 //
 //   groq    — Groq (needs GROQ_API_KEY, very generous free tier)
-//             Free models: llama-3.3-70b-versatile, llama-3.1-8b-instant
+//             Free models: openai/gpt-oss-120b, openai/gpt-oss-20b
+//             (llama-3.3-70b-versatile was retired in 2026)
 //             Paid models: (same models, higher rate limits)
 //
 //   openai  — OpenAI (needs OPENAI_API_KEY, paid)
@@ -24,7 +25,7 @@ import prisma from '../utils/prisma.js';
 // ---------------------------------------------------------------------------
 
 const GEMINI_MODEL  = process.env.GEMINI_CHAT_MODEL  || 'gemini-2.5-flash';
-const GROQ_MODEL    = process.env.GROQ_CHAT_MODEL    || 'llama-3.3-70b-versatile';
+const GROQ_MODEL    = process.env.GROQ_CHAT_MODEL    || 'openai/gpt-oss-120b';
 const OPENAI_MODEL  = process.env.OPENAI_CHAT_MODEL  || 'gpt-4o-mini';
 
 function getProvider() {

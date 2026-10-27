@@ -19,8 +19,8 @@ export default function TabsLayout() {
                         quickActions={[
                             { label: 'Expense', icon: 'receipt-outline', onPress: () => setAddingExpense(true) },
                             { label: 'Import statement', icon: 'document-text-outline', onPress: () => router.push('/(app)/import' as Href) },
-                            { label: 'Transfer', icon: 'swap-horizontal-outline' },
-                            { label: 'Ask AI', icon: 'sparkles-outline' },
+                            { label: 'Lent / borrowed', icon: 'people-outline', onPress: () => router.push('/(app)/ledger' as Href) },
+                            { label: 'Ask AI', icon: 'sparkles-outline', onPress: () => router.push('/(app)/assistant' as Href) },
                         ]}
                     />
                 )}

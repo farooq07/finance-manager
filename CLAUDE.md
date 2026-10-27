@@ -5,7 +5,7 @@
 **Frontend:** React 19 + Vite + Tailwind CSS + TanStack Query v5 + React Router v6 + ECharts
 **Backend:** Express 5 + Prisma ORM + Supabase PostgreSQL (+ pgvector)
 **Auth:** JWT (7d, versioned — see `backend/src/utils/session.js`) + OTP via email + optional 6-digit app PIN (shared by web and mobile)
-**AI:** Gemini 2.5 Flash (categoriser + RAG) + Groq llama-3.3-70b (fallback)
+**AI:** Gemini 2.5 Flash (categoriser + RAG) + Groq gpt-oss-120b (fallback; llama-3.3-70b was retired)
 
 ## Dev Commands
 

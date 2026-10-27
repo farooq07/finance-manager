@@ -10,8 +10,8 @@ const ITEMS: { label: string; hint: string; icon: IconName; href?: string }[] = 
     { label: 'Spending', hint: 'Month by month, by category', icon: 'pie-chart-outline', href: '/(app)/spending' },
     { label: 'Zakat', hint: 'What is due and how it is worked out', icon: 'heart-outline', href: '/(app)/zakat' },
     { label: 'Gold Vault', hint: 'Your gold at today\'s price', icon: 'diamond-outline', href: '/(app)/gold' },
-    { label: 'Ledger', hint: COMING_SOON, icon: 'people-outline' },
-    { label: 'AI assistant', hint: COMING_SOON, icon: 'sparkles-outline' },
+    { label: 'Ledger', hint: 'Who owes you, who you owe, and loans', icon: 'people-outline', href: '/(app)/ledger' },
+    { label: 'AI assistant', hint: 'Ask about your money in plain words', icon: 'sparkles-outline', href: '/(app)/assistant' },
     { label: 'Settings', hint: COMING_SOON, icon: 'settings-outline' },
 ];
 
