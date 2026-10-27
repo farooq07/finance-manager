@@ -27,7 +27,10 @@ if (!host) {
 const apiUrl = `http://${host}:${PORT}/api`;
 console.log(`[start-local] API: ${apiUrl}`);
 
-const child = spawn('npx', ['expo', 'start', ...(emulator ? ['--android'] : [])], {
+// --offline: app.json names an Expo owner/projectId, so without it the CLI asks
+// for an Expo login the first time a device connects — and crashes when it
+// can't (a background terminal has no input). Local dev needs no account.
+const child = spawn('npx', ['expo', 'start', '--offline', ...(emulator ? ['--android'] : [])], {
     stdio: 'inherit',
     shell: true,
     env: { ...process.env, EXPO_PUBLIC_API_URL: apiUrl },
