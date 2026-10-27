@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import * as SecureStore from 'expo-secure-store';
 import { TOKEN_KEY, isNetworkError, setUnauthorizedHandler } from '../../api/client';
 import { getMe } from '../../api/auth';
+import { forgetPushOnSignOut } from '../notifications/push';
 import type { User } from '../../api/types';
 
 const LAST_USER_KEY = 'last_user';
@@ -66,6 +67,7 @@ export const useSession = create<SessionState>((set, get) => ({
     },
 
     signOut: async () => {
+        await forgetPushOnSignOut().catch(() => {}); // needs the token, so before it's gone
         await SecureStore.deleteItemAsync(TOKEN_KEY);
         await SecureStore.deleteItemAsync(LAST_USER_KEY);
         set({ status: 'signedOut', user: null });

@@ -3,7 +3,7 @@ import {
     getAllUsers, getUserById, updateUserRole, updateUser, deleteUser,
     softDeleteUser, getDeletionRequests, restoreUser, createUser, resetUserPassword
 } from '../controllers/user.controller.js';
-import { updatePreferences, requestAccountDeletion } from '../controllers/preferences.controller.js';
+import { updatePreferences, requestAccountDeletion, registerPushToken, unregisterPushToken } from '../controllers/preferences.controller.js';
 import verifyToken from '../middleware/auth.middleware.js';
 
 const router = express.Router();
@@ -14,6 +14,8 @@ router.get('/', verifyToken, getAllUsers);
 // The signed-in user's own onboarding / menu preferences — must be before '/:id'
 router.patch('/me/preferences', verifyToken, updatePreferences);
 router.post('/me/deletion-request', verifyToken, requestAccountDeletion);
+router.post('/me/push-tokens', verifyToken, registerPushToken);
+router.delete('/me/push-tokens', verifyToken, unregisterPushToken);
 
 // Super-admin review list of soft-deleted users — must be before '/:id'
 router.get('/deletion-requests', verifyToken, getDeletionRequests);

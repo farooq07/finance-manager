@@ -1,6 +1,7 @@
 import prisma from '../utils/prisma.js';
 import logger from '../utils/logger.js';
 import { sendBillReminderEmail } from '../utils/email.js';
+import { sendPush } from './push.service.js';
 
 /**
  * Find active recurring payments whose next_due_date is within reminder_days
@@ -40,6 +41,9 @@ export async function dispatchBillReminders() {
                 dueDate: item.next_due_date,
                 daysUntilDue,
             });
+            const amount = `${item.currency || 'PKR'} ${Number(item.amount).toLocaleString('en-PK', { maximumFractionDigits: 0 })}`;
+            const when = daysUntilDue > 1 ? `in ${daysUntilDue} days` : daysUntilDue === 1 ? 'tomorrow' : daysUntilDue === 0 ? 'today' : 'overdue';
+            await sendPush([item.user_id], { title: `${item.name} is due ${when}`, body: amount, data: { path: '/(tabs)/home' } });
             await prisma.recurringPayment.update({
                 where: { id: item.id },
                 data: { last_reminder_at: now },

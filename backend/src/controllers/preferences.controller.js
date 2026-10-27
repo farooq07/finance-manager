@@ -3,6 +3,7 @@ import prisma from '../utils/prisma.js';
 import bcrypt from 'bcrypt';
 import { INTEREST_KEYS } from '../constants/interests.js';
 import { AUTH_CODES, authError, isFreshLogin } from '../utils/session.js';
+import { PUSH_TOKEN_PATTERN, removePushToken, savePushToken } from '../services/push.service.js';
 
 /**
  * PATCH /api/users/me/preferences
@@ -105,5 +106,33 @@ export const requestAccountDeletion = async (req, res) => {
     } catch (error) {
         console.error('Deletion request error:', error);
         res.status(500).json({ message: 'Could not request deletion' });
+    }
+};
+
+/**
+ * POST /api/users/me/push-tokens  body: { token, platform? }
+ * DELETE /api/users/me/push-tokens  body: { token }
+ * The phone's Expo push address, for bill reminders and the weekly summary.
+ */
+export const registerPushToken = async (req, res) => {
+    const token = String(req.body?.token ?? '');
+    if (!PUSH_TOKEN_PATTERN.test(token)) return res.status(400).json({ message: 'Not an Expo push token' });
+    const platform = ['ios', 'android'].includes(req.body?.platform) ? req.body.platform : null;
+    try {
+        await savePushToken(req.user.id, token, platform);
+        res.status(201).json({ message: 'Notifications are on for this phone' });
+    } catch (error) {
+        console.error('Register push token error:', error);
+        res.status(500).json({ message: 'Could not turn on notifications' });
+    }
+};
+
+export const unregisterPushToken = async (req, res) => {
+    try {
+        await removePushToken(req.user.id, String(req.body?.token ?? ''));
+        res.json({ message: 'Notifications are off for this phone' });
+    } catch (error) {
+        console.error('Unregister push token error:', error);
+        res.status(500).json({ message: 'Could not turn off notifications' });
     }
 };

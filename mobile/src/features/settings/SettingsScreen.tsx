@@ -11,6 +11,7 @@ import { InterestPicker } from '../onboarding/InterestPicker';
 import { biometricsAvailable, useLock } from '../lock/lockStore';
 import { PinPad } from '../lock/PinPad';
 import { useSession } from '../session/sessionStore';
+import { disablePush, enablePush, isPushOn, pushSupported } from '../notifications/push';
 import { BackHeader, Button, Field, ListRow, Screen, Sheet, Text, tokens, useTheme } from '../../ui';
 
 type IconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -25,11 +26,27 @@ export function SettingsScreen() {
     const [canUseBiometrics, setCanUseBiometrics] = useState(false);
     const [sheet, setSheet] = useState<'interests' | 'pin' | 'delete' | null>(null);
     const [savingNotify, setSavingNotify] = useState(false);
+    const [pushOn, setPushOn] = useState(false);
 
     useEffect(() => {
         void loadBiometricsSetting();
         void biometricsAvailable().then(setCanUseBiometrics).catch(() => {});
+        void isPushOn().then(setPushOn).catch(() => {});
     }, [loadBiometricsSetting]);
+
+    async function togglePush(on: boolean) {
+        try {
+            if (!on) {
+                await disablePush();
+                return setPushOn(false);
+            }
+            const r = await enablePush();
+            setPushOn(r === 'on');
+            if (r === 'denied') Alert.alert('Notifications are blocked', "Allow notifications for this app in your phone's settings, then try again.");
+        } catch (err) {
+            Alert.alert('Could not change notifications', apiError(err));
+        }
+    }
 
     const notify = user?.notifications ?? { weeklySummary: true, billReminders: true };
     const interests = user?.interests;
@@ -88,6 +105,16 @@ export function SettingsScreen() {
             <Section title="What you see">
                 <View style={card}>
                     <ListRow title="What you track" subtitle={tracking} icon={icon('options-outline')} onPress={() => setSheet('interests')} />
+                </View>
+            </Section>
+
+            <Section title="Notifications">
+                <View style={card}>
+                    {pushSupported ? (
+                        <ToggleRow label="On this phone" hint="Bill reminders and your weekly summary, for the emails you get below" value={pushOn} onChange={(v) => void togglePush(v)} />
+                    ) : (
+                        <ListRow title="On this phone" subtitle="Not available in Expo Go on Android — works in the installed app" icon={icon('notifications-off-outline')} />
+                    )}
                 </View>
             </Section>
 

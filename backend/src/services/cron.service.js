@@ -12,6 +12,7 @@ import { snapshotAllUsersPortfolios } from './psxSnapshot.service.js';
 import { isPsxTradingDay } from '../utils/dates.js';
 import { cleanupAbandonedUploads } from './uploadSession.service.js';
 import { runJob } from './jobRunner.service.js';
+import { sendPush } from './push.service.js';
 
 // Weekly summary email: every Sunday at 9:00 AM
 const WEEKLY_SUMMARY_SCHEDULE = '0 9 * * 0';
@@ -65,6 +66,8 @@ export const initCronJobs = () => {
             try {
                 const data = await fetchDashboardData(user.id);
                 await sendSummaryEmail(user.email, user.name || 'User', data.metrics);
+                const netWorth = Number(data.metrics?.netWorth ?? 0).toLocaleString('en-PK', { maximumFractionDigits: 0 });
+                await sendPush([user.id], { title: 'Your week in money', body: `Net worth PKR ${netWorth}. Tap for this month's spending.`, data: { path: '/(app)/spending' } });
             } catch (err) {
                 failed++;
                 logger.error(`[Cron] Failed to send summary for user ${user.id}:`, err.message);
