@@ -49,12 +49,20 @@ const cases = [
 ];
 
 describe.each(cases)('$name commitStatement reconciliation gate', ({ commit, dir, params, owner, save, statementModel }) => {
-    let uploadId, res, saveSpy;
+    let uploadId, fileName, res, saveSpy;
 
     beforeEach(() => {
         fs.mkdirSync(dir, { recursive: true });
-        uploadId = `jest-${Date.now()}-${Math.random().toString(36).slice(2)}.pdf`;
-        fs.writeFileSync(path.join(dir, uploadId), 'test statement');
+        fileName = `jest-${Date.now()}-${Math.random().toString(36).slice(2)}.pdf`;
+        fs.writeFileSync(path.join(dir, fileName), 'test statement');
+        // The client holds an upload-session id; the session points at the file.
+        uploadId = '11111111-2222-4333-8444-555555555555';
+        jest.spyOn(prisma.uploadSession, 'findFirst').mockResolvedValue({
+            id: uploadId, file_path: path.join(dir, fileName), expires_at: new Date(Date.now() + 60_000), committed_at: null,
+        });
+        jest.spyOn(prisma.uploadSession, 'updateMany').mockResolvedValue({ count: 1 });
+        jest.spyOn(prisma.bankTransactionLog, 'findMany').mockResolvedValue([]);
+        jest.spyOn(prisma.walletTransactionLog, 'findMany').mockResolvedValue([]);
         res = { status: jest.fn().mockReturnThis(), json: jest.fn() };
         owner();
         // The import is saved inside one transaction; run it on the mocked client.
@@ -64,7 +72,7 @@ describe.each(cases)('$name commitStatement reconciliation gate', ({ commit, dir
     });
 
     afterEach(() => {
-        fs.rmSync(path.join(dir, uploadId), { force: true });
+        fs.rmSync(path.join(dir, fileName), { force: true });
         fileAlreadyImported = false;
         jest.restoreAllMocks();
     });
@@ -98,7 +106,7 @@ describe.each(cases)('$name commitStatement reconciliation gate', ({ commit, dir
     });
 
     it('CSV commit checks the opening/closing typed in the mapping dialog', async () => {
-        fs.writeFileSync(path.join(dir, uploadId), [
+        fs.writeFileSync(path.join(dir, fileName), [
             'Date,Description,Amount,Balance',
             '01/03/2026,ATM,-500.00,9500.00',
             '02/03/2026,SALARY,1000.00,10500.00',

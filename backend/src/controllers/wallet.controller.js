@@ -9,18 +9,11 @@ import { reconcile, importGate } from '../services/reconcile.service.js';
 import { recordUserCategory } from '../services/categorizer.service.js';
 import { isWalletFilePreviouslyImported } from '../services/duplicateDetector.service.js';
 import { saveStatementImport } from '../services/statementImport.service.js';
+import { openUploadSession, resolveUploadSession, claimUploadSession, releaseUploadSession } from '../services/uploadSession.service.js';
 import fs from 'fs';
 import path from 'path';
 
 const WALLET_STATEMENTS_DIR = 'uploads/wallet-statements';
-
-function resolveWalletUploadPath(uploadId) {
-    const base = path.basename(String(uploadId || ''));
-    if (!base || base !== uploadId) return null;
-    const full = path.join(WALLET_STATEMENTS_DIR, base);
-    if (!fs.existsSync(full)) return null;
-    return full;
-}
 
 function isCsvName(name = '') {
     return name.toLowerCase().endsWith('.csv');
@@ -480,7 +473,7 @@ export const uploadStatement = async (req, res) => {
 /**
  * Shared finaliser for the wallet mapping/commit flow.
  */
-async function finalizeWalletImport({ userId, walletId, parsedTxs, openingBalance, closingBalance, filePath, fileHash, password, reconciled = true }) {
+async function finalizeWalletImport({ userId, walletId, parsedTxs, openingBalance, closingBalance, filePath, fileHash, password, reconciled = true, replaceStatementId = null }) {
     let month = new Date().toLocaleString('en-US', { month: 'long' });
     let year = new Date().getFullYear();
     if (parsedTxs.length > 0) {
@@ -496,6 +489,7 @@ async function finalizeWalletImport({ userId, walletId, parsedTxs, openingBalanc
         accountId: walletId,
         parsedTxs,
         closingBalance,
+        replaceStatementId,
         statementData: {
             month,
             year,
@@ -526,7 +520,7 @@ export const previewStatement = async (req, res) => {
         if (!req.file) return res.status(400).json({ message: 'No file provided' });
 
         filePath = req.file.path;
-        const uploadId = path.basename(filePath);
+        const uploadId = await openUploadSession({ userId: req.user.id, kind: 'wallet', accountId: walletId, filePath });
         const fileHash = getFileHash(filePath);
         const alreadyImported = await isWalletFilePreviouslyImported(req.user.id, fileHash, walletId);
 
@@ -575,8 +569,10 @@ export const commitStatement = async (req, res) => {
         const wallet = await prisma.wallet.findUnique({ where: { id: walletId, user_id: req.user.id } });
         if (!wallet) return res.status(404).json({ message: 'Wallet not found' });
 
-        const filePath = resolveWalletUploadPath(uploadId);
-        if (!filePath) return res.status(400).json({ message: 'Upload not found or expired. Please re-upload the file.' });
+        // The upload must be this user's, for this account, unexpired and not yet imported.
+        const upload = await resolveUploadSession({ uploadId, userId: req.user.id, kind: 'wallet', accountId: walletId });
+        if (!upload.filePath) return res.status(upload.status).json({ message: upload.message });
+        const filePath = upload.filePath;
 
         const fileHash = getFileHash(filePath);
         const isDuplicate = await isWalletFilePreviouslyImported(req.user.id, fileHash, walletId);
@@ -637,17 +633,27 @@ export const commitStatement = async (req, res) => {
         const blocked = importGate(reconciliation, acceptMismatch);
         if (blocked) return res.status(blocked.status).json(blocked.body);
 
-        if (replaceExisting) {
-            try {
-                if (replaceExisting.file_path && replaceExisting.file_path !== filePath && fs.existsSync(replaceExisting.file_path)) fs.unlinkSync(replaceExisting.file_path);
-                await prisma.walletStatement.delete({ where: { id: replaceExisting.id } });
-            } catch (e) { logger.log('[WALLET_COMMIT] cleanup failed:', e.message); }
+        // One import per upload, even with a double click or a retry.
+        if (!(await claimUploadSession(upload.session.id))) {
+            return res.status(409).json({ message: 'This upload was already imported.' });
         }
 
-        const { statement, transactionLogs, duplicateCount, possibleDuplicateCount } = await finalizeWalletImport({
-            userId: req.user.id, walletId, parsedTxs, openingBalance, closingBalance, filePath, fileHash, password,
-            reconciled: reconciliation.ok,
-        });
+        let imported;
+            try {
+                imported = await finalizeWalletImport({
+                userId: req.user.id, walletId, parsedTxs, openingBalance, closingBalance, filePath, fileHash, password,
+                reconciled: reconciliation.ok,
+                replaceStatementId: replaceExisting?.id ?? null,
+            });
+        } catch (e) {
+            await releaseUploadSession(upload.session.id);
+            throw e;
+        }
+        const { statement, transactionLogs, duplicateCount, possibleDuplicateCount } = imported;
+        // The replaced statement's file is no longer referenced.
+        if (replaceExisting?.file_path && replaceExisting.file_path !== filePath && fs.existsSync(replaceExisting.file_path)) {
+            try { fs.unlinkSync(replaceExisting.file_path); } catch { /* ignore */ }
+        }
 
         return res.status(201).json({
             message: 'Statement imported',

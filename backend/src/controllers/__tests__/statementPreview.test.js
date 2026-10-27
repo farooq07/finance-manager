@@ -35,6 +35,7 @@ describe.each(cases)('$name previewStatement PDF errors', ({ preview, params, ow
         fs.writeFileSync(file, '%PDF-1.4');
         res = { status: jest.fn().mockReturnThis(), json: jest.fn() };
         owner();
+        jest.spyOn(prisma.uploadSession, 'create').mockResolvedValue({ id: 'session-1' });
         jest.spyOn(console, 'error').mockImplementation(() => {});
     });
     afterEach(() => jest.restoreAllMocks());

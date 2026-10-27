@@ -9,21 +9,12 @@ import { reconcile, importGate } from '../services/reconcile.service.js';
 import { recordUserCategory } from '../services/categorizer.service.js';
 import { isFilePreviouslyImported } from '../services/duplicateDetector.service.js';
 import { saveStatementImport } from '../services/statementImport.service.js';
+import { openUploadSession, resolveUploadSession, claimUploadSession, releaseUploadSession } from '../services/uploadSession.service.js';
 import { linkTransactionsToBeneficiaries } from './beneficiary.controller.js';
 import fs from 'fs';
 import path from 'path';
 
 const STATEMENTS_DIR = 'uploads/statements';
-
-// Resolve an uploadId (multer filename) to a safe absolute path inside the
-// statements upload dir. Guards against path traversal (../, absolute paths).
-function resolveUploadPath(uploadId) {
-    const base = path.basename(String(uploadId || ''));
-    if (!base || base !== uploadId) return null;       // reject anything with a path separator
-    const full = path.join(STATEMENTS_DIR, base);
-    if (!fs.existsSync(full)) return null;
-    return full;
-}
 
 function isCsvName(name = '') {
     return name.toLowerCase().endsWith('.csv');
@@ -400,7 +391,7 @@ export const uploadStatement = async (req, res) => {
  *
  * Returns { statement, transactionLogs, duplicateCount, possibleDuplicateCount, balanceUpdated }.
  */
-async function finalizeImport({ userId, bankId, parsedTxs, openingBalance, closingBalance, filePath, fileHash, password, reconciled = true }) {
+async function finalizeImport({ userId, bankId, parsedTxs, openingBalance, closingBalance, filePath, fileHash, password, reconciled = true, replaceStatementId = null }) {
     // Derive month/year from the earliest transaction
     let month = new Date().toLocaleString('en-US', { month: 'long' });
     let year = new Date().getFullYear();
@@ -417,6 +408,7 @@ async function finalizeImport({ userId, bankId, parsedTxs, openingBalance, closi
         accountId: bankId,
         parsedTxs,
         closingBalance,
+        replaceStatementId,
         statementData: {
             month,
             year,
@@ -456,7 +448,7 @@ export const previewStatement = async (req, res) => {
         if (!req.file) return res.status(400).json({ message: 'No file provided' });
 
         filePath = req.file.path;
-        const uploadId = path.basename(filePath);
+        const uploadId = await openUploadSession({ userId: req.user.id, kind: 'bank', accountId: bankId, filePath });
         const fileHash = getFileHash(filePath);
         const alreadyImported = await isFilePreviouslyImported(req.user.id, fileHash, bankId);
 
@@ -517,8 +509,10 @@ export const commitStatement = async (req, res) => {
         const bank = await prisma.bank.findUnique({ where: { id: bankId, user_id: req.user.id } });
         if (!bank) return res.status(404).json({ message: 'Bank not found' });
 
-        const filePath = resolveUploadPath(uploadId);
-        if (!filePath) return res.status(400).json({ message: 'Upload not found or expired. Please re-upload the file.' });
+        // The upload must be this user's, for this account, unexpired and not yet imported.
+        const upload = await resolveUploadSession({ uploadId, userId: req.user.id, kind: 'bank', accountId: bankId });
+        if (!upload.filePath) return res.status(upload.status).json({ message: upload.message });
+        const filePath = upload.filePath;
 
         // Duplicate handling (mirror uploadStatement semantics)
         const fileHash = getFileHash(filePath);
@@ -585,26 +579,34 @@ export const commitStatement = async (req, res) => {
         const blocked = importGate(reconciliation, acceptMismatch);
         if (blocked) return res.status(blocked.status).json(blocked.body);
 
-        if (replaceExisting) {
-            try {
-                if (replaceExisting.file_path && replaceExisting.file_path !== filePath && fs.existsSync(replaceExisting.file_path)) {
-                    fs.unlinkSync(replaceExisting.file_path);
-                }
-                await prisma.bankStatement.delete({ where: { id: replaceExisting.id } });
-            } catch (e) { logger.log('[COMMIT] cleanup failed:', e.message); }
+        // One import per upload, even with a double click or a retry.
+        if (!(await claimUploadSession(upload.session.id))) {
+            return res.status(409).json({ message: 'This upload was already imported.' });
         }
 
-        const { statement, transactionLogs, duplicateCount, possibleDuplicateCount } = await finalizeImport({
-            userId: req.user.id,
-            bankId,
-            parsedTxs,
-            openingBalance,
-            closingBalance,
-            filePath,
-            fileHash,
-            password,
-            reconciled: reconciliation.ok,
-        });
+        let imported;
+            try {
+                imported = await finalizeImport({
+                userId: req.user.id,
+                bankId,
+                parsedTxs,
+                openingBalance,
+                closingBalance,
+                filePath,
+                fileHash,
+                password,
+                reconciled: reconciliation.ok,
+                replaceStatementId: replaceExisting?.id ?? null,
+            });
+        } catch (e) {
+            await releaseUploadSession(upload.session.id);
+            throw e;
+        }
+        const { statement, transactionLogs, duplicateCount, possibleDuplicateCount } = imported;
+        // The replaced statement's file is no longer referenced.
+        if (replaceExisting?.file_path && replaceExisting.file_path !== filePath && fs.existsSync(replaceExisting.file_path)) {
+            try { fs.unlinkSync(replaceExisting.file_path); } catch { /* ignore */ }
+        }
 
         return res.status(201).json({
             message: 'Statement imported',

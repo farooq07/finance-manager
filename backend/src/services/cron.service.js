@@ -10,6 +10,7 @@ import { syncGoldPrice } from './goldScraper.service.js';
 import { syncPsxPrices } from './psxSync.service.js';
 import { snapshotAllUsersPortfolios } from './psxSnapshot.service.js';
 import { isPsxTradingDay } from '../utils/dates.js';
+import { cleanupAbandonedUploads } from './uploadSession.service.js';
 
 // Weekly summary email: every Sunday at 9:00 AM
 const WEEKLY_SUMMARY_SCHEDULE = '0 9 * * 0';
@@ -130,6 +131,15 @@ export const initCronJobs = () => {
             await snapshotAllUsersPortfolios();
         } catch (error) {
             logger.error('[Cron] PSX portfolio snapshot failed:', error.message);
+        }
+    }, { timezone: 'Asia/Karachi' });
+
+    // Statement files uploaded for preview but never imported (03:30 daily).
+    cron.schedule('30 3 * * *', async () => {
+        try {
+            await cleanupAbandonedUploads();
+        } catch (error) {
+            logger.error('[Cron] Upload cleanup failed:', error.message);
         }
     }, { timezone: 'Asia/Karachi' });
 };

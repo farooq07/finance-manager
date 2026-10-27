@@ -12,6 +12,7 @@ const KINDS = {
         statementFk: 'bank_statement_id',
         balanceField: 'current_balance',
         findDuplicates,
+        expenseLink: 'source_bank_tx_id',
     },
     wallet: {
         statement: (db) => db.walletStatement,
@@ -21,6 +22,7 @@ const KINDS = {
         statementFk: 'wallet_statement_id',
         balanceField: 'balance',
         findDuplicates: findWalletDuplicates,
+        expenseLink: 'source_wallet_tx_id',
     },
 };
 
@@ -51,13 +53,19 @@ export function shouldTakeBalance(account, statementEnd) {
  * Slow work (duplicate lookup, AI categorisation) runs before the database
  * transaction so the transaction itself stays short.
  *
+ * `replaceStatementId` (a re-import of the same file) is deleted inside the
+ * same transaction, so a failed re-import keeps the old statement.
+ *
  * Returns { statement, transactionLogs, duplicateCount, possibleDuplicateCount, balanceUpdated }.
  */
-export async function saveStatementImport({ kind, userId, accountId, statementData, parsedTxs, closingBalance }) {
+export async function saveStatementImport({ kind, userId, accountId, statementData, parsedTxs, closingBalance, replaceStatementId = null }) {
     const k = KINDS[kind];
     if (!k) throw new Error(`Unknown statement kind: ${kind}`);
 
-    const duplicates = parsedTxs.length ? await k.findDuplicates(userId, accountId, parsedTxs) : new Map();
+    // A statement being replaced is not a source of duplicates for its replacement.
+    const duplicates = parsedTxs.length
+        ? await k.findDuplicates(userId, accountId, parsedTxs, { excludeStatementId: replaceStatementId })
+        : new Map();
 
     let categorizations;
     try {
@@ -70,6 +78,15 @@ export async function saveStatementImport({ kind, userId, accountId, statementDa
     const statementEnd = statementEndDate(parsedTxs);
 
     const result = await prisma.$transaction(async (db) => {
+        if (replaceStatementId) {
+            // Replace = the old statement, its rows and the expenses its approved
+            // rows created go away in the same transaction as the new import.
+            const oldLogs = await k.log(db).findMany({ where: { [k.statementFk]: replaceStatementId }, select: { id: true } });
+            if (oldLogs.length) {
+                await db.expense.deleteMany({ where: { user_id: userId, [k.expenseLink]: { in: oldLogs.map((l) => l.id) } } });
+            }
+            await k.statement(db).delete({ where: { id: replaceStatementId } });
+        }
         const statement = await k.statement(db).create({ data: { ...statementData, [k.accountFk]: accountId } });
 
         if (parsedTxs.length) {

@@ -92,13 +92,14 @@ export function matchDuplicates(transactions, existingRows) {
 const EXISTING_SELECT = { id: true, description: true, net_amount: true, transaction_date: true };
 
 /** Duplicates of `transactions` already imported into this bank account. Map(index → match). */
-export async function findDuplicates(userId, bankId, transactions) {
+export async function findDuplicates(userId, bankId, transactions, { excludeStatementId = null } = {}) {
     const window = dateWindow(transactions);
     if (!window) return new Map();
     const existing = await prisma.bankTransactionLog.findMany({
         where: {
             is_duplicate: false,
             transaction_date: window,
+            ...(excludeStatementId ? { NOT: { bank_statement_id: excludeStatementId } } : {}),
             bank_statement: { bank_id: bankId, bank: { user_id: userId } },
         },
         select: EXISTING_SELECT,
@@ -107,13 +108,14 @@ export async function findDuplicates(userId, bankId, transactions) {
 }
 
 /** Duplicates of `transactions` already imported into this wallet. Map(index → match). */
-export async function findWalletDuplicates(userId, walletId, transactions) {
+export async function findWalletDuplicates(userId, walletId, transactions, { excludeStatementId = null } = {}) {
     const window = dateWindow(transactions);
     if (!window) return new Map();
     const existing = await prisma.walletTransactionLog.findMany({
         where: {
             is_duplicate: false,
             transaction_date: window,
+            ...(excludeStatementId ? { NOT: { wallet_statement_id: excludeStatementId } } : {}),
             wallet_statement: { wallet_id: walletId, wallet: { user_id: userId } },
         },
         select: EXISTING_SELECT,
