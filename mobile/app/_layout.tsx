@@ -1,105 +1,61 @@
 import { useEffect, useState } from 'react';
-import { Stack } from 'expo-router';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useRouter, useSegments } from 'expo-router';
-import * as SecureStore from 'expo-secure-store';
-import Toast from 'react-native-toast-message';
+import { Stack, useRouter, useSegments, type Href } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { View } from 'react-native';
-import { PaperProvider } from 'react-native-paper';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
-import { useAuthStore } from '../stores/authStore';
-import { useThemeStore } from '../stores/themeStore';
-import { Colors } from '../constants/colors';
-import { lightTheme, darkTheme } from '../constants/rnpTheme';
-import api from '../services/api';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { useFonts, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
+import * as SplashScreen from 'expo-splash-screen';
+import { useSession } from '../src/features/session/sessionStore';
+import { useClearCacheOnSignOut } from '../src/features/session/useClearCacheOnSignOut';
+import { routeFor, isOnTarget } from '../src/features/routing/routeFor';
+import { useTheme } from '../src/ui';
+import { useLock } from '../src/features/lock/lockStore';
+import { useAppLock } from '../src/features/lock/useAppLock';
+import { PrivacyCover } from '../src/features/lock/PrivacyCover';
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: { retry: 2, staleTime: 30_000 },
-  },
-});
+void SplashScreen.preventAutoHideAsync().catch(() => {});
 
-function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, setAuth, clearAuth } = useAuthStore();
-  const segments = useSegments();
-  const router = useRouter();
-  const [isLoading, setIsLoading] = useState(true);
+// Sends the user wherever their session says they belong (see routeFor).
+function useRouteGuard(ready: boolean) {
+    const status = useSession((s) => s.status);
+    const user = useSession((s) => s.user);
+    const locked = useLock((s) => s.locked);
+    const segments = useSegments();
+    const router = useRouter();
 
-  useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const token = await SecureStore.getItemAsync('auth_token');
-        if (token) {
-          try {
-            const res = await api.get('/auth/me');
-            setAuth(res.data);
-          } catch (apiError) {
-            console.warn('Auth check failed:', apiError);
-            clearAuth();
-            await SecureStore.deleteItemAsync('auth_token');
-          }
-        } else {
-          clearAuth();
-        }
-      } catch (error) {
-        console.error('Auth initialization error:', error);
-        clearAuth();
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    checkAuth();
-  }, []);
-
-  useEffect(() => {
-    if (isLoading) return;
-    const inAuthGroup = segments[0] === '(auth)';
-    if (!isAuthenticated && !inAuthGroup) {
-      router.replace('/(auth)/login');
-    } else if (isAuthenticated && inAuthGroup) {
-      router.replace('/(tabs)');
-    }
-  }, [isAuthenticated, segments, isLoading]);
-
-  if (isLoading) return <View style={{ flex: 1, backgroundColor: Colors.background }} />;
-  return <>{children}</>;
+    useEffect(() => {
+        if (!ready) return;
+        const target = routeFor({ status, user, locked });
+        // Href cast: expo-router's generated route list (.expo/types) is rebuilt
+        // only by `expo start`, so it can lag behind newly added screens.
+        if (target && !isOnTarget(segments as string[], target)) router.replace(target as Href);
+    }, [ready, status, user, locked, segments, router]);
 }
 
 export default function RootLayout() {
-  const { isDark } = useThemeStore();
-  const theme = isDark ? darkTheme : lightTheme;
+    const [queryClient] = useState(() => new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 30_000 } } }));
+    const [fontsLoaded] = useFonts({ Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold });
+    const status = useSession((s) => s.status);
+    const { scheme } = useTheme();
 
-  return (
-    <PaperProvider theme={theme} settings={{ icon: props => <MaterialCommunityIcons {...props} /> }}>
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        <SafeAreaProvider>
-          <QueryClientProvider client={queryClient}>
-            <AuthGuard>
-              <BottomSheetModalProvider>
-                <Stack screenOptions={{ headerShown: false }}>
-                  <Stack.Screen name="(auth)" />
-                  <Stack.Screen name="(tabs)" />
-                  <Stack.Screen name="dues" />
-                  <Stack.Screen name="stocks" />
-                  <Stack.Screen name="banks" />
-                  <Stack.Screen name="rent" />
-                  <Stack.Screen name="zakat" />
-                  <Stack.Screen name="assets" />
-                  <Stack.Screen name="broker" />
-                  <Stack.Screen name="change-pin" />
-                  <Stack.Screen name="pin-entry" options={{ presentation: 'modal' }} />
-                </Stack>
-              </BottomSheetModalProvider>
-            </AuthGuard>
-            <StatusBar style="auto" />
-            <Toast />
-          </QueryClientProvider>
-        </SafeAreaProvider>
-      </GestureHandlerRootView>
-    </PaperProvider>
-  );
+    useAppLock(); // subscribe before boot so a restored session locks on open
+    useEffect(() => { void useSession.getState().boot(); }, []);
+    useClearCacheOnSignOut(queryClient);
+
+    const ready = fontsLoaded && status !== 'loading';
+    useEffect(() => { if (ready) void SplashScreen.hideAsync().catch(() => {}); }, [ready]);
+    useRouteGuard(ready);
+
+    return (
+        <GestureHandlerRootView style={{ flex: 1 }}>
+            <SafeAreaProvider>
+                <QueryClientProvider client={queryClient}>
+                    <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
+                    <Stack screenOptions={{ headerShown: false, animation: 'fade' }} />
+                    <PrivacyCover />
+                </QueryClientProvider>
+            </SafeAreaProvider>
+        </GestureHandlerRootView>
+    );
 }

@@ -8,18 +8,27 @@
       "distribution": "internal",
       "android": {
         "gradleCommand": ":app:assembleDebug"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://finance-manager-production-73ad.up.railway.app/api"
       }
     },
     "preview": {
       "distribution": "internal",
       "android": {
         "gradleCommand": ":app:assembleRelease"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://finance-manager-production-73ad.up.railway.app/api"
       }
     },
     "production": {
       "distribution": "store",
       "android": {
         "buildType": "app-bundle"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://finance-manager-production-73ad.up.railway.app/api"
       }
     }
   }
