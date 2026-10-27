@@ -1,4 +1,5 @@
 import prisma from '../utils/prisma.js';
+import { imageProblem } from '../utils/images.js';
 
 const VALID_TYPES    = ['bug', 'feature', 'question', 'other'];
 const VALID_STATUSES = ['open', 'in_progress', 'resolved'];
@@ -16,6 +17,8 @@ export async function submitFeedback(req, res) {
     if (title.length > 200) {
         return res.status(400).json({ error: 'Title must be 200 characters or fewer' });
     }
+    const imageIssue = imageProblem(screenshot);
+    if (imageIssue) return res.status(400).json({ error: imageIssue });
 
     const item = await prisma.feedback.create({
         data: {

@@ -1,6 +1,7 @@
 import bcrypt from 'bcrypt';
 import prisma from '../utils/prisma.js';
 import logger from '../utils/logger.js';
+import { imageProblem } from '../utils/images.js';
 import { AUTH_CODES, authError, isFreshLogin } from '../utils/session.js';
 import { signVaultToken, VAULT_TOKEN_TTL_SECONDS } from '../middleware/goldVault.middleware.js';
 import { syncGoldPrice } from '../services/goldScraper.service.js';
@@ -46,6 +47,8 @@ async function recordFailure(pinRow) {
 }
 
 function validateItemPayload(body, { partial = false } = {}) {
+    const imageIssue = imageProblem(body.image_url);
+    if (imageIssue) return [imageIssue];
     const errors = [];
     if (!partial || body.name !== undefined) {
         if (typeof body.name !== 'string' || !body.name.trim()) errors.push('name is required');

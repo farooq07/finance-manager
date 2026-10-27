@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Send, Loader2, Sparkles, RotateCcw } from 'lucide-react';
 import AssistantBubble from './AssistantBubble';
+import ChatCitations from './ChatCitations';
 import { useSession, useSendMessage } from '../hooks/useChat';
 
 const SUGGESTIONS = [
@@ -59,6 +60,8 @@ export default function ChatWindow({ sessionId, autoSendMessage, onAutoSendConsu
       onSuccess: () => setPendingUserMsg(null),
       onError: (err) => {
         setPendingUserMsg(null);
+        // Nothing was saved for a failed reply: give the text back to resend.
+        setInput((current) => current || msg);
         setSendError(err?.response?.data?.message || 'Failed to send. Please try again.');
       }
     });
@@ -134,6 +137,7 @@ export default function ChatWindow({ sessionId, autoSendMessage, onAutoSendConsu
                         onSuggest={handleSend}
                         timestamp={msg.created_at}
                       />
+                      <ChatCitations citations={msg.citations} tools={msg.tools_used} />
                       {/* Regenerate — only on last assistant message when idle */}
                       {isLastAssistant && !isPending && !pendingUserMsg && lastUserMsg && (
                         <div className="flex justify-start ml-11 mt-1">

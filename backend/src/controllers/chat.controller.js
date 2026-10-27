@@ -136,12 +136,16 @@ export const sendMessage = async (req, res) => {
   } catch (err) {
     console.error('Chat error:', err?.message || err);
     const status = err?.status || 500;
+    if (status === 409) {
+      return res.status(409).json({ code: 'REPLY_IN_PROGRESS', message: err.message });
+    }
     if (status === 429) {
-      return res.status(429).json({ message: 'AI quota exceeded. Please wait a moment and try again.' });
+      return res.status(429).json({ code: 'AI_RATE_LIMITED', message: 'AI quota exceeded. Please wait a moment and try again.' });
     }
     if (status === 404) {
       return res.status(503).json({ message: 'AI model unavailable. Check GEMINI_API_KEY configuration.' });
     }
-    res.status(500).json({ message: err?.message || 'Failed to process message. Please try again.' });
+    // Nothing was saved for a failed reply — the client can resend the same message.
+    res.status(500).json({ code: 'AI_FAILED', message: err?.message || 'Failed to process message. Please try again.', retryable: true });
   }
 };

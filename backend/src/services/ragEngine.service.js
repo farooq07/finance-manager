@@ -179,29 +179,52 @@ async function runOpenAICompatLoop(client, model, history, userMessage, systemPr
 // ---------------------------------------------------------------------------
 // Main chat function
 // ---------------------------------------------------------------------------
-export async function chat(userId, sessionId, userMessage) {
-  const provider = getProvider();
+// Sessions with a reply in progress. A second send while the first is still
+// being answered (double click, impatient retry) is refused, not answered twice.
+const inflight = new Set();
+export const HISTORY_TURNS = 20;
 
-  const past = await prisma.chatMessage.findMany({
+export async function chat(userId, sessionId, userMessage) {
+  if (inflight.has(sessionId)) {
+    throw Object.assign(new Error('Still answering your previous message — one moment.'), { status: 409 });
+  }
+  inflight.add(sessionId);
+  try {
+    return await answerMessage(userId, sessionId, userMessage);
+  } finally {
+    inflight.delete(sessionId);
+  }
+}
+
+async function answerMessage(userId, sessionId, userMessage) {
+  const provider = getProvider();
+  const startedAt = new Date();
+
+  // The most recent turns, oldest first — a long conversation keeps its
+  // latest context instead of its first 20 messages.
+  const past = (await prisma.chatMessage.findMany({
     where: { session_id: sessionId },
-    orderBy: { created_at: 'asc' },
-    take: 20
-  });
+    orderBy: { created_at: 'desc' },
+    take: HISTORY_TURNS
+  })).reverse();
 
   const history = past.filter(m => m.role !== 'tool');
 
-  await prisma.chatMessage.create({
-    data: { session_id: sessionId, role: 'user', content: userMessage }
-  });
-
   // Search user's uploaded documents for relevant context
   let docContext = '';
+  let citations = [];
   try {
     const relevantChunks = await searchChunks(userId, userMessage, 5);
     if (relevantChunks.length > 0) {
       docContext = relevantChunks
         .map((c, i) => `[${i + 1}] From "${c.filename}" (similarity ${Number(c.similarity).toFixed(2)}):\n${c.content}`)
         .join('\n\n');
+      citations = relevantChunks.map((c, i) => ({
+        ref: i + 1,
+        filename: c.filename,
+        similarity: Number(Number(c.similarity).toFixed(2)),
+        excerpt: String(c.content || '').slice(0, 240),
+      }));
     }
   } catch {
     // pgvector not available or no documents — proceed without context
@@ -229,20 +252,30 @@ export async function chat(userId, sessionId, userMessage) {
   const primary = toolCalls[0] || null;
   const toolName = primary?.name || null;
   const toolData = primary?.data ?? null;
+  // Every tool ran during this request; its figures are as of now.
+  const tools = toolCalls.map(t => ({ name: t.name, at: startedAt.toISOString() }));
 
-  await prisma.chatMessage.create({
-    data: {
-      session_id: sessionId,
-      role: 'assistant',
-      content: answer,
-      tool_name: toolName,
-      tool_data: toolData ? JSON.parse(JSON.stringify(toolData)) : null
-    }
-  });
-
+  // The question and its answer are saved together, only once the answer
+  // exists — a failed reply leaves nothing half-saved, so retrying is clean.
   const updateData = { updated_at: new Date() };
   if (past.length === 0) updateData.title = userMessage.slice(0, 80);
-  await prisma.chatSession.update({ where: { id: sessionId }, data: updateData });
+  await prisma.$transaction([
+    prisma.chatMessage.create({
+      data: { session_id: sessionId, role: 'user', content: userMessage, created_at: startedAt }
+    }),
+    prisma.chatMessage.create({
+      data: {
+        session_id: sessionId,
+        role: 'assistant',
+        content: answer,
+        tool_name: toolName,
+        tool_data: toolData ? JSON.parse(JSON.stringify(toolData)) : null,
+        citations: citations.length ? citations : undefined,
+        tools_used: tools.length ? tools : undefined,
+      }
+    }),
+    prisma.chatSession.update({ where: { id: sessionId }, data: updateData }),
+  ]);
 
-  return { answer, toolName, toolData, toolsUsed: toolCalls.map(t => t.name), provider };
+  return { answer, toolName, toolData, toolsUsed: toolCalls.map(t => t.name), tools, citations, dataAsOf: startedAt.toISOString(), provider };
 }

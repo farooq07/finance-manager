@@ -65,7 +65,14 @@ app.use(cors({
     credentials: true
 }));
 
-app.use(express.json());
+// Bodies are small JSON by default; only the two endpoints that carry an
+// image inside the JSON (gold photo, feedback screenshot) may be larger.
+// The images themselves are validated (type, ≤ 2 MB) by utils/images.js.
+app.use(['/api/gold/items', '/api/feedback'], express.json({ limit: '3mb' }));
+// A reviewed statement (thousands of rows) is committed as JSON.
+const statementJson = express.json({ limit: '5mb' });
+app.use((req, res, next) => (/\/statements\/commit$/.test(req.path) ? statementJson(req, res, next) : next()));
+app.use(express.json({ limit: '200kb' }));
 
 // Rate limiting: 10 requests per 15 minutes on auth endpoints
 const authLimiter = rateLimit({
@@ -76,8 +83,10 @@ const authLimiter = rateLimit({
     legacyHeaders: false,
     // Skip read-only / public auth endpoints — they aren't login attempts and
     // would otherwise lock users out on normal page loads.
+    // App-unlock PIN checks have their own per-account limit (5 wrong → signed out).
     skip: (req) => (req.method === 'GET' && req.path === '/me')
         || (req.method === 'GET' && req.path === '/config')
+        || (req.method === 'POST' && req.path === '/verify-pin')
 });
 
 // Routes
@@ -120,6 +129,17 @@ app.get('/', (req, res) => {
 });
 
 const PORT = process.env.PORT || 5000;
+
+// Oversized or malformed JSON → a clear JSON error instead of an HTML page.
+app.use((err, req, res, next) => {
+    if (err?.type === 'entity.too.large') {
+        return res.status(413).json({ code: 'TOO_LARGE', message: 'That upload is too large.' });
+    }
+    if (err?.type === 'entity.parse.failed') {
+        return res.status(400).json({ code: 'VALIDATION', message: 'The request was not valid JSON.' });
+    }
+    return next(err);
+});
 
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);

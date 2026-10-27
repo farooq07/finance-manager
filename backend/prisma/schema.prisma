@@ -295,6 +295,10 @@ model ChatMessage {
   content    String      @db.Text
   tool_name  String?     @db.VarChar(100)
   tool_data  Json?
+  // Document excerpts the answer drew on: [{ ref, filename, similarity, excerpt }]
+  citations  Json?
+  // Tools the answer used and when their data was read: [{ name, at }]
+  tools_used Json?
   created_at DateTime    @default(now())
   session    ChatSession @relation(fields: [session_id], references: [id], onDelete: Cascade)
 
