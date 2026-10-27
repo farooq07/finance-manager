@@ -1,0 +1,9 @@
+**/node_modules
+**/.env
+**/.env.*
+backend/uploads
+backend/*.pdf
+frontend
+mobile
+docs
+.git

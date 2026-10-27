@@ -1,28 +1,26 @@
-FROM node:18-alpine
+# Official Playwright image: Node 22 LTS plus Chromium and the system
+# libraries the PSX / gold scrapers need. Keep the tag in step with the
+# playwright version in backend/package-lock.json.
+FROM mcr.microsoft.com/playwright:v1.58.2-noble
 
-# Install OpenSSL for Prisma migrations
-RUN apk add --no-cache openssl
-
+ENV NODE_ENV=production
 WORKDIR /app
 
-# Copy only backend
-COPY backend/package*.json ./
+COPY backend/package.json backend/package-lock.json ./
 COPY backend/prisma ./prisma
 
-# Install dependencies
-RUN npm install
-
-# Generate Prisma client
+# Reproducible install from the lockfile. Dev dependencies are kept because
+# the prisma CLI (a devDependency) applies migrations at start-up.
+RUN npm ci --include=dev
 RUN npx prisma generate
 
-# Copy backend code
 COPY backend ./
 
-# Create upload directories (Multer needs these)
+# Multer upload directories
 RUN mkdir -p uploads/statements uploads/wallet-statements
 
-# Expose port
 EXPOSE 5000
 
-# Push schema to DB and start server
-CMD npx prisma db push --skip-generate && npm start
+# Apply the reviewed migrations in prisma/migrations, then start. Never
+# `prisma db push` here: it skips data migrations and can drift the schema.
+CMD ["sh", "-c", "npx prisma migrate deploy && node server.js"]
