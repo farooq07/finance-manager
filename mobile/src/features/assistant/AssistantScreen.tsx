@@ -10,6 +10,7 @@ import {
 } from '../../api/chat';
 import { fmtDateLong } from '../../lib/dates';
 import { BackHeader, Chip, ListRow, Sheet, Text, tokens, useTheme } from '../../ui';
+import { DocumentsSheet } from './DocumentsSheet';
 
 const SUGGESTIONS = [
     'What is my net worth?',
@@ -54,6 +55,7 @@ export function AssistantScreen() {
     const [draft, setDraft] = useState('');
     const [busy, setBusy] = useState(false);
     const [history, setHistory] = useState(false);
+    const [documents, setDocuments] = useState(false);
     const sessions = useQuery({ queryKey: [...chatKey, 'sessions'], queryFn: getChatSessions, enabled: history });
 
     useEffect(() => { setTimeout(() => scroll.current?.scrollToEnd({ animated: true }), 50); }, [bubbles.length, busy]);
@@ -113,6 +115,9 @@ export function AssistantScreen() {
 
     const headerActions = (
         <View style={{ flexDirection: 'row', gap: tokens.space.lg }}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Your documents" hitSlop={10} onPress={() => setDocuments(true)}>
+                <Ionicons name="document-attach-outline" size={24} color={colors.text} />
+            </Pressable>
             <Pressable accessibilityRole="button" accessibilityLabel="Past chats" hitSlop={10} onPress={() => setHistory(true)}>
                 <Ionicons name="time-outline" size={24} color={colors.text} />
             </Pressable>
@@ -176,6 +181,8 @@ export function AssistantScreen() {
                     </View>
                 </KeyboardAvoidingView>
             </SafeAreaView>
+
+            <DocumentsSheet visible={documents} onClose={() => setDocuments(false)} />
 
             <Sheet visible={history} onClose={() => setHistory(false)} title="Past chats">
                 {sessions.isPending && <ActivityIndicator color={colors.accent} />}

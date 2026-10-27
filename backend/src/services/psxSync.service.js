@@ -183,3 +183,28 @@ export async function getLatestSyncStatus(source = 'psx_prices') {
         orderBy: { started_at: 'desc' },
     });
 }
+
+// Tickers being priced right now by priceNewTickers — don't start a second scrape.
+const pricing = new Set();
+
+/**
+ * Fetch a closing price now for tickers nobody has priced yet (just added to a
+ * watchlist or entered by hand), instead of waiting for the 16:30 weekday sync.
+ * Runs in the background; failures are only logged — the daily sync retries.
+ */
+export function priceNewTickers(tickers) {
+    void (async () => {
+        const wanted = [...new Set(tickers.map((t) => String(t || '').trim().toUpperCase()).filter(Boolean))]
+            .filter((t) => !pricing.has(t));
+        if (wanted.length === 0) return;
+        const known = await prisma.psxStock.findMany({ where: { ticker: { in: wanted } }, select: { ticker: true } });
+        const missing = wanted.filter((t) => !known.some((k) => k.ticker === t));
+        if (missing.length === 0) return;
+        missing.forEach((t) => pricing.add(t));
+        try {
+            await syncPsxPrices({ tickers: missing });
+        } finally {
+            missing.forEach((t) => pricing.delete(t));
+        }
+    })().catch((err) => logger.warn(`[PSX] pricing new tickers failed: ${err.message}`));
+}

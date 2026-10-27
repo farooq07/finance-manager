@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { View } from 'react-native';
-import { useQuery } from '@tanstack/react-query';
+import { Alert, Pressable, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiError } from '../../api/client';
-import { getDividends, getInvestments, getPriceHistory, getPsxMarket, investmentsKey } from '../../api/invest';
+import { getDividends, getInvestments, getPriceHistory, getPsxMarket, getWatchlist, investmentsKey, unwatch, watch, watchlistKey } from '../../api/invest';
 import { fmtPKR } from '../../lib/currency';
 import { fmtDateLong } from '../../lib/dates';
 import { BackHeader, Button, Chip, ErrorState, HeroCard, ListRow, Screen, Skeleton, Text, tokens, useTheme } from '../../ui';
@@ -21,6 +22,19 @@ export function StockScreen({ symbol }: { symbol: string }) {
     const history = useQuery({ queryKey: ['price-history', symbol, days], queryFn: () => getPriceHistory(symbol, days) });
     const market = useQuery({ queryKey: ['psx-market'], queryFn: getPsxMarket, staleTime: 5 * 60_000 });
     const dividends = useQuery({ queryKey: ['dividends'], queryFn: getDividends });
+    const watchlist = useQuery({ queryKey: watchlistKey, queryFn: getWatchlist });
+    const qc = useQueryClient();
+    const watching = (watchlist.data ?? []).some((w) => w.ticker === symbol);
+
+    async function toggleWatch() {
+        try {
+            if (watching) await unwatch(symbol);
+            else await watch(symbol);
+            await qc.invalidateQueries({ queryKey: watchlistKey });
+        } catch (err) {
+            Alert.alert('Could not update your watchlist', apiError(err));
+        }
+    }
 
     const holding = overview.data?.stocks.holdings.find((h) => h.symbol === symbol);
     const quote = market.data?.find((q) => q.ticker === symbol);
@@ -30,7 +44,11 @@ export function StockScreen({ symbol }: { symbol: string }) {
 
     return (
         <Screen refreshing={history.isRefetching} onRefresh={() => { void overview.refetch(); void history.refetch(); }}>
-            <BackHeader title={symbol} />
+            <BackHeader title={symbol} action={watchlist.data ? (
+                <Pressable accessibilityRole="button" accessibilityLabel={watching ? `Stop watching ${symbol}` : `Watch ${symbol}`} hitSlop={12} onPress={() => void toggleWatch()}>
+                    <Ionicons name={watching ? 'star' : 'star-outline'} size={24} color={watching ? colors.accent : colors.text} />
+                </Pressable>
+            ) : undefined} />
             {overview.isPending && <Skeleton height={150} radius={tokens.radius.hero} />}
             {overview.isError && <ErrorState message={apiError(overview.error)} onRetry={() => void overview.refetch()} />}
 

@@ -21,3 +21,16 @@ export const deleteChatSession = async (id: string) => (await api.delete(`/chat/
 // Answers can take a while: the model may look up several things first.
 export const sendChatMessage = async (id: string, message: string) =>
     (await api.post<ChatReply>(`/chat/sessions/${id}/message`, { message }, { timeout: 120000 })).data;
+
+// Documents the assistant can quote from ------------------------------------------
+export type ChatDocument = {
+    id: string; filename: string; created_at: string; char_count: number;
+    status: 'embedding' | 'ready' | 'failed' | string; error: string | null; truncated?: boolean;
+};
+export const getChatDocuments = async () => (await api.get<ChatDocument[]>('/chat/documents')).data;
+export async function uploadChatDocument(file: { uri: string; name: string; mimeType?: string | null }) {
+    const form = new FormData();
+    form.append('file', { uri: file.uri, name: file.name, type: file.mimeType || 'application/octet-stream' } as unknown as Blob);
+    return (await api.post<{ message: string }>('/chat/documents/upload', form, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 120000 })).data;
+}
+export const deleteChatDocument = async (id: string) => (await api.delete(`/chat/documents/${id}`)).data;

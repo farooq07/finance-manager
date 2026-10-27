@@ -1,7 +1,7 @@
 import prisma from '../utils/prisma.js';
 import logger from '../utils/logger.js';
 import { scrapeTradingViewNews } from '../services/scraper.service.js';
-import { syncPsxPrices, getLatestSyncStatus } from '../services/psxSync.service.js';
+import { syncPsxPrices, getLatestSyncStatus, priceNewTickers } from '../services/psxSync.service.js';
 
 // Get user's stock portfolio
 export const getStocks = async (req, res) => {
@@ -41,6 +41,7 @@ export const createStock = async (req, res) => {
             }
         });
 
+        priceNewTickers([stock.stock_symbol]); // no price yet? fetch one now, in the background
         res.status(201).json(stock);
     } catch (error) {
         res.status(500).json({ message: 'Error creating stock record' });

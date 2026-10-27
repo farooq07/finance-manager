@@ -53,6 +53,9 @@ export const createBeneficiary = async (req, res) => {
             return res.status(400).json({ message: 'Name is required' });
         }
 
+        // Accounts without a number can't be matched to anything — skip them.
+        const validAccounts = Array.isArray(accounts) ? accounts.filter((a) => typeof a?.account_no === 'string' && a.account_no.trim()) : [];
+
         const beneficiary = await prisma.beneficiary.create({
             data: {
                 user_id: req.user.id,
@@ -60,8 +63,8 @@ export const createBeneficiary = async (req, res) => {
                 nickname: nickname?.trim() || null,
                 phone: phone?.trim() || null,
                 notes: notes?.trim() || null,
-                accounts: accounts?.length
-                    ? { create: accounts.map(a => ({
+                accounts: validAccounts.length
+                    ? { create: validAccounts.map(a => ({
                             account_label: a.account_label?.trim() || null,
                             account_no: a.account_no.trim()
                         })) }

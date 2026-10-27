@@ -1,5 +1,6 @@
 import prisma from '../utils/prisma.js';
 import logger from '../utils/logger.js';
+import { priceNewTickers } from '../services/psxSync.service.js';
 
 /**
  * Per-user watchlist of PSX tickers.
@@ -61,6 +62,7 @@ export const addToWatchlist = async (req, res) => {
             create: { user_id: req.user.id, ticker, notes: req.body.notes ?? null },
         });
 
+        priceNewTickers([ticker]); // no price yet? fetch one now, in the background
         res.status(201).json(item);
     } catch (error) {
         logger.error('[Watchlist] Error adding to watchlist:', error.message);

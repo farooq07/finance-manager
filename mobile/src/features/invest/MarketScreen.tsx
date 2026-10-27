@@ -1,12 +1,12 @@
 import { useMemo, useState } from 'react';
 import { View } from 'react-native';
+import { useRouter, type Href } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { apiError } from '../../api/client';
-import { getInvestments, getPsxMarket, investmentsKey, type PsxQuote } from '../../api/invest';
+import { getPsxMarket, type PsxQuote } from '../../api/invest';
 import { fmtPKR } from '../../lib/currency';
 import { fmtDateLong } from '../../lib/dates';
 import { BackHeader, Chip, EmptyState, ErrorState, Field, ListRow, Screen, Skeleton, Text, tokens, useTheme } from '../../ui';
-import { AddStockSheet } from './AddStockSheet';
 import { pctText } from './InvestScreen';
 
 type Sort = 'gainers' | 'losers' | 'active' | 'az';
@@ -27,14 +27,12 @@ const sorters: Record<Sort, (a: PsxQuote, b: PsxQuote) => number> = {
 
 /** PSX closing prices: search, sort, and tap one to record a purchase. */
 export function MarketScreen() {
+    const router = useRouter();
     const { colors } = useTheme();
     const market = useQuery({ queryKey: ['psx-market'], queryFn: getPsxMarket, staleTime: 5 * 60_000 });
-    const overview = useQuery({ queryKey: investmentsKey, queryFn: getInvestments });
     const [search, setSearch] = useState('');
     const [sort, setSort] = useState<Sort>('gainers');
-    const [buying, setBuying] = useState<string | null>(null);
 
-    const canRecord = overview.data?.stocks.source === 'manual';
     const term = search.trim().toUpperCase();
     const rows = useMemo(() => {
         const all = market.data ?? [];
@@ -56,17 +54,17 @@ export function MarketScreen() {
             {market.isPending && <Skeleton height={300} radius={tokens.radius.hero} />}
             {market.isError && <ErrorState message={apiError(market.error)} onRetry={() => void market.refetch()} />}
             {market.data && market.data.length === 0 && (
-                <EmptyState title="No prices yet" message="PSX prices arrive with the weekday price sync after market close." />
+                <EmptyState title="No prices yet" message="Prices cover the stocks you hold or watch, and update after each weekday's close." />
             )}
 
             {rows.length > 0 && (
                 <>
-                    {updated && <Text variant="caption">Closing prices · updated {fmtDateLong(updated)}{canRecord ? ' · tap a stock to record a purchase' : ''}</Text>}
+                    {updated && <Text variant="caption">Closing prices · updated {fmtDateLong(updated)} · tap a stock to see its chart, watch it, or record a trade</Text>}
                     <View style={{ backgroundColor: colors.card, borderRadius: tokens.radius.hero, paddingHorizontal: tokens.space.lg, paddingVertical: tokens.space.sm }}>
                         {rows.slice(0, SHOWN).map((q) => (
                             <ListRow key={q.ticker} title={q.ticker} subtitle={q.companyName}
                                 amount={q.price} amountCaption={pctText(q.changePct)}
-                                onPress={canRecord ? () => setBuying(q.ticker) : undefined} />
+                                onPress={() => router.push(`/(app)/stock/${q.ticker}` as Href)} />
                         ))}
                     </View>
                     {rows.length > SHOWN && <Text variant="caption">Showing {SHOWN} of {rows.length} — search to find others.</Text>}
@@ -74,8 +72,6 @@ export function MarketScreen() {
             )}
             {term && market.data && rows.length === 0 && <Text variant="caption">Nothing matches "{search.trim()}".</Text>}
 
-            <AddStockSheet visible={buying != null} onClose={() => setBuying(null)}
-                holdings={overview.data?.stocks.holdings ?? []} initialSymbol={buying} />
         </Screen>
     );
 }

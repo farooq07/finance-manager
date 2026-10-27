@@ -10,6 +10,7 @@ const ITEMS: { label: string; hint: string; icon: IconName; href?: string }[] = 
     { label: 'Zakat', hint: 'What is due and how it is worked out', icon: 'heart-outline', href: '/(app)/zakat' },
     { label: 'Gold Vault', hint: 'Your gold at today\'s price', icon: 'diamond-outline', href: '/(app)/gold' },
     { label: 'Ledger', hint: 'Who owes you, who you owe, and loans', icon: 'people-outline', href: '/(app)/ledger' },
+    { label: 'Beneficiaries', hint: 'People you send money to, from your statements', icon: 'paper-plane-outline', href: '/(app)/beneficiaries' },
     { label: 'AI assistant', hint: 'Ask about your money in plain words', icon: 'sparkles-outline', href: '/(app)/assistant' },
     { label: 'Settings', hint: 'PIN, emails, what you track, your account', icon: 'settings-outline', href: '/(app)/settings' },
 ];

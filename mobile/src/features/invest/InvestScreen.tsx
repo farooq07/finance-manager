@@ -7,7 +7,7 @@ import { apiError } from '../../api/client';
 import * as DocumentPicker from 'expo-document-picker';
 import {
     addDividend, deleteDividend, deleteMutualFund, getDividends, getInvestments, investmentsKey, uploadCdcStatement, uploadFundStatement,
-    type Dividend, type FundHolding, type StockHolding,
+    getWatchlist, watchlistKey, type Dividend, type FundHolding, type StockHolding,
 } from '../../api/invest';
 import { fmtPKR } from '../../lib/currency';
 import { fmtDateLong } from '../../lib/dates';
@@ -34,6 +34,7 @@ export function InvestScreen() {
     const [addingDividend, setAddingDividend] = useState(false);
     const [uploading, setUploading] = useState<'cdc' | 'funds' | null>(null);
     const dividends = useQuery({ queryKey: ['dividends'], queryFn: getDividends });
+    const watchlist = useQuery({ queryKey: watchlistKey, queryFn: getWatchlist });
     const d = overview.data;
     const year = new Date().getFullYear();
     const dividendsThisYear = (dividends.data ?? [])
@@ -149,6 +150,18 @@ export function InvestScreen() {
                     ))}
                 </View>
             )}
+
+            <View style={card}>
+                <Text variant="heading" accessibilityRole="header">Watchlist</Text>
+                {(watchlist.data ?? []).length === 0
+                    ? <Text variant="caption">Star a stock on its page to follow its price here. Find one in PSX market.</Text>
+                    : watchlist.data!.map((w) => (
+                        <ListRow key={w.id} title={w.ticker} subtitle={w.companyName ?? 'Price arrives shortly'}
+                            amount={w.price ?? undefined} amountCaption={w.changePct != null ? pctText(w.changePct) : undefined}
+                            onPress={() => router.push(`/(app)/stock/${w.ticker}` as Href)} />
+                    ))}
+                <Button label="PSX market" variant="text" onPress={() => router.push('/(app)/market' as Href)} />
+            </View>
 
             {dividends.data && dividends.data.length > 0 && (
                 <View style={card}>

@@ -86,3 +86,14 @@ export const addDividend = async (d: { symbol: string; net: number; gross?: numb
         gross_dividend_amount: d.gross ?? d.net, net_dividend_amount: d.net, payment_date: d.date, status: 'Paid',
     }] })).data;
 export const deleteDividend = async (id: string) => (await api.delete(`/dividends/${id}`)).data;
+
+// Watchlist ----------------------------------------------------------------------
+export type WatchItem = {
+    id: string; ticker: string; notes: string | null; companyName: string | null;
+    price: number | null; change: number | null; changePct: number | null; lastUpdated: string | null;
+};
+export const watchlistKey = ['watchlist'] as const;
+export const getWatchlist = async () => (await api.get<WatchItem[]>('/watchlist')).data;
+/** A ticker with no price yet gets one fetched within a minute or so. */
+export const watch = async (ticker: string) => (await api.post('/watchlist', { ticker })).data;
+export const unwatch = async (ticker: string) => (await api.delete(`/watchlist/${encodeURIComponent(ticker)}`)).data;
