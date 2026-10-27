@@ -119,7 +119,7 @@ export const deleteInstitution = async (req, res) => {
         }
 
         if (inst.user_id !== req.user.id) {
-            return res.status(401).json({ message: 'Not authorized' });
+            return res.status(403).json({ code: 'FORBIDDEN', message: 'Not authorized' });
         }
 
         await prisma.institution.delete({ where: { id } });

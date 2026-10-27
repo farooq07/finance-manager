@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi } from 'vitest';
 import Settings from '../Settings';
 
-vi.mock('../../services/api', () => ({ default: { get: vi.fn(async () => ({ data: [] })), patch: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn() } }));
+vi.mock('../../services/api', () => ({ setSessionEndedHandler: vi.fn(), default: { get: vi.fn(async () => ({ data: [] })), patch: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn() } }));
 vi.mock('../../context/AuthContext', () => ({ useAuth: () => ({ user: { id: 'u1', role: 'user', interests: null }, refreshUser: vi.fn() }) }));
 vi.mock('../../context/PinContext', () => ({ usePin: () => ({ isUnlocked: true, promptPin: vi.fn(), hasPin: false }) }));
 vi.mock('../../hooks/useInstitutions', () => ({

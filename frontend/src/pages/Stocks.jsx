@@ -31,6 +31,7 @@ import { useWatchlist, useAddToWatchlist, useRemoveFromWatchlist } from '../hook
 import { derivePositions, withWeights, groupSmallSlices, snapshotsInRange, widestUsableRange } from '../utils/portfolio';
 import { colorsForSeries } from '../utils/tickerColors';
 import Modal from '../components/Modal';
+import BrokerPinReveal from '../components/BrokerPinReveal';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
@@ -714,19 +715,7 @@ export default function Stocks() {
                                 </div>
                                 <div>
                                     <p className="text-xs text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wider">PIN Code</p>
-                                    <div className="flex items-center gap-2">
-                                        <p className="font-mono text-red-700 dark:text-red-400 font-bold bg-red-50 dark:bg-red-900/20 px-2 py-0.5 rounded">
-                                            {revealedSecrets.includes(`pin_${broker.id}`) ? (broker.stock_pin_code || 'Not Set') : '••••••••'}
-                                        </p>
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            onClick={(e) => toggleSecretReveal(e, `pin_${broker.id}`)}
-                                            className="h-8 w-8 text-gray-400 hover:text-red-600 dark:hover:text-red-400"
-                                        >
-                                            {revealedSecrets.includes(`pin_${broker.id}`) ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                                        </Button>
-                                    </div>
+                                    <BrokerPinReveal broker={broker} />
                                 </div>
                             </div>
                         ))}

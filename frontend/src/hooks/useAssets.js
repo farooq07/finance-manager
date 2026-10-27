@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../services/api';
+import { invalidateMoney } from '../lib/queryKeys';
 
 export const useAssets = () => {
     return useQuery({
@@ -20,7 +21,7 @@ export const useCreateAsset = () => {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['assets'] });
-            queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
+            invalidateMoney(queryClient);
         }
     });
 };
@@ -33,7 +34,7 @@ export const useDeleteAsset = () => {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['assets'] });
-            queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
+            invalidateMoney(queryClient);
         }
     });
 };

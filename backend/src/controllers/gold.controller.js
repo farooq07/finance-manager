@@ -1,6 +1,8 @@
 import bcrypt from 'bcrypt';
 import prisma from '../utils/prisma.js';
 import logger from '../utils/logger.js';
+import { AUTH_CODES, authError, isFreshLogin } from '../utils/session.js';
+import { signVaultToken, VAULT_TOKEN_TTL_SECONDS } from '../middleware/goldVault.middleware.js';
 import { syncGoldPrice } from '../services/goldScraper.service.js';
 import {
     NISAB_GRAMS,
@@ -16,6 +18,32 @@ import {
 const VALID_TYPES   = new Set(['ring', 'set', 'chain', 'bangle', 'earring', 'other']);
 const VALID_CARATS  = new Set([18, 20, 21, 22, 24]);
 const PIN_MIN_DIGITS = 6;
+
+const VAULT_MAX_ATTEMPTS = 5;
+const VAULT_LOCK_MINUTES = 15;
+
+const vaultUnlock = (req) => ({
+    vaultToken: signVaultToken(req.user.id, req.auth?.tokenVersion),
+    expiresIn: VAULT_TOKEN_TTL_SECONDS,
+});
+
+const isLocked = (pinRow) => pinRow.locked_until && pinRow.locked_until > new Date();
+
+const lockedResponse = (res) => authError(res, 429, AUTH_CODES.ACCOUNT_LOCKED,
+    `Too many wrong PINs. The Gold Vault is locked for ${VAULT_LOCK_MINUTES} minutes.`);
+
+/** Count a wrong vault PIN; lock the vault after 5. Returns attempts left. */
+async function recordFailure(pinRow) {
+    const attempts = pinRow.failed_attempts + 1;
+    const lock = attempts >= VAULT_MAX_ATTEMPTS;
+    await prisma.goldPin.update({
+        where: { user_id: pinRow.user_id },
+        data: lock
+            ? { failed_attempts: 0, locked_until: new Date(Date.now() + VAULT_LOCK_MINUTES * 60 * 1000) }
+            : { failed_attempts: attempts },
+    });
+    return lock ? 0 : VAULT_MAX_ATTEMPTS - attempts;
+}
 
 function validateItemPayload(body, { partial = false } = {}) {
     const errors = [];
@@ -205,9 +233,38 @@ export const hasPin = async (req, res) => {
     }
 };
 
-// POST /api/gold/set-pin — idempotent create-or-replace.
+// POST /api/gold/set-pin — first-time setup only.
 export const setPin = async (req, res) => {
     try {
+        const pin = String(req.body.pin || '');
+        if (!/^\d+$/.test(pin) || pin.length < PIN_MIN_DIGITS) {
+            return res.status(400).json({ message: `PIN must be at least ${PIN_MIN_DIGITS} digits` });
+        }
+        const existing = await prisma.goldPin.findUnique({ where: { user_id: req.user.id }, select: { id: true } });
+        // An existing vault PIN is only replaced by change-pin (knowing it) or
+        // reset-pin (after a fresh sign-in) — never silently here.
+        if (existing) {
+            return res.status(409).json({ code: 'PIN_EXISTS', message: 'A Gold Vault PIN is already set. Change it, or sign in again to reset it.' });
+        }
+        const hash = await bcrypt.hash(pin, 10);
+        await prisma.goldPin.create({ data: { user_id: req.user.id, pin_hash: hash } });
+        res.json({ message: 'Gold PIN set', ...vaultUnlock(req) });
+    } catch (error) {
+        if (error?.code === 'P2002') {
+            return res.status(409).json({ code: 'PIN_EXISTS', message: 'A Gold Vault PIN is already set.' });
+        }
+        logger.error('[GOLD] setPin failed:', error);
+        res.status(500).json({ message: 'Could not set PIN' });
+    }
+};
+
+// POST /api/gold/reset-pin — forgot the vault PIN: allowed only right after a
+// full sign-in (password + emailed code), which re-proves who you are.
+export const resetPin = async (req, res) => {
+    try {
+        if (!isFreshLogin(req)) {
+            return authError(res, 403, AUTH_CODES.REAUTH_REQUIRED, 'Sign out and sign in again, then reset the Gold Vault PIN within 10 minutes.');
+        }
         const pin = String(req.body.pin || '');
         if (!/^\d+$/.test(pin) || pin.length < PIN_MIN_DIGITS) {
             return res.status(400).json({ message: `PIN must be at least ${PIN_MIN_DIGITS} digits` });
@@ -216,12 +273,12 @@ export const setPin = async (req, res) => {
         await prisma.goldPin.upsert({
             where: { user_id: req.user.id },
             create: { user_id: req.user.id, pin_hash: hash },
-            update: { pin_hash: hash },
+            update: { pin_hash: hash, failed_attempts: 0, locked_until: null },
         });
-        res.json({ message: 'Gold PIN set' });
+        res.json({ message: 'Gold PIN reset', ...vaultUnlock(req) });
     } catch (error) {
-        logger.error('[GOLD] setPin failed:', error);
-        res.status(500).json({ message: 'Could not set PIN' });
+        logger.error('[GOLD] resetPin failed:', error);
+        res.status(500).json({ message: 'Could not reset PIN' });
     }
 };
 
@@ -236,12 +293,16 @@ export const changePin = async (req, res) => {
 
         const existing = await prisma.goldPin.findUnique({ where: { user_id: req.user.id } });
         if (!existing) return res.status(400).json({ message: 'No PIN set yet' });
+        if (isLocked(existing)) return lockedResponse(res);
 
         const ok = await bcrypt.compare(currentPin, existing.pin_hash);
-        if (!ok) return res.status(401).json({ message: 'Current PIN is incorrect' });
+        if (!ok) {
+            await recordFailure(existing);
+            return authError(res, 401, AUTH_CODES.WRONG_PIN, 'Current PIN is incorrect');
+        }
 
         const hash = await bcrypt.hash(newPin, 10);
-        await prisma.goldPin.update({ where: { user_id: req.user.id }, data: { pin_hash: hash } });
+        await prisma.goldPin.update({ where: { user_id: req.user.id }, data: { pin_hash: hash, failed_attempts: 0, locked_until: null } });
         res.json({ message: 'Gold PIN changed' });
     } catch (error) {
         logger.error('[GOLD] changePin failed:', error);
@@ -256,8 +317,18 @@ export const verifyPin = async (req, res) => {
         if (!pin) return res.status(400).json({ success: false, message: 'PIN required' });
         const existing = await prisma.goldPin.findUnique({ where: { user_id: req.user.id } });
         if (!existing) return res.status(400).json({ success: false, message: 'No PIN set yet' });
+        if (isLocked(existing)) return lockedResponse(res);
+
         const ok = await bcrypt.compare(pin, existing.pin_hash);
-        res.json({ success: ok });
+        if (!ok) {
+            const attemptsLeft = await recordFailure(existing);
+            return res.json({ success: false, attemptsLeft });
+        }
+        if (existing.failed_attempts) {
+            await prisma.goldPin.update({ where: { user_id: req.user.id }, data: { failed_attempts: 0, locked_until: null } });
+        }
+        // The vault token is what the item endpoints check — not this response.
+        res.json({ success: true, ...vaultUnlock(req) });
     } catch (error) {
         logger.error('[GOLD] verifyPin failed:', error);
         res.status(500).json({ success: false, message: 'Could not verify PIN' });

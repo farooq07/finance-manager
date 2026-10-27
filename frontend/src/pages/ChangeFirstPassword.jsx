@@ -32,8 +32,8 @@ export default function ChangeFirstPassword() {
         e.preventDefault();
         setError('');
 
-        if (newPassword.length < 6) {
-            setError('Password must be at least 6 characters long');
+        if (newPassword.length < 8) {
+            setError('Password must be at least 8 characters long');
             return;
         }
         if (newPassword !== confirmPassword) {
@@ -43,7 +43,10 @@ export default function ChangeFirstPassword() {
 
         setLoading(true);
         try {
-            await api.put('/auth/first-password', { newPassword });
+            const { data } = await api.put('/auth/first-password', { newPassword });
+            // Changing the password signs out every other session; this one
+            // continues with the new token the server returned.
+            if (data?.token) localStorage.setItem('token', data.token);
             await refreshUser();
             navigate('/', { replace: true });
         } catch (err) {

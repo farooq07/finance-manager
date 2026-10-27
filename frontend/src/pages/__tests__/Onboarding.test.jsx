@@ -8,7 +8,7 @@ import api from '../../services/api';
 import { fmtPKR } from '../../utils/currency';
 import Onboarding from '../Onboarding';
 
-vi.mock('../../services/api', () => ({ default: { get: vi.fn(), post: vi.fn(), patch: vi.fn() } }));
+vi.mock('../../services/api', () => ({ setSessionEndedHandler: vi.fn(), default: { get: vi.fn(), post: vi.fn(), patch: vi.fn() } }));
 vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 const refreshUser = vi.fn(async () => {});
 vi.mock('../../context/AuthContext', () => ({ useAuth: () => ({ user: { id: 'u1', interests: null }, refreshUser }) }));

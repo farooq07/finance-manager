@@ -6,6 +6,7 @@ import { useApproveTransaction, useBulkApproveTransactions, useUpdateTransaction
 import { useStaleResourceHandler } from '../hooks/useStaleResource';
 import { useConfirm } from './ui/confirm-dialog';
 import { toast } from 'sonner';
+import DuplicateBadge from './DuplicateBadge';
 
 const EXPENSE_CATEGORIES = [
     'ATM Withdrawal', 'Profit/Dividend', 'Salary', 'Bank Charges', 'Transfer',
@@ -305,6 +306,7 @@ export default function BankTransactionsTable({ bankId, transactions = [], resou
                                             </td>
                                             <td className="px-4 py-3 text-gray-900 dark:text-gray-100 max-w-xs">
                                                 {tx.description}
+                                                <DuplicateBadge tx={tx} />
                                             </td>
                                             <td className="px-4 py-3 text-right text-red-600 dark:text-red-400 font-medium whitespace-nowrap">
                                                 {tx.debit_amount ? fmtPKR(tx.debit_amount) : '-'}
@@ -469,6 +471,7 @@ export default function BankTransactionsTable({ bankId, transactions = [], resou
                                             </td>
                                             <td className="px-4 py-3 text-[11px] text-gray-900 dark:text-gray-100 max-w-xs">
                                                 {tx.description}
+                                                <DuplicateBadge tx={tx} />
                                             </td>
                                             <td className="px-4 py-3 text-[11px] text-right text-red-600 dark:text-red-400 font-medium whitespace-nowrap">
                                                 {tx.debit_amount ? fmtPKR(tx.debit_amount) : '-'}

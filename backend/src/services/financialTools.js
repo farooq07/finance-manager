@@ -714,7 +714,10 @@ export async function executeTool(toolName, args, userId) {
     }
 
     case 'getGoldSummary': {
-      const gold = await computeGoldTotals(userId);
+      const [gold, vaultPin] = await Promise.all([
+        computeGoldTotals(userId),
+        prisma.goldPin.findUnique({ where: { user_id: userId }, select: { id: true } }),
+      ]);
       return {
         item_count: gold.item_count,
         total_value: gold.total_value,
@@ -723,7 +726,9 @@ export async function executeTool(toolName, args, userId) {
         price_date: gold.price_date,
         gold_zakat_due: gold.gold_zakat_due,
         is_nisab_met: gold.is_nisab_met,
-        items: gold.items
+        // A PIN-protected vault's items are not listed through the assistant.
+        items: vaultPin ? undefined : gold.items,
+        vault_locked: !!vaultPin,
       };
     }
 

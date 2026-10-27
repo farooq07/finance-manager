@@ -20,6 +20,13 @@ export const PinProvider = ({ children }) => {
         }
     }, [user]);
 
+    // A new identity (or signing out) always starts locked.
+    useEffect(() => {
+        setIsUnlocked(false);
+        setIsPinModalOpen(false);
+        if (!user) setHasPin(false);
+    }, [user?.id]);
+
     // Update hasPin explicitly (e.g. from Settings after creating a PIN)
     const updateHasPin = (status) => {
         setHasPin(status);

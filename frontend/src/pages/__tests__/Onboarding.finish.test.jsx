@@ -9,7 +9,7 @@ import { AuthTestContext } from '../../context/AuthContext';
 import Onboarding from '../Onboarding';
 import OnboardingGate from '../../components/OnboardingGate';
 
-vi.mock('../../services/api', () => ({ default: { get: vi.fn(), post: vi.fn(), patch: vi.fn() } }));
+vi.mock('../../services/api', () => ({ setSessionEndedHandler: vi.fn(), default: { get: vi.fn(), post: vi.fn(), patch: vi.fn() } }));
 vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 // A real stateful auth: refreshUser re-reads the "server" user, so finishing
 // onboarding flips onboarded_at exactly as it does in the app.

@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { fmtPKR } from '../utils/currency';
 import Modal from './Modal';
 import Button from './Button';
+import DuplicateBadge from './DuplicateBadge';
 
 const EXPENSE_CATEGORIES = [
     'Food & Dining',
@@ -122,6 +123,7 @@ export default function StatementTransactionsModal({ isOpen, onClose, bankId, st
                                             <div className="flex-1">
                                                                         <p className="text-sm font-medium text-gray-900 dark:text-gray-100 break-words">
                                                     {tx.description}
+                                                    <DuplicateBadge tx={tx} />
                                                 </p>
                                                 <p className="text-xs text-gray-500 dark:text-gray:400 mt-1">
                                                     {new Date(tx.transaction_date).toLocaleDateString('en-PK')}
@@ -229,6 +231,7 @@ export default function StatementTransactionsModal({ isOpen, onClose, bankId, st
                                             <div className="flex-1 min-w-0">
                                                 <p className="text-sm font-medium text-gray-900 dark:text-gray-100 break-words">
                                                     {tx.description}
+                                                    <DuplicateBadge tx={tx} />
                                                 </p>
                                                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                                                     {new Date(tx.transaction_date).toLocaleDateString('en-PK')} • {tx.approved_category || tx.suggested_category}

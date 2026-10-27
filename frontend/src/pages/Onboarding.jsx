@@ -9,6 +9,7 @@ import { useUpdatePreferences } from '../hooks/usePreferences';
 import { fmtPKR } from '../utils/currency';
 import InterestPicker from '../components/onboarding/InterestPicker';
 import AccountRows from '../components/onboarding/AccountRows';
+import { qk } from '../lib/queryKeys';
 
 const errorMessage = (err) => err.response?.data?.message || 'Could not save your preferences';
 
@@ -100,7 +101,7 @@ export default function Onboarding() {
 
 function SetUpStep({ typedTotal, onFinish, busy }) {
     const summary = useQuery({
-        queryKey: ['dashboardSummary'],
+        queryKey: qk.dashboardSummary,
         queryFn: async () => (await api.get('/dashboard/summary')).data,
         retry: false,
     });

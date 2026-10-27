@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../services/api';
+import { invalidateMoney } from '../lib/queryKeys';
 
 export const useBanks = () => {
     return useQuery({
@@ -34,7 +35,7 @@ export const useCreateBank = () => {
             return data;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['banks'] });
+            invalidateMoney(queryClient);
         },
     });
 };
@@ -48,7 +49,7 @@ export const useUpdateBank = () => {
             return data;
         },
         onSuccess: (data, variables) => {
-            queryClient.invalidateQueries({ queryKey: ['banks'] });
+            invalidateMoney(queryClient);
             queryClient.invalidateQueries({ queryKey: ['banks', variables.id] });
         },
     });
@@ -63,7 +64,7 @@ export const useUpdateBankBalance = () => {
             return data;
         },
         onSuccess: (data, variables) => {
-            queryClient.invalidateQueries({ queryKey: ['banks'] });
+            invalidateMoney(queryClient);
             queryClient.invalidateQueries({ queryKey: ['banks', variables.id] });
         },
     });
@@ -77,7 +78,7 @@ export const useDeleteBank = () => {
             return data;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['banks'] });
+            invalidateMoney(queryClient);
         },
     });
 };

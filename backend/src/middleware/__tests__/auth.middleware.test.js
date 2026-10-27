@@ -3,77 +3,89 @@ import { jest } from '@jest/globals';
 import prisma from '../../utils/prisma.js';
 import verifyToken from '../auth.middleware.js';
 
+const activeUser = { id: 'u1', email: 'a@b.c', name: 'Ali', role: 'user', deleted_at: null, token_version: 0 };
+
 describe('Auth Middleware', () => {
-    let mockReq;
-    let mockRes;
-    let mockNext;
+    let req, res, next;
 
     beforeEach(() => {
-        mockReq = { headers: {} };
-        mockRes = {
-            status: jest.fn().mockReturnThis(),
-            json: jest.fn()
-        };
-        mockNext = jest.fn();
+        req = { headers: { authorization: 'Bearer valid.jwt.token' } };
+        res = { status: jest.fn().mockReturnThis(), json: jest.fn() };
+        next = jest.fn();
+    });
+    afterEach(() => jest.restoreAllMocks());
+
+    const expectSignOut = (code) => {
+        expect(res.status).toHaveBeenCalledWith(401);
+        expect(res.json.mock.calls[0][0].code).toBe(code);
+        expect(next).not.toHaveBeenCalled();
+    };
+
+    it('no token → 401 SESSION_MISSING', async () => {
+        req.headers = {};
+        await verifyToken(req, res, next);
+        expectSignOut('SESSION_MISSING');
     });
 
-    it('should return 401 if no token is provided', async () => {
-        await verifyToken(mockReq, mockRes, mockNext);
-
-        expect(mockRes.status).toHaveBeenCalledWith(401);
-        expect(mockRes.json).toHaveBeenCalledWith({ message: 'Access denied. No token provided.' });
-        expect(mockNext).not.toHaveBeenCalled();
+    it('no Bearer prefix → 401 SESSION_MISSING', async () => {
+        req.headers.authorization = 'InvalidFormatToken12345';
+        await verifyToken(req, res, next);
+        expectSignOut('SESSION_MISSING');
     });
 
-    it('should return 401 if authorization header has no Bearer prefix', async () => {
-        mockReq.headers.authorization = 'InvalidFormatToken12345';
-
-        await verifyToken(mockReq, mockRes, mockNext);
-
-        expect(mockRes.status).toHaveBeenCalledWith(401);
-        expect(mockNext).not.toHaveBeenCalled();
+    it('invalid or expired token → 401 SESSION_EXPIRED (not 403)', async () => {
+        jest.spyOn(jwt, 'verify').mockImplementationOnce(() => { throw new Error('jwt expired'); });
+        await verifyToken(req, res, next);
+        expectSignOut('SESSION_EXPIRED');
     });
 
-    it('should return 403 if jwt.verify throws (invalid or expired token)', async () => {
-        mockReq.headers.authorization = 'Bearer invalid.fake.token';
-
-        jest.spyOn(jwt, 'verify').mockImplementationOnce(() => {
-            throw new Error('invalid signature');
-        });
-
-        await verifyToken(mockReq, mockRes, mockNext);
-
-        expect(mockRes.status).toHaveBeenCalledWith(403);
-        expect(mockRes.json).toHaveBeenCalledWith({ message: 'Invalid or expired token.' });
-        expect(mockNext).not.toHaveBeenCalled();
-    });
-
-    it('should return 401 if token is valid but user does not exist in DB', async () => {
-        const mockDecoded = { id: 'ghost-user-uuid' };
-        mockReq.headers.authorization = 'Bearer valid.jwt.token';
-
-        jest.spyOn(jwt, 'verify').mockReturnValueOnce(mockDecoded);
+    it('user no longer exists → 401 SESSION_REVOKED', async () => {
+        jest.spyOn(jwt, 'verify').mockReturnValueOnce({ id: 'ghost', tv: 0 });
         jest.spyOn(prisma.user, 'findUnique').mockResolvedValueOnce(null);
-
-        await verifyToken(mockReq, mockRes, mockNext);
-
-        expect(mockRes.status).toHaveBeenCalledWith(401);
-        expect(mockRes.json).toHaveBeenCalledWith({ message: 'User not found.' });
-        expect(mockNext).not.toHaveBeenCalled();
+        await verifyToken(req, res, next);
+        expectSignOut('SESSION_REVOKED');
     });
 
-    it('should attach DB user to req and call next() when token is valid', async () => {
-        const mockDecoded = { id: 'user-123' };
-        const mockDbUser = { id: 'user-123', email: 'test@example.com', name: 'Test User', role: 'user' };
-        mockReq.headers.authorization = 'Bearer valid.jwt.token';
+    it('deactivated account → an already-issued token stops working', async () => {
+        jest.spyOn(jwt, 'verify').mockReturnValueOnce({ id: 'u1', tv: 0 });
+        jest.spyOn(prisma.user, 'findUnique').mockResolvedValueOnce({ ...activeUser, deleted_at: new Date() });
+        await verifyToken(req, res, next);
+        expectSignOut('SESSION_REVOKED');
+    });
 
-        jest.spyOn(jwt, 'verify').mockReturnValueOnce(mockDecoded);
-        jest.spyOn(prisma.user, 'findUnique').mockResolvedValueOnce(mockDbUser);
+    it('stale token version (password changed / signed out everywhere) → 401 SESSION_REVOKED', async () => {
+        jest.spyOn(jwt, 'verify').mockReturnValueOnce({ id: 'u1', tv: 2 });
+        jest.spyOn(prisma.user, 'findUnique').mockResolvedValueOnce({ ...activeUser, token_version: 3 });
+        await verifyToken(req, res, next);
+        expectSignOut('SESSION_REVOKED');
+    });
 
-        await verifyToken(mockReq, mockRes, mockNext);
+    it('a pre-versioning token (no tv) works until the first revocation', async () => {
+        jest.spyOn(jwt, 'verify').mockReturnValue({ id: 'u1', iat: 100 });
+        jest.spyOn(prisma.user, 'findUnique').mockResolvedValueOnce(activeUser);
+        await verifyToken(req, res, next);
+        expect(next).toHaveBeenCalled();
 
-        expect(mockReq.user).toEqual(mockDbUser);
-        expect(mockNext).toHaveBeenCalledTimes(1);
-        expect(mockRes.status).not.toHaveBeenCalled();
+        next.mockClear();
+        prisma.user.findUnique.mockResolvedValueOnce({ ...activeUser, token_version: 1 });
+        await verifyToken(req, res, next);
+        expectSignOut('SESSION_REVOKED');
+    });
+
+    it('valid token → attaches the user and token time, calls next()', async () => {
+        jest.spyOn(jwt, 'verify').mockReturnValueOnce({ id: 'u1', tv: 0, iat: 1234 });
+        jest.spyOn(prisma.user, 'findUnique').mockResolvedValueOnce(activeUser);
+        await verifyToken(req, res, next);
+        expect(req.user).toEqual({ id: 'u1', email: 'a@b.c', name: 'Ali', role: 'user' });
+        expect(req.auth).toEqual({ iat: 1234, tokenVersion: 0 });
+        expect(next).toHaveBeenCalled();
+    });
+
+    it('database trouble is not a sign-out → 503', async () => {
+        jest.spyOn(jwt, 'verify').mockReturnValueOnce({ id: 'u1', tv: 0 });
+        jest.spyOn(prisma.user, 'findUnique').mockRejectedValueOnce(new Error('db down'));
+        jest.spyOn(console, 'error').mockImplementation(() => {});
+        await verifyToken(req, res, next);
+        expect(res.status).toHaveBeenCalledWith(503);
     });
 });

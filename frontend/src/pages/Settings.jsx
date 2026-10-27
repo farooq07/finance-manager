@@ -266,8 +266,8 @@ export default function Settings() {
     };
 
     const handleResetPassword = async () => {
-        if (!newUserPassword || newUserPassword.length < 6) {
-            setFeedbackModal({ isOpen: true, title: 'Validation Error', message: 'Password must be at least 6 characters long.', type: 'warning' });
+        if (!newUserPassword || newUserPassword.length < 8) {
+            setFeedbackModal({ isOpen: true, title: 'Validation Error', message: 'Password must be at least 8 characters long.', type: 'warning' });
             return;
         }
         await resetPasswordMutation.mutateAsync({ userId: resetPwModal.id, password: newUserPassword });

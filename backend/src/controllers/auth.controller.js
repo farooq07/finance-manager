@@ -1,13 +1,50 @@
 import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import prisma from '../utils/prisma.js';
 import { sendOtpEmail, sendVerificationEmail } from '../utils/email.js';
+import {
+    AUTH_CODES, MAX_FAILED_ATTEMPTS, LOGIN_LOCK_MINUTES, authError, hashOtp, otpMatches,
+    isFreshLogin, passwordProblem, pinProblem, revokeSessions, signSessionToken,
+} from '../utils/session.js';
 
 const VERIFICATION_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 function generateVerificationToken() {
     return crypto.randomBytes(32).toString('hex');
+}
+
+// One-time codes ----------------------------------------------------------------
+const OTP_TTL_MS = 10 * 60 * 1000;
+const CLEAR_OTP = { otp_code: null, otp_expires_at: null, otp_purpose: null, otp_attempts: 0 };
+
+const newOtp = (code, purpose) => ({
+    otp_code: hashOtp(code),
+    otp_expires_at: new Date(Date.now() + OTP_TTL_MS),
+    otp_purpose: purpose,
+    otp_attempts: 0,
+});
+
+/**
+ * Check a one-time code for `purpose`. Wrong codes count against the code;
+ * after MAX_FAILED_ATTEMPTS it is voided and a new one must be requested.
+ */
+async function checkOtp(user, supplied, purpose) {
+    if (!user.otp_code || user.otp_purpose !== purpose) {
+        return { ok: false, message: purpose === 'login' ? 'Please sign in again.' : 'Invalid OTP code' };
+    }
+    if (!user.otp_expires_at || new Date() > user.otp_expires_at) {
+        return { ok: false, message: purpose === 'login' ? 'OTP has expired. Please log in again.' : 'OTP has expired. Please request a new one.' };
+    }
+    if (!otpMatches(user.otp_code, supplied)) {
+        const attempts = user.otp_attempts + 1;
+        const voided = attempts >= MAX_FAILED_ATTEMPTS;
+        await prisma.user.update({
+            where: { id: user.id },
+            data: voided ? CLEAR_OTP : { otp_attempts: attempts },
+        });
+        return { ok: false, message: voided ? 'Too many wrong codes. Please request a new one.' : 'Invalid OTP code' };
+    }
+    return { ok: true };
 }
 
 export const getAuthConfig = (req, res) => {
@@ -32,6 +69,8 @@ export const register = async (req, res) => {
         if (!name || !email || !password) {
             return res.status(400).json({ message: 'All fields are required' });
         }
+        const problem = passwordProblem(password);
+        if (problem) return authError(res, 400, AUTH_CODES.VALIDATION, problem);
 
         const existingUser = await prisma.user.findUnique({ where: { email } });
         if (existingUser) {
@@ -200,26 +239,36 @@ export const login = async (req, res) => {
             }
         });
 
-        if (!user) {
+        if (!user || !user.password_hash) {
             return res.status(400).json({ message: 'Invalid email or password' });
+        }
+
+        // Too many wrong passwords → locked for a while, per account.
+        if (user.locked_until && user.locked_until > new Date()) {
+            return authError(res, 429, AUTH_CODES.ACCOUNT_LOCKED,
+                'Too many failed sign-in attempts. Try again in a few minutes or reset your password.');
         }
 
         const isMatch = await bcrypt.compare(password, user.password_hash);
         if (!isMatch) {
+            const attempts = user.failed_login_attempts + 1;
+            const lock = attempts >= MAX_FAILED_ATTEMPTS;
+            await prisma.user.update({
+                where: { id: user.id },
+                data: lock
+                    ? { failed_login_attempts: 0, locked_until: new Date(Date.now() + LOGIN_LOCK_MINUTES * 60 * 1000) }
+                    : { failed_login_attempts: attempts },
+            });
             return res.status(400).json({ message: 'Invalid email or password' });
         }
 
         // Block login if the account has been deactivated (soft-deleted by an admin)
-        const statusRows = await prisma.$queryRaw`
-            SELECT email_verified, deleted_at FROM users WHERE id = ${user.id}::uuid LIMIT 1
-        `;
-        if (statusRows[0]?.deleted_at) {
+        if (user.deleted_at) {
             return res.status(403).json({ message: 'This account has been deactivated. Please contact an administrator.' });
         }
 
         // Block login if email is not verified
-        const verifiedRows = statusRows;
-        if (verifiedRows[0] && verifiedRows[0].email_verified === false) {
+        if (user.email_verified === false) {
             return res.status(403).json({
                 message: 'Please confirm your email address before logging in. Check your inbox for the verification link.',
                 requiresVerification: true,
@@ -229,15 +278,11 @@ export const login = async (req, res) => {
 
         // 3. Generate 6-digit OTP
         const otpCode = crypto.randomInt(100000, 999999).toString();
-        const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
-        // 4. Save OTP to user record
+        // 4. Save the code (hashed) for the login step only
         await prisma.user.update({
             where: { id: user.id },
-            data: {
-                otp_code: otpCode,
-                otp_expires_at: otpExpiresAt
-            }
+            data: { ...newOtp(otpCode, 'login'), failed_login_attempts: 0, locked_until: null },
         });
 
         // 5. Send OTP via email
@@ -245,8 +290,6 @@ export const login = async (req, res) => {
             await sendOtpEmail(user.email, otpCode);
         } catch (emailError) {
             console.error('Failed to send OTP email:', emailError);
-            // Optionally decide if you want to fail the login or just continue. 
-            // In a real app you might return a 500 here if email is strictly required.
         }
 
         // 6. Return success (but NOT the token). Tell frontend to proceed to OTP step.
@@ -269,15 +312,13 @@ export const resendOtp = async (req, res) => {
         if (!userId) return res.status(400).json({ message: 'userId is required' });
 
         const user = await prisma.user.findUnique({ where: { id: userId } });
-        if (!user) return res.status(404).json({ message: 'User not found' });
+        // Only resend a login code that is already in progress.
+        if (!user || user.otp_purpose !== 'login' || user.deleted_at) {
+            return res.status(400).json({ message: 'Please sign in again.' });
+        }
 
         const otpCode = crypto.randomInt(100000, 999999).toString();
-        const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
-
-        await prisma.user.update({
-            where: { id: userId },
-            data: { otp_code: otpCode, otp_expires_at: otpExpiresAt }
-        });
+        await prisma.user.update({ where: { id: userId }, data: newOtp(otpCode, 'login') });
 
         try {
             await sendOtpEmail(user.email, otpCode);
@@ -356,37 +397,20 @@ export const verifyOtp = async (req, res) => {
         }
 
         // Block if the account was deactivated (soft-deleted) since login started
-        const statusRows = await prisma.$queryRaw`
-            SELECT deleted_at FROM users WHERE id = ${userId}::uuid LIMIT 1
-        `;
-        if (statusRows[0]?.deleted_at) {
+        if (user.deleted_at) {
             return res.status(403).json({ message: 'This account has been deactivated. Please contact an administrator.' });
         }
 
-        // Check if OTP matches and hasn't expired
-        if (user.otp_code !== otp) {
-            return res.status(400).json({ message: 'Invalid OTP code' });
-        }
+        const check = await checkOtp(user, otp, 'login');
+        if (!check.ok) return res.status(400).json({ message: check.message });
 
-        if (!user.otp_expires_at || new Date() > user.otp_expires_at) {
-            return res.status(400).json({ message: 'OTP has expired. Please log in again.' });
-        }
-
-        // Success! Clear the OTP fields
-        await prisma.user.update({
+        // Success: the code is used up.
+        const updated = await prisma.user.update({
             where: { id: userId },
-            data: {
-                otp_code: null,
-                otp_expires_at: null
-            }
+            data: CLEAR_OTP,
         });
 
-        // 5. Generate and send JWT
-        const token = jwt.sign(
-            { id: user.id, email: user.email },
-            process.env.JWT_SECRET,
-            { expiresIn: '7d' }
-        );
+        const token = signSessionToken(updated);
 
         res.json({
             message: 'Login successful',
@@ -410,16 +434,21 @@ export const verifyOtp = async (req, res) => {
 export const setupPin = async (req, res) => {
     try {
         const { pin } = req.body;
-        if (!pin || pin.length < 4) {
-            return res.status(400).json({ message: 'PIN must be at least 4 characters long' });
+        const problem = pinProblem(pin);
+        if (problem) return authError(res, 400, AUTH_CODES.VALIDATION, problem);
+
+        const user = await prisma.user.findUnique({ where: { id: req.user.id }, select: { app_pin_code: true } });
+        // Replacing an existing PIN without knowing it needs a fresh sign-in
+        // (password + emailed code) — that is the "forgot PIN" path.
+        if (user?.app_pin_code && !isFreshLogin(req)) {
+            return authError(res, 403, AUTH_CODES.REAUTH_REQUIRED,
+                'You already have a PIN. Change it with your current PIN, or sign in again to reset it.');
         }
 
-        const salt = await bcrypt.genSalt(10);
-        const hashedPin = await bcrypt.hash(pin, salt);
-
+        const hashedPin = await bcrypt.hash(String(pin), 10);
         await prisma.user.update({
             where: { id: req.user.id },
-            data: { app_pin_code: hashedPin }
+            data: { app_pin_code: hashedPin, pin_failed_attempts: 0 }
         });
 
         res.json({ message: 'PIN configured successfully' });
@@ -441,11 +470,26 @@ export const verifyPin = async (req, res) => {
             return res.status(400).json({ message: 'No PIN configured for this account' });
         }
 
-        const isMatch = await bcrypt.compare(pin, user.app_pin_code);
+        const isMatch = await bcrypt.compare(String(pin), user.app_pin_code);
         if (!isMatch) {
-            return res.status(401).json({ message: 'Invalid PIN code' });
+            const attempts = user.pin_failed_attempts + 1;
+            if (attempts >= MAX_FAILED_ATTEMPTS) {
+                // Too many wrong PINs: sign out every session on the server too.
+                await prisma.user.update({
+                    where: { id: user.id },
+                    data: { pin_failed_attempts: 0, token_version: { increment: 1 } },
+                });
+                return authError(res, 401, AUTH_CODES.SESSION_REVOKED, 'Too many wrong PINs. Please sign in again.');
+            }
+            await prisma.user.update({ where: { id: user.id }, data: { pin_failed_attempts: attempts } });
+            return authError(res, 401, AUTH_CODES.WRONG_PIN, 'Invalid PIN code', {
+                attemptsLeft: MAX_FAILED_ATTEMPTS - attempts,
+            });
         }
 
+        if (user.pin_failed_attempts) {
+            await prisma.user.update({ where: { id: user.id }, data: { pin_failed_attempts: 0 } });
+        }
         res.json({ message: 'PIN verified successfully', success: true });
     } catch (error) {
         console.error('Verify PIN Error:', error);
@@ -459,26 +503,23 @@ export const changePin = async (req, res) => {
         if (!currentPin || !newPin) {
             return res.status(400).json({ message: 'Current PIN and new PIN are required' });
         }
-        if (newPin.length < 4) {
-            return res.status(400).json({ message: 'New PIN must be at least 4 digits' });
-        }
+        const problem = pinProblem(newPin);
+        if (problem) return authError(res, 400, AUTH_CODES.VALIDATION, problem);
 
         const user = await prisma.user.findUnique({ where: { id: req.user.id } });
         if (!user || !user.app_pin_code) {
             return res.status(400).json({ message: 'No PIN configured for this account' });
         }
 
-        const isMatch = await bcrypt.compare(currentPin, user.app_pin_code);
+        const isMatch = await bcrypt.compare(String(currentPin), user.app_pin_code);
         if (!isMatch) {
-            return res.status(401).json({ message: 'Current PIN is incorrect' });
+            return authError(res, 401, AUTH_CODES.WRONG_PIN, 'Current PIN is incorrect');
         }
 
-        const salt = await bcrypt.genSalt(10);
-        const hashedPin = await bcrypt.hash(newPin, salt);
-
+        const hashedPin = await bcrypt.hash(String(newPin), 10);
         await prisma.user.update({
             where: { id: req.user.id },
-            data: { app_pin_code: hashedPin }
+            data: { app_pin_code: hashedPin, pin_failed_attempts: 0 }
         });
 
         res.json({ message: 'PIN changed successfully' });
@@ -496,22 +537,14 @@ export const forgotPassword = async (req, res) => {
         }
 
         const user = await prisma.user.findUnique({ where: { email } });
-        if (!user) {
+        if (!user || user.deleted_at) {
             // Return success even if user not found to prevent email enumeration
             return res.json({ message: 'If an account with that email exists, an OTP will be sent.' });
         }
 
-        // Generate 6-digit OTP
+        // A recovery code — it cannot be used to sign in.
         const otpCode = crypto.randomInt(100000, 999999).toString();
-        const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
-
-        await prisma.user.update({
-            where: { id: user.id },
-            data: {
-                otp_code: otpCode,
-                otp_expires_at: otpExpiresAt
-            }
-        });
+        await prisma.user.update({ where: { id: user.id }, data: newOtp(otpCode, 'reset') });
 
         try {
             await sendOtpEmail(user.email, otpCode);
@@ -533,29 +566,28 @@ export const resetPassword = async (req, res) => {
         if (!email || !otp || !newPassword) {
             return res.status(400).json({ message: 'Email, OTP, and new password are required' });
         }
+        const problem = passwordProblem(newPassword);
+        if (problem) return authError(res, 400, AUTH_CODES.VALIDATION, problem);
 
         const user = await prisma.user.findUnique({ where: { email } });
-        if (!user) {
+        if (!user || user.deleted_at) {
             return res.status(400).json({ message: 'Invalid OTP or email' });
         }
 
-        if (user.otp_code !== otp) {
-            return res.status(400).json({ message: 'Invalid OTP code' });
-        }
+        const check = await checkOtp(user, otp, 'reset');
+        if (!check.ok) return res.status(400).json({ message: check.message });
 
-        if (!user.otp_expires_at || new Date() > user.otp_expires_at) {
-            return res.status(400).json({ message: 'OTP has expired. Please request a new one.' });
-        }
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
 
-        const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(newPassword, salt);
-
+        // New password → every existing session is signed out (OWASP recovery guidance).
         await prisma.user.update({
             where: { id: user.id },
             data: {
                 password_hash: hashedPassword,
-                otp_code: null,
-                otp_expires_at: null
+                ...CLEAR_OTP,
+                failed_login_attempts: 0,
+                locked_until: null,
+                token_version: { increment: 1 },
             }
         });
 
@@ -570,21 +602,41 @@ export const firstPasswordChange = async (req, res) => {
     try {
         const { newPassword } = req.body;
 
-        if (!newPassword || newPassword.length < 6) {
-            return res.status(400).json({ message: 'Password must be at least 6 characters long' });
+        const problem = passwordProblem(newPassword);
+        if (problem) return authError(res, 400, AUTH_CODES.VALIDATION, problem);
+
+        // Only for accounts created with a temporary password — otherwise this
+        // would let anyone holding a session set a password without the old one.
+        const current = await prisma.user.findUnique({ where: { id: req.user.id }, select: { must_change_password: true } });
+        if (!current?.must_change_password) {
+            return authError(res, 403, AUTH_CODES.FORBIDDEN, 'Your password has already been set.');
         }
 
-        const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(newPassword, salt);
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
 
-        await prisma.user.update({
+        // Sign out any other session that used the temporary password; this
+        // device gets a fresh token.
+        const updated = await prisma.user.update({
             where: { id: req.user.id },
-            data: { password_hash: hashedPassword, must_change_password: false }
+            data: { password_hash: hashedPassword, must_change_password: false, token_version: { increment: 1 } },
+            select: { id: true, email: true, token_version: true },
         });
 
-        res.json({ message: 'Password updated successfully' });
+        res.json({ message: 'Password updated successfully', token: signSessionToken(updated) });
     } catch (error) {
         console.error('First Password Change Error:', error);
         res.status(500).json({ message: 'Server error updating password' });
+    }
+};
+
+// POST /api/auth/sessions/revoke-all — sign out everywhere. This device gets
+// a fresh token so it stays signed in.
+export const revokeAllSessions = async (req, res) => {
+    try {
+        const updated = await revokeSessions(req.user.id);
+        res.json({ message: 'Signed out of every other device', token: signSessionToken(updated) });
+    } catch (error) {
+        console.error('Revoke sessions error:', error);
+        res.status(500).json({ message: 'Could not sign out other devices' });
     }
 };

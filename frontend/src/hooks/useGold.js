@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../services/api';
+import { setVaultToken } from '../services/goldVault';
 
 // Invalidates the whole gold cache surface after any mutation.
 function useInvalidateGold() {
@@ -89,11 +90,28 @@ export function useSyncGoldPrice() {
     });
 }
 
+// The server answers a correct PIN with a short-lived vault token; the item
+// endpoints only open with it (see services/goldVault.js).
+const keepVaultToken = (data) => {
+    if (data?.vaultToken) setVaultToken(data.vaultToken, data.expiresIn);
+};
+
 export function useSetGoldPin() {
     const qc = useQueryClient();
     return useMutation({
         mutationFn: (pin) => api.post('/gold/set-pin', { pin }).then((r) => r.data),
-        onSuccess: () => qc.invalidateQueries({ queryKey: ['gold-has-pin'] }),
+        onSuccess: (data) => {
+            keepVaultToken(data);
+            qc.invalidateQueries({ queryKey: ['gold-has-pin'] });
+        },
+    });
+}
+
+// Forgot the vault PIN: works only within 10 minutes of a full sign-in.
+export function useResetGoldPin() {
+    return useMutation({
+        mutationFn: (pin) => api.post('/gold/reset-pin', { pin }).then((r) => r.data),
+        onSuccess: keepVaultToken,
     });
 }
 
@@ -101,5 +119,6 @@ export function useVerifyGoldPin() {
     // Deliberately not cached: every check hits the server.
     return useMutation({
         mutationFn: (pin) => api.post('/gold/verify-pin', { pin }).then((r) => r.data),
+        onSuccess: keepVaultToken,
     });
 }

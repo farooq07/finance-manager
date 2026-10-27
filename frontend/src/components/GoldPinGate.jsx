@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Lock, ShieldCheck, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { useGoldHasPin, useSetGoldPin, useVerifyGoldPin } from '../hooks/useGold';
+import { useGoldHasPin, useSetGoldPin, useVerifyGoldPin, useResetGoldPin } from '../hooks/useGold';
+import { clearVaultToken, vaultMsLeft } from '../services/goldVault';
 
 const PIN_LENGTH = 6;
 const GOLD_AMBER = '#D4AF37';
@@ -15,12 +17,34 @@ const GOLD_AMBER = '#D4AF37';
  */
 export default function GoldPinGate({ children }) {
     const [unlocked, setUnlocked] = useState(false);
+    const [resetting, setResetting] = useState(false);
     const { data: status, isLoading } = useGoldHasPin();
+    const qc = useQueryClient();
 
-    // Re-lock when the page unmounts (e.g. user navigates away).
+    // Re-lock when the page unmounts (e.g. user navigates away): forget the
+    // vault token and the vault data held in the cache.
     useEffect(() => {
-        return () => setUnlocked(false);
-    }, []);
+        return () => {
+            clearVaultToken();
+            qc.removeQueries({ queryKey: ['gold-items'] });
+            qc.removeQueries({ queryKey: ['gold-zakat'] });
+            setUnlocked(false);
+        };
+    }, [qc]);
+
+    // The server's vault token expires after 15 minutes — lock with it.
+    useEffect(() => {
+        if (!unlocked) return undefined;
+        const ms = vaultMsLeft();
+        if (!ms) return undefined;
+        const t = setTimeout(() => {
+            clearVaultToken();
+            qc.removeQueries({ queryKey: ['gold-items'] });
+            setUnlocked(false);
+            toast.info('Gold Vault locked again');
+        }, ms);
+        return () => clearTimeout(t);
+    }, [unlocked, qc]);
 
     if (isLoading) {
         return (
@@ -34,18 +58,24 @@ export default function GoldPinGate({ children }) {
         return <GoldPinSetup onDone={() => setUnlocked(true)} />;
     }
 
+    if (resetting) {
+        return <GoldPinSetup reset onDone={() => { setResetting(false); setUnlocked(true); }} onCancel={() => setResetting(false)} />;
+    }
+
     if (!unlocked) {
-        return <GoldPinEntry onSuccess={() => setUnlocked(true)} />;
+        return <GoldPinEntry onSuccess={() => setUnlocked(true)} onForgot={() => setResetting(true)} />;
     }
 
     return children;
 }
 
-function GoldPinSetup({ onDone }) {
+function GoldPinSetup({ onDone, reset = false, onCancel }) {
     const [pin, setPin]       = useState('');
     const [confirm, setConfirm] = useState('');
     const [error, setError]   = useState('');
-    const setMutation = useSetGoldPin();
+    const createMutation = useSetGoldPin();
+    const resetMutation = useResetGoldPin();
+    const setMutation = reset ? resetMutation : createMutation;
 
     function handleSubmit(e) {
         e.preventDefault();
@@ -60,7 +90,7 @@ function GoldPinSetup({ onDone }) {
         }
         setMutation.mutate(pin, {
             onSuccess: () => {
-                toast.success('Gold Vault PIN set');
+                toast.success(reset ? 'Gold Vault PIN reset' : 'Gold Vault PIN set');
                 onDone();
             },
             onError: (err) => setError(err?.response?.data?.message || 'Could not set PIN'),
@@ -69,8 +99,10 @@ function GoldPinSetup({ onDone }) {
 
     return (
         <PinShell
-            title="Set up your Gold Vault PIN"
-            subtitle="A separate 6-digit PIN, just for the vault. We'll ask for it every time you open this page."
+            title={reset ? 'Reset your Gold Vault PIN' : 'Set up your Gold Vault PIN'}
+            subtitle={reset
+                ? 'For your safety this only works within 10 minutes of signing in with your password and emailed code.'
+                : "A separate 6-digit PIN, just for the vault. We'll ask for it every time you open this page."}
             icon={ShieldCheck}
         >
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -85,15 +117,21 @@ function GoldPinSetup({ onDone }) {
                 >
                     {setMutation.isPending ? 'Saving…' : 'Set PIN & enter vault'}
                 </button>
-                <p className="text-xs text-amber-200/70 leading-relaxed text-center">
-                    Forget it and you'll need to reset from Settings.<br />The vault PIN is not the same as your app PIN.
-                </p>
+                {reset ? (
+                    <button type="button" onClick={onCancel} className="w-full text-xs text-amber-200/70 hover:text-amber-100">
+                        Back to PIN entry
+                    </button>
+                ) : (
+                    <p className="text-xs text-amber-200/70 leading-relaxed text-center">
+                        Forgot it later? Sign in again and use "Forgot PIN".<br />The vault PIN is not the same as your app PIN.
+                    </p>
+                )}
             </form>
         </PinShell>
     );
 }
 
-function GoldPinEntry({ onSuccess }) {
+function GoldPinEntry({ onSuccess, onForgot }) {
     const [pin, setPin]   = useState('');
     const [error, setError] = useState('');
     const containerRef = useRef(null);
@@ -108,13 +146,16 @@ function GoldPinEntry({ onSuccess }) {
                 if (data.success) {
                     onSuccess();
                 } else {
-                    setError('Incorrect PIN');
+                    const left = data.attemptsLeft;
+                    setError(typeof left === 'number'
+                        ? (left > 0 ? `Incorrect PIN. ${left} ${left === 1 ? 'try' : 'tries'} left.` : 'Incorrect PIN. The vault is now locked for 15 minutes.')
+                        : 'Incorrect PIN');
                     shake(containerRef.current);
                     setTimeout(() => setPin(''), 200);
                 }
             },
-            onError: () => {
-                setError('Could not verify PIN');
+            onError: (err) => {
+                setError(err?.response?.data?.message || 'Could not verify PIN');
                 setPin('');
             },
         });
@@ -138,6 +179,9 @@ function GoldPinEntry({ onSuccess }) {
                     {verify.isPending && <span className="text-xs text-amber-200/70">Verifying…</span>}
                     {error && !verify.isPending && <span className="text-sm text-rose-300">{error}</span>}
                 </div>
+                <button type="button" onClick={onForgot} className="w-full text-xs text-amber-200/70 hover:text-amber-100">
+                    Forgot PIN?
+                </button>
             </div>
         </PinShell>
     );

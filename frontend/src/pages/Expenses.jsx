@@ -15,6 +15,7 @@ import { fmtDate } from '../utils/dates';
 import { useConfirm } from '../components/ui/confirm-dialog';
 import MaskedBalance from '../components/MaskedBalance';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
+import { invalidateMoney } from '../lib/queryKeys';
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Period helpers — client computes the anchor date for the insights call so
@@ -722,9 +723,7 @@ function Transactions({ entries, loading, periodLabel }) {
     const removeMutation = useMutation({
         mutationFn: (id) => api.delete(`/expenses/${String(id).replace('manual:', '')}`),
         onSuccess: () => {
-            qc.invalidateQueries({ queryKey: ['expenses'] });
-            qc.invalidateQueries({ queryKey: ['spending'] });
-            qc.invalidateQueries({ queryKey: ['insights'] });
+            invalidateMoney(qc);
             toast.success('Entry deleted');
             onChanged?.();
         },
@@ -873,9 +872,7 @@ function EntryFormModal({ item, onClose }) {
             ? api.put(`/expenses/${String(item.id).replace('manual:', '')}`, payload)
             : api.post('/expenses', payload),
         onSuccess: () => {
-            qc.invalidateQueries({ queryKey: ['expenses'] });
-            qc.invalidateQueries({ queryKey: ['spending'] });
-            qc.invalidateQueries({ queryKey: ['insights'] });
+            invalidateMoney(qc);
             toast.success(isEdit ? 'Entry updated' : 'Entry added');
             onClose();
         },
@@ -942,9 +939,7 @@ function BatchModal({ onClose }) {
     const save = useMutation({
         mutationFn: (validRows) => api.post('/expenses/batch', validRows),
         onSuccess: () => {
-            qc.invalidateQueries({ queryKey: ['expenses'] });
-            qc.invalidateQueries({ queryKey: ['spending'] });
-            qc.invalidateQueries({ queryKey: ['insights'] });
+            invalidateMoney(qc);
             toast.success('Bills logged');
             onClose();
         },

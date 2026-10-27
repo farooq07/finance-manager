@@ -1,4 +1,4 @@
-import jwt from 'jsonwebtoken';
+import { signSessionToken } from '../utils/session.js';
 import { OAuth2Client } from 'google-auth-library';
 import appleSignin from 'apple-signin-auth';
 import prisma from '../utils/prisma.js';
@@ -9,11 +9,7 @@ const APPLE_CLIENT_ID = process.env.APPLE_CLIENT_ID; // services ID, e.g. com.fs
 const googleClient = GOOGLE_CLIENT_ID ? new OAuth2Client(GOOGLE_CLIENT_ID) : null;
 
 function signJwt(user) {
-    return jwt.sign(
-        { id: user.id, email: user.email },
-        process.env.JWT_SECRET,
-        { expiresIn: '7d' }
-    );
+    return signSessionToken(user);
 }
 
 function shapeUser(user) {

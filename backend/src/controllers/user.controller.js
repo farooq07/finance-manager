@@ -1,4 +1,5 @@
 import prisma from '../utils/prisma.js';
+import { passwordProblem } from '../utils/session.js';
 
 // Check if user has permission to manage users at all
 const checkUserManagementPermission = (userRole) => {
@@ -221,7 +222,8 @@ export const softDeleteUser = async (req, res) => {
             UPDATE users
             SET deleted_at = now(),
                 deletion_requested_by = ${currentUser.id}::uuid,
-                deletion_requested_at = now()
+                deletion_requested_at = now(),
+                token_version = token_version + 1
             WHERE id = ${id}::uuid
         `;
 
@@ -314,6 +316,8 @@ export const createUser = async (req, res) => {
         if (!name || !email || !password) {
             return res.status(400).json({ message: 'Name, email, and password are required' });
         }
+        const passwordIssue = passwordProblem(password);
+        if (passwordIssue) return res.status(400).json({ message: passwordIssue });
 
         if (!['super.admin', 'admin', 'user'].includes(role)) {
             return res.status(400).json({ message: 'Invalid role. Must be one of: super.admin, admin, user' });
@@ -370,9 +374,8 @@ export const resetUserPassword = async (req, res) => {
             return res.status(403).json({ message: 'Unauthorized - Admin access required' });
         }
 
-        if (!newPassword || newPassword.length < 6) {
-            return res.status(400).json({ message: 'Password must be at least 6 characters long' });
-        }
+        const passwordIssue = passwordProblem(newPassword);
+        if (passwordIssue) return res.status(400).json({ message: passwordIssue });
 
         if (id === currentUser.id) {
             return res.status(400).json({ message: 'Cannot reset your own password via admin panel' });
@@ -391,7 +394,8 @@ export const resetUserPassword = async (req, res) => {
 
         const user = await prisma.user.update({
             where: { id },
-            data: { password_hash: hashedPassword },
+            // The user must sign in with the new password everywhere.
+            data: { password_hash: hashedPassword, must_change_password: true, token_version: { increment: 1 } },
             select: {
                 id: true,
                 name: true,

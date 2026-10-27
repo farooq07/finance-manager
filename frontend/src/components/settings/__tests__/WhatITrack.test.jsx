@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import api from '../../../services/api';
 import WhatITrack from '../WhatITrack';
 
-vi.mock('../../../services/api', () => ({ default: { patch: vi.fn() } }));
+vi.mock('../../../services/api', () => ({ setSessionEndedHandler: vi.fn(), default: { patch: vi.fn() } }));
 vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 let currentUser;
 const refreshUser = vi.fn(async () => {});

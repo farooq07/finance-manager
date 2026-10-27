@@ -1,11 +1,30 @@
-import { createContext, useState, useEffect, useContext } from 'react';
-import api from '../services/api';
+import { createContext, useState, useEffect, useContext, useRef } from 'react';
+import api, { setSessionEndedHandler } from '../services/api';
+import { clearPrivateState } from '../services/privateState';
 
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
+    // Whose data is in the cache right now — a different user must never see it.
+    const cachedUserId = useRef(null);
+
+    const showUser = (next) => {
+        if (next?.id && cachedUserId.current && cachedUserId.current !== next.id) clearPrivateState();
+        cachedUserId.current = next?.id ?? null;
+        setUser(next);
+    };
+
+    // The server ended the session (expired / revoked): forget everything.
+    useEffect(() => {
+        setSessionEndedHandler(() => {
+            clearPrivateState();
+            cachedUserId.current = null;
+            setUser(null);
+        });
+        return () => setSessionEndedHandler(null);
+    }, []);
 
     useEffect(() => {
         const checkUser = async () => {
@@ -13,7 +32,7 @@ export const AuthProvider = ({ children }) => {
             if (token) {
                 try {
                     const { data } = await api.get('/auth/me');
-                    setUser(data);
+                    showUser(data);
                 } catch (error) {
                     localStorage.removeItem('token');
                 }
@@ -26,7 +45,7 @@ export const AuthProvider = ({ children }) => {
 
     const refreshUser = async () => {
         const { data } = await api.get('/auth/me');
-        setUser(data);
+        showUser(data);
     };
 
     // After any successful sign-in: keep the session, then load the full
@@ -37,7 +56,7 @@ export const AuthProvider = ({ children }) => {
         try {
             await refreshUser();
         } catch {
-            setUser(loginUser);
+            showUser(loginUser);
         }
     };
 
@@ -94,8 +113,12 @@ export const AuthProvider = ({ children }) => {
         return data;
     };
 
+    // Sign out: drop the token, cancel requests and every cached record, and
+    // re-lock the PIN and Gold Vault, so the next person sees nothing.
     const logout = () => {
         localStorage.removeItem('token');
+        clearPrivateState();
+        cachedUserId.current = null;
         setUser(null);
     };
 

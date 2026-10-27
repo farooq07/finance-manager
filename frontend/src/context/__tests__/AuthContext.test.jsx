@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import api from '../../services/api';
 import { AuthProvider, useAuth } from '../AuthContext';
 
-vi.mock('../../services/api', () => ({ default: { get: vi.fn(), post: vi.fn() } }));
+vi.mock('../../services/api', () => ({ setSessionEndedHandler: vi.fn(), default: { get: vi.fn(), post: vi.fn() } }));
 
 const fullUser = { id: 'u1', role: 'user', onboarded_at: null, interests: null };
 

@@ -23,6 +23,7 @@ import StatementReviewModal from '../components/StatementReviewModal';
 import UnreconciledBadge from '../components/UnreconciledBadge';
 import { useConfirm } from '../components/ui/confirm-dialog';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
+import { invalidateMoney } from '../lib/queryKeys';
 
 /* ─── PKR shorthand: 6.82 L (lakh), 12.4 K, etc. ──────────────── */
 function fmtPKRShort(n) {
@@ -147,12 +148,17 @@ export default function BankDetail() {
             ...payload,
         };
         const { data } = await api.post(`/banks/${id}/statements/commit`, body);
+        invalidateMoney(queryClient);
         return data;
     };
 
     const announceResult = (data) => {
         const r = data.reconciliation;
         const n = data.summary?.unique ?? data.summary?.totalParsed ?? 0;
+        const possible = data.summary?.possibleDuplicates ?? 0;
+        if (possible > 0) {
+            toast.info(`${possible} transaction${possible === 1 ? ' looks' : 's look'} like ${possible === 1 ? 'a repeat' : 'repeats'} of earlier ones — marked "Possible duplicate" for you to check.`, { duration: 8000 });
+        }
         if (r && !r.ok) {
             toast.warning(`Imported ${n} transactions — but ${r.message}`, { duration: 7000 });
         } else if (r && r.hasBalances) {

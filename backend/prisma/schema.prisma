@@ -17,8 +17,17 @@ model User {
   password_hash              String?
   role                       String              @default("user") @db.VarChar(50) // 'super.admin', 'admin', 'user'
   app_pin_code               String?             @db.VarChar(255)
-  otp_code                   String?             @db.VarChar(6)
+  // sha256 of the one-time code (never the code itself)
+  otp_code                   String?             @db.VarChar(64)
   otp_expires_at             DateTime?           @db.Timestamptz(6)
+  // 'login' | 'reset' — a login code can't reset the password and vice versa
+  otp_purpose                String?             @db.VarChar(20)
+  otp_attempts               Int                 @default(0)
+  failed_login_attempts      Int                 @default(0)
+  locked_until               DateTime?           @db.Timestamptz(6)
+  pin_failed_attempts        Int                 @default(0)
+  // Bumped to sign out every session (password change, deactivation, sign out everywhere)
+  token_version              Int                 @default(0)
   must_change_password       Boolean             @default(false)
   email_verified             Boolean             @default(false)
   email_verification_token   String?             @db.VarChar(128)
@@ -218,11 +227,13 @@ model GoldPriceHistory {
 // SEPARATE PIN for the Gold Vault. Intentionally not reusing
 // users.app_pin_code — the second lock is a feature, not a bug.
 model GoldPin {
-  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_id    String   @unique @db.Uuid
-  pin_hash   String   @db.VarChar(255)
-  created_at DateTime @default(now()) @db.Timestamptz(6)
-  updated_at DateTime @updatedAt @db.Timestamptz(6)
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id         String    @unique @db.Uuid
+  pin_hash        String    @db.VarChar(255)
+  failed_attempts Int       @default(0)
+  locked_until    DateTime? @db.Timestamptz(6)
+  created_at      DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime  @updatedAt @db.Timestamptz(6)
 
   user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
 

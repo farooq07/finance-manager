@@ -13,6 +13,7 @@ import { fmtPKR } from '../utils/currency';
 import { fmtDate } from '../utils/dates';
 import MaskedBalance from '../components/MaskedBalance';
 import { useTheme } from '../context/ThemeContext';
+import { qk } from '../lib/queryKeys';
 
 const RANGES = [
     { days: 30, label: '1M', phrase: 'past month' },
@@ -30,7 +31,7 @@ export default function Dashboard() {
     const navigate = useNavigate();
 
     const summary = useQuery({
-        queryKey: ['dashboard-summary'],
+        queryKey: qk.dashboardSummary,
         queryFn: () => api.get('/dashboard/summary').then((r) => r.data),
         staleTime: 30_000,
     });
@@ -52,7 +53,7 @@ export default function Dashboard() {
         onSuccess: () => {
             toast.success('Snapshot captured');
             qc.invalidateQueries({ queryKey: ['networth-history'] });
-            qc.invalidateQueries({ queryKey: ['dashboard-summary'] });
+            qc.invalidateQueries({ queryKey: qk.dashboardSummary });
         },
         onError: () => toast.error('Could not capture snapshot right now'),
     });
@@ -819,7 +820,7 @@ function Metrics({ summary, loading }) {
         { label: 'Owed to you', value: m.totalReceivable, icon: ArrowUpCircle, tint: 'emerald' },
         { label: 'You owe', value: m.totalPayable, icon: ArrowDownCircle, tint: 'rose' },
         { label: 'Spent this month', value: m.currentMonthExpenses, icon: FileText, tint: 'amber' },
-        { label: 'Total expenses', value: m.totalExpenses, icon: Activity, tint: 'amber' },
+        { label: 'Spent this year', value: m.totalExpenses, icon: Activity, tint: 'amber' },
     ];
 
     return (

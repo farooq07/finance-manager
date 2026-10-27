@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../services/api';
+import { invalidateMoney } from '../lib/queryKeys';
 
 export const useWallets = () => {
     return useQuery({
@@ -20,7 +21,7 @@ export const useCreateWallet = () => {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['wallets'] });
-            queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+            invalidateMoney(queryClient);
         },
     });
 };
@@ -34,7 +35,7 @@ export const useUpdateWalletBalance = () => {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['wallets'] });
-            queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+            invalidateMoney(queryClient);
         },
     });
 };
@@ -48,7 +49,7 @@ export const useDeleteWallet = () => {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['wallets'] });
-            queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+            invalidateMoney(queryClient);
         },
     });
 };

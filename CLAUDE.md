@@ -4,7 +4,7 @@
 
 **Frontend:** React 19 + Vite + Tailwind CSS + TanStack Query v5 + React Router v6 + ECharts
 **Backend:** Express 5 + Prisma ORM + Supabase PostgreSQL (+ pgvector)
-**Auth:** JWT (7d) + OTP via email + optional 4-digit app PIN
+**Auth:** JWT (7d, versioned — see `backend/src/utils/session.js`) + OTP via email + optional 6-digit app PIN (shared by web and mobile)
 **AI:** Gemini 2.5 Flash (categoriser + RAG) + Groq llama-3.3-70b (fallback)
 
 ## Dev Commands
@@ -24,7 +24,7 @@ cd frontend && npm run test:e2e     # Playwright E2E (needs both servers)
 ## Database Rules
 
 - **NEVER** run `prisma db push` without verifying schema drift first (`/prisma-check`)
-- Migrations: edit `schema.prisma` → commit → Railway redeploys and auto-runs `prisma migrate deploy`
+- Migrations: edit `schema.prisma` + add a migration in `prisma/migrations/` → commit → Railway redeploys and the Dockerfile runs `prisma migrate deploy` (never `db push`)
 - Use `DIRECT_URL` for migrations, `DATABASE_URL` (pooled) for queries
 - `menu_visibility` table controls which sidebar items are visible — **always update it** when adding new routes
 
@@ -37,6 +37,8 @@ cd frontend && npm run test:e2e     # Playwright E2E (needs both servers)
 ## Security Rules
 
 - `user_id` **always** comes from `req.user.id` (JWT) — never from request body, query params, or AI output
+- Auth errors carry a `code` (`backend/src/utils/session.js` → `AUTH_CODES`). Clients sign out **only** on 401 `SESSION_*`; 403 / `WRONG_PIN` / `VALIDATION` are refused actions on a valid session
+- Spending/income: always via `services/moneyFlow.service.js`; net worth / Zakat: always via `services/wealth.service.js` — never re-sum tables in a controller
 - Secrets (API keys, tokens): encrypt with `encryptSecret()` in `backend/src/utils/crypto.js`
 - Never use `$queryRaw` or `$executeRaw` with string interpolation — parameterised only
 

@@ -1,5 +1,5 @@
 import express from 'express';
-import { register, login, getMe, verifyOtp, resendOtp, setupPin, verifyPin, changePin, forgotPassword, resetPassword, firstPasswordChange, getAuthConfig, verifyEmail, resendVerification, acceptLegal } from '../controllers/auth.controller.js';
+import { register, login, getMe, verifyOtp, resendOtp, setupPin, verifyPin, changePin, forgotPassword, resetPassword, firstPasswordChange, getAuthConfig, verifyEmail, resendVerification, acceptLegal, revokeAllSessions } from '../controllers/auth.controller.js';
 import { googleAuth, appleAuth } from '../controllers/oauth.controller.js';
 import verifyToken from '../middleware/auth.middleware.js';
 
@@ -22,5 +22,6 @@ router.post('/forgot-password', forgotPassword);
 router.post('/reset-password', resetPassword);
 router.put('/first-password', verifyToken, firstPasswordChange);
 router.post('/accept-legal', verifyToken, acceptLegal);
+router.post('/sessions/revoke-all', verifyToken, revokeAllSessions);
 
 export default router;

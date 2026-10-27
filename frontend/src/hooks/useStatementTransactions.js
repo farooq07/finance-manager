@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../services/api';
+import { invalidateMoney } from '../lib/queryKeys';
 
 // These hooks are shared by the bank and wallet detail pages. `resource` selects
 // the API namespace ('banks' | 'wallets') so the same review table can drive
@@ -41,6 +42,7 @@ export const useApproveTransaction = () => {
             return data;
         },
         onSuccess: (data, variables) => {
+            invalidateMoney(queryClient);
             queryClient.invalidateQueries({ queryKey: [baseKey(variables.resource), variables.bankId, 'all-transactions'] });
             queryClient.invalidateQueries({
                 queryKey: ['statements', variables.bankId, variables.statementId, 'transactions']
@@ -59,6 +61,7 @@ export const useDeleteTransaction = () => {
             return data;
         },
         onSuccess: (data, variables) => {
+            invalidateMoney(queryClient);
             queryClient.invalidateQueries({ queryKey: [baseKey(variables.resource), variables.bankId, 'all-transactions'] });
             queryClient.invalidateQueries({ queryKey: ['statements', variables.bankId, variables.statementId, 'transactions'] });
         },
@@ -76,6 +79,7 @@ export const useUpdateTransactionCategory = () => {
             return data;
         },
         onSuccess: (data, variables) => {
+            invalidateMoney(queryClient);
             queryClient.invalidateQueries({ queryKey: [baseKey(variables.resource), variables.bankId, 'all-transactions'] });
             queryClient.invalidateQueries({ queryKey: ['statements', variables.bankId, variables.statementId, 'transactions'] });
         },
@@ -90,6 +94,7 @@ export const useBulkApproveTransactions = () => {
             return data;
         },
         onSuccess: (data, variables) => {
+            invalidateMoney(queryClient);
             queryClient.invalidateQueries({ queryKey: [baseKey(variables.resource), variables.bankId, 'all-transactions'] });
             queryClient.invalidateQueries({ queryKey: [baseKey(variables.resource), variables.bankId] });
         },
