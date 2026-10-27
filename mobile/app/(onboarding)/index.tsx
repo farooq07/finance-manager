@@ -1,6 +1,3 @@
-import { ComingSoon } from '../../src/features/shell/ComingSoon';
+import { OnboardingScreen } from '../../src/features/onboarding/OnboardingScreen';
 
-// Replaced by the three onboarding steps in Task 7.
-export default function Onboarding() {
-    return <ComingSoon title="Welcome" />;
-}
+export default OnboardingScreen;
