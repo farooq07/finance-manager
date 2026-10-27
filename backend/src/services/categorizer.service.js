@@ -252,3 +252,15 @@ export async function recordUserCategory(userId, description, approvedCategory) 
 export function getCategoryOptions() {
     return Object.keys(categoryKeywords);
 }
+
+/**
+ * Forget what the categoriser remembered for a keyword after the user edits
+ * or deletes a rule: the in-memory lookups and the per-description cache
+ * entries that contain it, so the next import uses the rules as they are now.
+ */
+export async function forgetLearnedKeyword(userId, keyword) {
+    for (const key of memCache.keys()) if (key.startsWith(`pat_${userId}_`)) memCache.del(key);
+    await prisma.categoryCache.deleteMany({
+        where: { user_id: userId, description: { contains: String(keyword).toLowerCase() } },
+    });
+}

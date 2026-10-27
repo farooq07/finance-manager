@@ -148,12 +148,28 @@ export default function WalletDetail() {
         if (possible > 0) {
             toast.info(`${possible} transaction${possible === 1 ? ' looks' : 's look'} like ${possible === 1 ? 'a repeat' : 'repeats'} of earlier ones — marked "Possible duplicate" for you to check.`, { duration: 8000 });
         }
+        // Every import can be undone straight away (removes the statement, its rows and their expenses).
+        const undo = data.statementId ? {
+            action: {
+                label: 'Undo',
+                onClick: async () => {
+                    try {
+                        await api.delete(`/wallets/${id}/statements/${data.statementId}`);
+                        invalidateMoney(queryClient);
+                        queryClient.invalidateQueries();
+                        toast.success('Import undone');
+                    } catch (err) {
+                        toast.error(err?.response?.data?.message || 'Could not undo the import');
+                    }
+                },
+            },
+        } : {};
         if (r && !r.ok) {
-            toast.warning(`Imported ${n} transactions — but ${r.message}`, { duration: 7000 });
+            toast.warning(`Imported ${n} transactions — but ${r.message}`, { duration: 10000, ...undo });
         } else if (r && r.hasBalances) {
-            toast.success(`Imported ${n} transactions — balances reconciled ✓`);
+            toast.success(`Imported ${n} transactions — balances reconciled ✓`, { duration: 10000, ...undo });
         } else {
-            toast.success(`Imported ${n} transactions`);
+            toast.success(`Imported ${n} transactions`, { duration: 10000, ...undo });
         }
     };
 

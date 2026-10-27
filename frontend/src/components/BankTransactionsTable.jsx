@@ -54,7 +54,13 @@ export default function BankTransactionsTable({ bankId, transactions = [], resou
         return <div className="text-center py-8 text-gray-500 dark:text-gray-400">No transactions to display</div>;
     }
 
-    const pendingTxs = transactions.filter(t => t.processing_status !== 'approved');
+    // Review queue: the rows that most need a look come first — possible
+    // duplicates, then the least confident categories.
+    const reviewScore = (t) => (t.duplicate_match === 'possible' ? -1 : Number(t.category_confidence ?? 0));
+    const pendingTxs = transactions
+        .filter(t => t.processing_status !== 'approved')
+        .slice()
+        .sort((a, b) => reviewScore(a) - reviewScore(b));
     const approvedTxs = transactions.filter(t => t.processing_status === 'approved');
 
     const handleApprove = async (txId) => {

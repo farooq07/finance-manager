@@ -8,7 +8,7 @@ import { parseCsvTransactions, inspectCsv, parseCsvWithMapping } from '../servic
 import { reconcile, importGate } from '../services/reconcile.service.js';
 import { recordUserCategory } from '../services/categorizer.service.js';
 import { isWalletFilePreviouslyImported } from '../services/duplicateDetector.service.js';
-import { saveStatementImport } from '../services/statementImport.service.js';
+import { saveStatementImport, removeStatement } from '../services/statementImport.service.js';
 import { openUploadSession, resolveUploadSession, claimUploadSession, releaseUploadSession } from '../services/uploadSession.service.js';
 import fs from 'fs';
 import path from 'path';
@@ -736,47 +736,18 @@ export const deleteStatement = async (req, res) => {
     try {
         const { walletId, statementId } = req.params;
 
-        const wallet = await prisma.wallet.findUnique({
-            where: { id: walletId, user_id: req.user.id }
-        });
+        // Rows, their expenses, the statement and the balance fallback — one transaction.
+        const removed = await removeStatement({ kind: 'wallet', userId: req.user.id, accountId: walletId, statementId });
+        if (!removed) return res.status(404).json({ message: 'Statement not found' });
 
-        if (!wallet) {
-            return res.status(404).json({ message: 'Wallet not found' });
+        if (removed.filePath && fs.existsSync(removed.filePath)) {
+            try { fs.unlinkSync(removed.filePath); } catch (e) { console.warn('Could not delete statement file:', e.message); }
         }
-
-        const statement = await prisma.walletStatement.findUnique({
-            where: { id: statementId },
-            include: { parsed_transactions: true }
-        });
-
-        if (!statement || statement.wallet_id !== walletId) {
-            return res.status(404).json({ message: 'Statement not found' });
-        }
-
-        const linkedExpenseIds = statement.parsed_transactions
-            .map(t => t.created_expense_id)
-            .filter(Boolean);
-
-        if (linkedExpenseIds.length > 0) {
-            await prisma.expense.deleteMany({
-                where: { id: { in: linkedExpenseIds }, user_id: req.user.id }
-            });
-        }
-
-        if (statement.file_path && fs.existsSync(statement.file_path)) {
-            try {
-                fs.unlinkSync(statement.file_path);
-            } catch (e) {
-                console.warn('Could not delete wallet statement file:', e.message);
-            }
-        }
-
-        await prisma.walletStatement.delete({ where: { id: statementId } });
 
         res.json({ message: 'Statement deleted successfully' });
     } catch (error) {
-        console.error('Error deleting wallet statement:', error);
-        res.status(500).json({ message: 'Failed to delete statement', error: error.message });
+        console.error('Error deleting statement:', error);
+        res.status(500).json({ message: 'Failed to delete statement' });
     }
 };
 

@@ -181,4 +181,27 @@ describe('a month of money, end to end', () => {
         expect(rows).toHaveLength(6);
         expect(rows.filter((r) => r.includes(',rejected,true,'))).toHaveLength(1);
     });
+
+    test('undoing an import removes it and restores the earlier balance', async () => {
+        const late = await prisma.bankStatement.findFirst({
+            where: { bank_id: bankA, parsed_transactions: { some: { description: 'K-ELECTRIC BILL' } } },
+        });
+        const r = res();
+        await bank.deleteStatement({ user: A, params: { bankId: bankA, statementId: late.id } }, r);
+        expect(r.statusCode).toBe(200);
+
+        const t = await insights(A, '2026-03-15');
+        expect(t.currentSpend).toBe(7500);
+        const b = await prisma.bank.findUnique({ where: { id: bankA } });
+        // Falls back to the remaining statement covering the latest dates (March), not the last upload (February).
+        expect(Number(b.current_balance)).toBe(242500);
+        expect(await prisma.expense.count({ where: { user_id: A.id } })).toBe(1); // March's approved KFC stays
+
+        // Someone else can't undo it.
+        const other = res();
+        const march = await prisma.bankStatement.findFirst({ where: { bank_id: bankA } });
+        await bank.deleteStatement({ user: B, params: { bankId: bankA, statementId: march.id } }, other);
+        expect(other.statusCode).toBe(404);
+    });
 });
+

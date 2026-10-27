@@ -146,3 +146,67 @@ export async function saveStatementImport({ kind, userId, accountId, statementDa
         possibleDuplicateCount: matches.filter((m) => m.match === 'possible').length,
     };
 }
+
+/**
+ * Remove an imported statement ("undo import" / delete): its rows, the
+ * expenses its approved rows created, and the statement itself, in one
+ * transaction. If the account's balance came from this statement, it falls
+ * back to the newest remaining statement's closing balance.
+ *
+ * Returns the deleted statement's file path (for the caller to remove), or
+ * null when the statement isn't this user's.
+ */
+export async function removeStatement({ kind, userId, accountId, statementId }) {
+    const k = KINDS[kind];
+    if (!k) throw new Error(`Unknown statement kind: ${kind}`);
+
+    return prisma.$transaction(async (db) => {
+        const statement = await k.statement(db).findFirst({
+            where: { id: statementId, [k.accountFk]: accountId, [kind]: { user_id: userId } },
+            select: { id: true, file_path: true },
+        });
+        if (!statement) return null;
+
+        const logs = await k.log(db).findMany({ where: { [k.statementFk]: statementId }, select: { id: true, created_expense_id: true } });
+        const linked = logs.map((l) => l.created_expense_id).filter(Boolean);
+        if (logs.length) {
+            await db.expense.deleteMany({
+                where: { user_id: userId, OR: [{ id: { in: linked } }, { [k.expenseLink]: { in: logs.map((l) => l.id) } }] },
+            });
+        }
+        await k.statement(db).delete({ where: { id: statementId } });
+
+        const account = await k.account(db).findUnique({ where: { id: accountId }, select: { balance_statement_id: true } });
+        if (account?.balance_statement_id === statementId) {
+            // The remaining statement covering the latest dates (not the latest upload).
+            const candidates = await k.statement(db).findMany({
+                where: { [k.accountFk]: accountId, NOT: { closing_balance: null } },
+                select: { id: true, closing_balance: true },
+            });
+            const ends = candidates.length ? await k.log(db).groupBy({
+                by: [k.statementFk],
+                where: { [k.statementFk]: { in: candidates.map((c) => c.id) } },
+                _max: { transaction_date: true },
+            }) : [];
+            const endOf = new Map(ends.map((e) => [e[k.statementFk], e._max.transaction_date]));
+            const fallback = candidates
+                .filter((c) => endOf.get(c.id))
+                .sort((a, b) => endOf.get(b.id) - endOf.get(a.id))[0];
+            if (fallback) {
+                await k.account(db).update({
+                    where: { id: accountId },
+                    data: {
+                        [k.balanceField]: fallback.closing_balance,
+                        balance_as_of: endOf.get(fallback.id),
+                        balance_source: 'statement',
+                        balance_statement_id: fallback.id,
+                    },
+                });
+            } else {
+                // Nothing left to say what the balance is: keep the figure, as an estimate.
+                await k.account(db).update({ where: { id: accountId }, data: { balance_source: 'opening', balance_statement_id: null } });
+            }
+        }
+        return { filePath: statement.file_path };
+    });
+}

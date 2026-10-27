@@ -8,6 +8,7 @@ import { useSearchParams } from 'react-router-dom';
 import WhatITrack from '../components/settings/WhatITrack';
 import RolesManagement from './RolesManagement';
 import PrivacyControls from '../components/settings/PrivacyControls';
+import CategoryRules from '../components/settings/CategoryRules';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../services/api';
 import { TableSkeleton } from '../components/Skeleton';
@@ -302,6 +303,7 @@ export default function Settings() {
             title: "You",
             items: [
                 { id: 'tracking', label: 'What I track', icon: SlidersHorizontal },
+                { id: 'rules', label: 'Category rules', icon: SlidersHorizontal },
             ]
         },
         {
@@ -876,6 +878,13 @@ export default function Settings() {
                 {activeTab === 'export' && <ExportDataView />}
 
                 {activeTab === 'tracking' && <WhatITrack />}
+
+                {activeTab === 'rules' && (
+                    <div className="flex-1 overflow-auto p-8">
+                        <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-3">Category rules</h2>
+                        <CategoryRules />
+                    </div>
+                )}
 
                 {/* Add Broker Accounts Modal */}
                 {isAddBrokerModalOpen && (
