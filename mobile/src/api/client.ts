@@ -36,7 +36,10 @@ api.interceptors.response.use(
             config._retried = true;
             return api(config);
         }
-        if (error.response?.status === 401) onUnauthorized?.();
+        // The backend answers a wrong PIN with 401 too — that's a failed
+        // attempt, not an expired session (the web excludes it the same way).
+        const isPinCheck = /\/auth\/(verify-pin|pin\/change)$/.test(config?.url ?? '');
+        if (error.response?.status === 401 && !isPinCheck) onUnauthorized?.();
         return Promise.reject(error);
     },
 );

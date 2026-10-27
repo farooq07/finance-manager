@@ -64,6 +64,14 @@ describe('api client', () => {
         expect(onUnauthorized).toHaveBeenCalledTimes(1);
     });
 
+    it('a wrong PIN (401 from /auth/verify-pin) does not end the session', async () => {
+        const onUnauthorized = jest.fn();
+        setUnauthorizedHandler(onUnauthorized);
+        handler.mockImplementation((config) => httpError(config, 401, { message: 'Invalid PIN code' }));
+        await expect(api.post('/auth/verify-pin', { pin: '0000' })).rejects.toThrow();
+        expect(onUnauthorized).not.toHaveBeenCalled();
+    });
+
     it('apiError prefers the server message', async () => {
         handler.mockImplementation((config) => httpError(config, 400, { message: 'Invalid or expired OTP' }));
         const err = await api.post('/auth/verify-otp', {}).catch((e) => e);

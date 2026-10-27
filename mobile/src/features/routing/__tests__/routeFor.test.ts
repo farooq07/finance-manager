@@ -11,6 +11,8 @@ describe('isOnTarget', () => {
         [['(onboarding)'], '/(onboarding)', true],
         [['(tabs)', 'invest'], '/(tabs)/home', true],             // any tab is "home"
         [['lock'], '/lock', true],
+        [['pin-setup'], '/pin-setup', true],
+        [['(tabs)', 'home'], '/pin-setup', false],
         [['(tabs)', 'home'], '/lock', false],
         [[], '/(tabs)/home', false],                               // app index redirects
     ] as const)('%j on %s → %s', (segments, target, expected) => {
@@ -46,6 +48,16 @@ describe('routeFor', () => {
     it('locked beats everything except signed out', () => {
         expect(routeFor({ status: 'signedIn', user: user({ onboarded_at: null }), locked: true })).toBe('/lock');
         expect(routeFor({ status: 'signedOut', user: null, locked: true })).toBe('/(auth)/sign-in');
+    });
+
+    it('no PIN yet → PIN setup, after the password step and before onboarding', () => {
+        expect(routeFor({ status: 'signedIn', user: user({ hasPin: false }), locked: false })).toBe('/pin-setup');
+        expect(routeFor({ status: 'signedIn', user: user({ hasPin: false, must_change_password: true }), locked: false })).toBe('/(auth)/first-password');
+        expect(routeFor({ status: 'signedIn', user: user({ hasPin: false, onboarded_at: null }), locked: false })).toBe('/pin-setup');
+    });
+
+    it('a user object without hasPin is never trapped in PIN setup', () => {
+        expect(routeFor({ status: 'signedIn', user: user({ hasPin: undefined }), locked: false })).toBe('/(tabs)/home');
     });
 
     it('signed in and onboarded → home', () => {

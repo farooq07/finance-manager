@@ -1,6 +1,3 @@
-import { ComingSoon } from '../src/features/shell/ComingSoon';
+import { LockScreen } from '../src/features/lock/LockScreen';
 
-// Replaced by the PIN / fingerprint screen in Task 8.
-export default function Lock() {
-    return <ComingSoon title="Unlock" />;
-}
+export default LockScreen;

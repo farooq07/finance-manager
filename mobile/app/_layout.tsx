@@ -10,6 +10,9 @@ import { useSession } from '../src/features/session/sessionStore';
 import { useClearCacheOnSignOut } from '../src/features/session/useClearCacheOnSignOut';
 import { routeFor, isOnTarget } from '../src/features/routing/routeFor';
 import { useTheme } from '../src/ui';
+import { useLock } from '../src/features/lock/lockStore';
+import { useAppLock } from '../src/features/lock/useAppLock';
+import { PrivacyCover } from '../src/features/lock/PrivacyCover';
 
 void SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -17,7 +20,7 @@ void SplashScreen.preventAutoHideAsync().catch(() => {});
 function useRouteGuard(ready: boolean) {
     const status = useSession((s) => s.status);
     const user = useSession((s) => s.user);
-    const locked = false; // PIN / fingerprint lock arrives in Task 8
+    const locked = useLock((s) => s.locked);
     const segments = useSegments();
     const router = useRouter();
 
@@ -36,6 +39,7 @@ export default function RootLayout() {
     const status = useSession((s) => s.status);
     const { scheme } = useTheme();
 
+    useAppLock(); // subscribe before boot so a restored session locks on open
     useEffect(() => { void useSession.getState().boot(); }, []);
     useClearCacheOnSignOut(queryClient);
 
@@ -49,6 +53,7 @@ export default function RootLayout() {
                 <QueryClientProvider client={queryClient}>
                     <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
                     <Stack screenOptions={{ headerShown: false, animation: 'fade' }} />
+                    <PrivacyCover />
                 </QueryClientProvider>
             </SafeAreaProvider>
         </GestureHandlerRootView>
