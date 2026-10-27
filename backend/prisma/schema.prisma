@@ -90,6 +90,10 @@ model NetWorthSnapshot {
   rent_balance_total Decimal  @db.Decimal(15, 2)
   expense_total      Decimal  @db.Decimal(15, 2)
   net_worth          Decimal  @db.Decimal(15, 2)
+  gold_total         Decimal  @default(0) @db.Decimal(15, 2)
+  debt_total         Decimal  @default(0) @db.Decimal(15, 2)
+  // Which net-worth definition produced net_worth (see wealth.service.js)
+  definition_version String   @default("v1") @db.VarChar(10)
 
   user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
@@ -309,15 +313,20 @@ model DocumentChunk {
 }
 
 model Expense {
-  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_id        String   @db.Uuid
-  amount         Decimal  @db.Decimal(15, 2)
-  category       String   @db.VarChar(100)
-  expense_date   DateTime @db.Date
-  payment_method String?  @db.VarChar(50)
-  notes          String?
-  created_at     DateTime @default(now()) @db.Timestamptz(6)
-  user           User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id             String   @db.Uuid
+  amount              Decimal  @db.Decimal(15, 2)
+  category            String   @db.VarChar(100)
+  expense_date        DateTime @db.Date
+  payment_method      String?  @db.VarChar(50)
+  notes               String?
+  // Set when the expense was created by approving an imported transaction.
+  // Unique: one transaction can only ever produce one expense. Reports count
+  // the transaction itself, so linked expenses are never added on top of it.
+  source_bank_tx_id   String?  @unique
+  source_wallet_tx_id String?  @unique
+  created_at          DateTime @default(now()) @db.Timestamptz(6)
+  user                User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@map("expenses")
 }
@@ -464,18 +473,23 @@ model BankInvestment {
 }
 
 model Wallet {
-  id            String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_id       String            @db.Uuid
-  name          String            @db.VarChar(100)
-  institution   String            @db.VarChar(100)
-  balance       Decimal           @default(0.00) @db.Decimal(15, 2)
-  currency      String            @default("PKR") @db.VarChar(10)
-  exchange_rate Decimal           @default(1.00) @db.Decimal(15, 4)
-  color_theme   String            @default("blue") @db.VarChar(50)
-  account_num   String?           @db.VarChar(50)
-  created_at    DateTime          @default(now()) @db.Timestamptz(6)
-  user          User              @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  statements    WalletStatement[]
+  id                   String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id              String            @db.Uuid
+  name                 String            @db.VarChar(100)
+  institution          String            @db.VarChar(100)
+  balance              Decimal           @default(0.00) @db.Decimal(15, 2)
+  currency             String            @default("PKR") @db.VarChar(10)
+  exchange_rate        Decimal           @default(1.00) @db.Decimal(15, 4)
+  color_theme          String            @default("blue") @db.VarChar(50)
+  account_num          String?           @db.VarChar(50)
+  // Where the balance came from and the date it is true for, so an older
+  // statement can never overwrite a newer balance.
+  balance_as_of        DateTime?         @db.Date
+  balance_source       String?           @db.VarChar(20) // 'statement' | 'manual' | 'opening'
+  balance_statement_id String?           @db.Uuid
+  created_at           DateTime          @default(now()) @db.Timestamptz(6)
+  user                 User              @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  statements           WalletStatement[]
 
   @@map("wallets")
 }
@@ -518,7 +532,10 @@ model WalletTransactionLog {
   category_confidence Decimal? @db.Decimal(3, 2)
 
   is_duplicate    Boolean @default(false)
-  duplicate_of_id String? @db.Uuid
+  // Id of the earlier log this one repeats (a cuid, like every log id).
+  duplicate_of_id String?
+  // 'certain' = auto-rejected repeat; 'possible' = flagged for the user to decide
+  duplicate_match String? @db.VarChar(20)
 
   user_approved     Boolean @default(false)
   approved_category String? @db.VarChar(100)
@@ -536,18 +553,23 @@ model WalletTransactionLog {
 }
 
 model Bank {
-  id               String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_id          String          @db.Uuid
-  name             String          @db.VarChar(255)
-  account_no       String          @db.VarChar(100)
-  iban_no          String          @db.VarChar(100)
-  currency         String          @default("PKR") @db.VarChar(10)
-  exchange_rate    Decimal         @default(1.00) @db.Decimal(15, 4)
-  starting_balance Decimal         @db.Decimal(15, 2)
-  current_balance  Decimal         @default(0.00) @db.Decimal(15, 2)
-  created_at       DateTime        @default(now()) @db.Timestamptz(6)
-  user             User            @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  statements       BankStatement[]
+  id                   String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id              String          @db.Uuid
+  name                 String          @db.VarChar(255)
+  account_no           String          @db.VarChar(100)
+  iban_no              String          @db.VarChar(100)
+  currency             String          @default("PKR") @db.VarChar(10)
+  exchange_rate        Decimal         @default(1.00) @db.Decimal(15, 4)
+  starting_balance     Decimal         @db.Decimal(15, 2)
+  current_balance      Decimal         @default(0.00) @db.Decimal(15, 2)
+  // Where the balance came from and the date it is true for, so an older
+  // statement can never overwrite a newer balance.
+  balance_as_of        DateTime?       @db.Date
+  balance_source       String?         @db.VarChar(20) // 'statement' | 'manual' | 'opening'
+  balance_statement_id String?         @db.Uuid
+  created_at           DateTime        @default(now()) @db.Timestamptz(6)
+  user                 User            @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  statements           BankStatement[]
 
   @@map("banks")
 }
@@ -590,7 +612,10 @@ model BankTransactionLog {
   category_confidence Decimal? @db.Decimal(3, 2)
 
   is_duplicate    Boolean @default(false)
-  duplicate_of_id String? @db.Uuid
+  // Id of the earlier log this one repeats (a cuid, like every log id).
+  duplicate_of_id String?
+  // 'certain' = auto-rejected repeat; 'possible' = flagged for the user to decide
+  duplicate_match String? @db.VarChar(20)
 
   user_approved     Boolean @default(false)
   approved_category String? @db.VarChar(100)

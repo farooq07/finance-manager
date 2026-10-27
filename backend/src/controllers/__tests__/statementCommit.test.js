@@ -9,7 +9,11 @@ jest.unstable_mockModule('../../services/duplicateDetector.service.js', () => ({
     findWalletDuplicates: jest.fn(async () => new Map()),
     isFilePreviouslyImported: jest.fn(async () => fileAlreadyImported),
     isWalletFilePreviouslyImported: jest.fn(async () => fileAlreadyImported),
-    markAsDuplicate: jest.fn(),
+    duplicateFields: jest.fn(() => ({ is_duplicate: false, duplicate_of_id: null, duplicate_match: null, processing_status: 'pending' })),
+}));
+jest.unstable_mockModule('../../services/categorizer.service.js', () => ({
+    categorizeTransactionBatch: jest.fn(async (_u, txs) => txs.map(() => ({ category: 'Other', confidence: 0 }))),
+    recordUserCategory: jest.fn(),
 }));
 
 const bank = await import('../bank.controller.js');
@@ -53,6 +57,8 @@ describe.each(cases)('$name commitStatement reconciliation gate', ({ commit, dir
         fs.writeFileSync(path.join(dir, uploadId), 'test statement');
         res = { status: jest.fn().mockReturnThis(), json: jest.fn() };
         owner();
+        // The import is saved inside one transaction; run it on the mocked client.
+        jest.spyOn(prisma, '$transaction').mockImplementation((fn) => fn(prisma));
         saveSpy = save();
         jest.spyOn(console, 'error').mockImplementation(() => {});
     });

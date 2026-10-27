@@ -14,7 +14,7 @@ jest.unstable_mockModule('../../services/duplicateDetector.service.js', () => ({
     findWalletDuplicates: jest.fn(),
     isFilePreviouslyImported: jest.fn(async () => false),
     isWalletFilePreviouslyImported: jest.fn(async () => false),
-    markAsDuplicate: jest.fn(),
+    duplicateFields: jest.fn(() => ({})),
 }));
 
 const bank = await import('../bank.controller.js');

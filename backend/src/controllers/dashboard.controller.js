@@ -1,215 +1,112 @@
 import prisma from '../utils/prisma.js';
 import { sendSummaryEmail } from '../utils/email.js';
-import { summarizeDues } from '../services/dues.service.js';
+import { computeWealth } from '../services/wealth.service.js';
+import { loadMoneyEvents, summarizeFlows } from '../services/moneyFlow.service.js';
 
-export const fetchDashboardData = async (userId) => {
-    // 1. Bank Balance (Wallets and Banks)
-    const wallets = await prisma.wallet.findMany({ where: { user_id: userId } });
-        const totalWalletBalance = wallets.reduce((sum, w) => sum + (Number(w.balance) * Number(w.exchange_rate || 1)), 0);
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-        const banks = await prisma.bank.findMany({ where: { user_id: userId } });
-        const totalBankBalance = banks.reduce((sum, b) => sum + (Number(b.current_balance) * Number(b.exchange_rate || 1)), 0);
+/**
+ * Everything the dashboard (and emails / snapshots / the AI overview) shows.
+ * Wealth comes from wealth.service, spending from moneyFlow.service — the
+ * same rules every other surface uses.
+ */
+export const fetchDashboardData = async (userId, { now = new Date() } = {}) => {
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
+    const yearStart = new Date(currentYear, 0, 1);
+    const prevMonthStart = new Date(currentYear, currentMonth - 1, 1);
+    const monthStart = new Date(currentYear, currentMonth, 1);
+    const nextMonthStart = new Date(currentYear, currentMonth + 1, 1);
+    const spendFrom = prevMonthStart < yearStart ? prevMonthStart : yearStart;
 
-        // 2. PSX Stock Value (from snapshots + trading cash fallback)
-        let stockCurrentValue = 0;
-        let stockCost = 0;
-        let psxTradingCash = 0;
+    const [wealth, events] = await Promise.all([
+        computeWealth(userId, { valuationDate: now }),
+        loadMoneyEvents(userId, spendFrom, nextMonthStart),
+    ]);
 
-        const latestPsx = await prisma.psxSnapshot.findFirst({
-            where: { user_id: userId },
-            orderBy: { snapshot_date: 'desc' }
-        });
+    // Spending (each money event once; transfers, cash withdrawals,
+    // investments and loan principal are not spending; refunds reduce it).
+    const inRange = (from, to) => events.filter((e) => new Date(e.date) >= from && new Date(e.date) < to);
+    const monthly = MONTHS.map((_, i) =>
+        summarizeFlows(inRange(new Date(currentYear, i, 1), new Date(currentYear, i + 1, 1))).totals.spend);
+    const thisMonth = summarizeFlows(inRange(monthStart, nextMonthStart));
+    const currentMonthExpenses = thisMonth.totals.spend;
+    const lastMonthExpenses = summarizeFlows(inRange(prevMonthStart, monthStart)).totals.spend;
+    const yearToDateExpenses = summarizeFlows(inRange(yearStart, nextMonthStart)).totals.spend;
 
-        if (latestPsx) {
-            stockCurrentValue = Number(latestPsx.total_custody);
+    // Average spend across completed months this year — the baseline for the
+    // "are you spending faster than usual?" pace indicator.
+    const completedMonths = monthly.slice(0, currentMonth).filter((v) => v > 0);
+    const avgMonthlyExpenses = completedMonths.length
+        ? completedMonths.reduce((s, v) => s + v, 0) / completedMonths.length
+        : 0;
 
-            // Calculate total cost from holdings
-            if (latestPsx.holdings_data && Array.isArray(latestPsx.holdings_data)) {
-                stockCost = latestPsx.holdings_data.reduce((sum, h) => {
-                    const hld = Number(h.holding || 0);
-                    const costPerUnit = Number(h.cost_per_unit || 0);
-                    const tCost = Number(h.total_cost || (hld * costPerUnit));
-                    return sum + tCost;
-                }, 0);
-            }
+    const currentMonthCategories = Array.from(thisMonth.spendByCategory, ([name, value]) => ({ name, value }))
+        .sort((a, b) => b.value - a.value);
 
-            // Include trading cash from the new summary feature if available
-            if (latestPsx.summary_data && latestPsx.summary_data.trading_cash) {
-                psxTradingCash = Number(latestPsx.summary_data.trading_cash);
-            }
-        } else {
-            // Fallback to manual entry if they haven't uploaded a CSV
-            const stocks = await prisma.stock.findMany({
-                where: { user_id: userId },
-                include: { transactions: true }
-            });
-            stocks.forEach(stock => {
-                let totalQty = 0;
-                stock.transactions.forEach(tx => totalQty += tx.quantity);
-                stockCurrentValue += totalQty * Number(stock.current_market_price || 0);
-            });
-        }
-
-        // 3. Mutual Fund Value (from snapshots or fallback)
-        let mfCurrentValue = 0;
-        let mfCost = 0;
-        const latestMfSnapshot = await prisma.portfolioSnapshot.findFirst({
-            where: { user_id: userId },
-            orderBy: { upload_date: 'desc' }
-        });
-
-        if (latestMfSnapshot) {
-            mfCurrentValue = Number(latestMfSnapshot.total_value);
-            // Best effort to get MF cost if available in holding data
-            if (latestMfSnapshot.holdings_data && Array.isArray(latestMfSnapshot.holdings_data)) {
-                mfCost = latestMfSnapshot.holdings_data.reduce((sum, h) => {
-                    const price = Number(h.price || 0);
-                    const units = Number(h.units || 0);
-                    return sum + (price * units); // assuming total cost isn't explicitly stored, but this is a rough estimate or we can look for total_cost. Usually it's in original investments
-                }, 0);
-
-                // If it's 0 (meaning maybe we didn't have price info), let's fall back to total_invested if that column existed, but it doesn't.
-                // We will rely on mutualFund original investments.
-            }
-        } else {
-            const mutualFunds = await prisma.mutualFund.findMany({ where: { user_id: userId } });
-            mutualFunds.forEach(fund => mfCurrentValue += Number(fund.current_value || 0));
-        }
-
-        // Let's get actual invested amount for MF to be accurate:
-        const mfInvested = await prisma.mutualFund.findMany({ where: { user_id: userId } });
-        let actualMfCost = 0;
-        mfInvested.forEach(fund => actualMfCost += Number(fund.total_invested || 0));
-        if (actualMfCost > 0) mfCost = actualMfCost;
-
-        const totalInvestments = mfCurrentValue + stockCurrentValue + psxTradingCash;
-
-        // 4. Ledger Dues (Net balance per person)
-        const people = await prisma.person.findMany({
-            where: { user_id: userId },
-            include: { transactions: true }
-        });
-
-        const { totalReceivable, totalPayable } = summarizeDues(people);
-
-        // 5. Monthly Expenses (Current Year)
-        const expenses = await prisma.expense.findMany({ where: { user_id: userId } });
-        const totalExpenses = expenses.reduce((sum, exp) => sum + Number(exp.amount), 0);
-
-        const currentYear = new Date().getFullYear();
-        const currentMonth = new Date().getMonth();
-        const monthlyExpenses = Array(12).fill(0);
-        let currentMonthExpenses = 0;
-
-        // Previous calendar month (handles the Jan → Dec-last-year boundary correctly).
-        const prevMonthRef = new Date(currentYear, currentMonth - 1, 1);
-        const prevMonth = prevMonthRef.getMonth();
-        const prevMonthYear = prevMonthRef.getFullYear();
-        let lastMonthExpenses = 0;
-
-        // Spend grouped by category for the current month — powers the breakdown donut.
-        const currentMonthCategoryTotals = {};
-
-        expenses.forEach(exp => {
-            const date = new Date(exp.expense_date);
-            const amount = Number(exp.amount);
-            if (date.getFullYear() === currentYear) {
-                const monthIdx = date.getMonth();
-                monthlyExpenses[monthIdx] += amount;
-                if (monthIdx === currentMonth) {
-                    currentMonthExpenses += amount;
-                    const cat = exp.category || 'Uncategorised';
-                    currentMonthCategoryTotals[cat] = (currentMonthCategoryTotals[cat] || 0) + amount;
-                }
-            }
-            if (date.getFullYear() === prevMonthYear && date.getMonth() === prevMonth) {
-                lastMonthExpenses += amount;
-            }
-        });
-
-        const chartData = monthlyExpenses.map((amount, index) => ({
-            month: new Date(0, index).toLocaleString('default', { month: 'short' }),
-            amount
-        }));
-
-        const currentMonthCategories = Object.entries(currentMonthCategoryTotals)
-            .map(([name, value]) => ({ name, value }))
-            .sort((a, b) => b.value - a.value);
-
-        // Average spend across completed months this year — the baseline for the
-        // "are you spending faster than usual?" pace indicator (excludes the
-        // partial current month so the comparison is fair).
-        const completedMonths = monthlyExpenses.slice(0, currentMonth).filter(v => v > 0);
-        const avgMonthlyExpenses = completedMonths.length
-            ? completedMonths.reduce((s, v) => s + v, 0) / completedMonths.length
-            : 0;
-
-        // 6. Rent Entries
-        const rentEntries = await prisma.rentEntry.findMany({ where: { user_id: userId } });
-        const totalRentBalance = rentEntries.reduce((sum, rent) => sum + Number(rent.amount), 0);
-
-        // 7. Assets
-        const assets = await prisma.asset.findMany({ where: { user_id: userId } });
-        const totalAssetValue = assets.reduce((sum, asset) => sum + Number(asset.value), 0);
-
-        // 8. Institutional debt (credit cards, loans) — counted as a liability.
-        const debts = await prisma.debt.findMany({ where: { user_id: userId, is_active: true } });
-        const totalDebt = debts.reduce((sum, d) => sum + Number(d.outstanding), 0);
-
-    // Net Worth = what you currently own.
-    //   bank + wallet + investments (stocks + mutual funds + PSX trading cash) + rent balance
-    //
-    // Expenses are NOT subtracted here — when you spend, the bank balance already
-    // reflects the lower number, so subtracting them again would double-count.
-    // Dues (receivable / payable) and Debt are surfaced as separate metrics for
-    // visibility but intentionally do not move the headline net-worth figure;
-    // they're conditional cash flows, not realised wealth.
-    const netWorth = totalBankBalance + totalWalletBalance + totalInvestments + totalRentBalance;
+    const w = wealth;
+    const totalInvestments = w.investments.total;
 
     return {
-        generatedAt: new Date().toISOString(),
+        generatedAt: now.toISOString(),
         // Per-source freshness for the trust strip. `null` means the user has
         // never imported that source (so the UI shows "not connected" rather
         // than a stale warning).
-        sources: {
-            psxSyncedAt: latestPsx?.snapshot_date ?? null,
-            mutualFundsSyncedAt: latestMfSnapshot?.upload_date ?? null,
+        sources: w.sources,
+        netWorthDefinition: {
+            version: w.definition,
+            valuationDate: w.valuationDate,
+            includes: ['cash', 'investments', 'gold', 'assets'],
+            subtracts: ['debts'],
+            excludes: ['rentReceived', 'dues'],
+        },
+        netWorthBreakdown: {
+            cash: w.cash.total,
+            investments: totalInvestments,
+            gold: w.gold.value,
+            assets: w.assets,
+            debts: w.debts.outstanding,
+            netWorth: w.netWorth,
         },
         metrics: {
-            netWorth,
-            totalBankBalance,
-            totalWalletBalance,
+            netWorth: w.netWorth,
+            totalBankBalance: w.cash.bank,
+            totalWalletBalance: w.cash.wallet,
             totalInvestments,
-            mutualFundValue: mfCurrentValue,
-            mutualFundCost: mfCost,
-            stockValue: stockCurrentValue,
-            stockCost,
-            totalReceivable,
-            totalPayable,
-            totalExpenses,
+            mutualFundValue: w.investments.mutualFunds.value,
+            mutualFundCost: w.investments.mutualFunds.cost,
+            stockValue: w.investments.stocks.value,
+            stockCost: w.investments.stocks.cost,
+            psxTradingCash: w.investments.tradingCash,
+            totalGoldValue: w.gold.value,
+            totalReceivable: w.dues.receivable,
+            totalPayable: w.dues.payable,
+            // Spending this calendar year (it used to be every manual expense ever).
+            totalExpenses: yearToDateExpenses,
             currentMonthExpenses,
             lastMonthExpenses,
             avgMonthlyExpenses,
-            totalAssetValue,
-            totalRentBalance,
-            totalDebt,
+            totalAssetValue: w.assets,
+            // Income history, not wealth — not part of net worth.
+            totalRentBalance: w.rentReceived,
+            totalDebt: w.debts.outstanding,
         },
         charts: {
-            monthlyExpenses: chartData,
+            monthlyExpenses: monthly.map((amount, i) => ({ month: MONTHS[i], amount })),
             currentMonthCategories,
             investmentDistribution: [
-                { name: 'Mutual Funds', value: mfCurrentValue },
-                { name: 'Stocks', value: stockCurrentValue }
-            ].filter(i => i.value > 0),
+                { name: 'Mutual Funds', value: w.investments.mutualFunds.value },
+                { name: 'Stocks', value: w.investments.stocks.value },
+            ].filter((i) => i.value > 0),
             assetAllocation: [
-                { name: 'Banks', value: totalBankBalance },
-                { name: 'Wallets', value: totalWalletBalance },
-                { name: 'Mutual Funds', value: mfCurrentValue },
-                { name: 'Stocks', value: stockCurrentValue },
-                { name: 'Physical Assets', value: totalAssetValue },
-                { name: 'Ledger Dues', value: totalReceivable } // Only positive assets
-            ].filter(i => i.value > 0)
-        }
+                { name: 'Banks', value: w.cash.bank },
+                { name: 'Wallets', value: w.cash.wallet },
+                { name: 'Mutual Funds', value: w.investments.mutualFunds.value },
+                { name: 'Stocks', value: w.investments.stocks.value },
+                { name: 'Gold', value: w.gold.value ?? 0 },
+                { name: 'Physical Assets', value: w.assets },
+            ].filter((i) => i.value > 0),
+        },
     };
 };
 

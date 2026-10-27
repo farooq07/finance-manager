@@ -21,12 +21,17 @@ export const getHistory = async (req, res) => {
                 receivable_total: true,
                 payable_total: true,
                 rent_balance_total: true,
+                gold_total: true,
+                debt_total: true,
                 net_worth: true,
+                definition_version: true,
             },
         });
 
-        const first = snapshots[0];
+        // Only compare snapshots made with the same net-worth definition —
+        // a formula change is not a change in wealth.
         const last = snapshots[snapshots.length - 1];
+        const first = last && snapshots.find((s) => s.definition_version === last.definition_version);
         const delta = first && last ? Number(last.net_worth) - Number(first.net_worth) : 0;
         const deltaPct = first && Number(first.net_worth) !== 0
             ? (delta / Math.abs(Number(first.net_worth))) * 100
@@ -41,6 +46,7 @@ export const getHistory = async (req, res) => {
                 latest:   last?.net_worth ?? null,
                 delta,
                 deltaPct,
+                definition: last?.definition_version ?? null,
             },
         });
     } catch (error) {

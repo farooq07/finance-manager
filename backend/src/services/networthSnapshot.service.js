@@ -21,7 +21,10 @@ export async function snapshotUserNetWorth(userId) {
             payable_total:      m.totalPayable,
             rent_balance_total: m.totalRentBalance,
             expense_total:      m.totalExpenses,
+            gold_total:         m.totalGoldValue ?? 0,
+            debt_total:         m.totalDebt,
             net_worth:          m.netWorth,
+            definition_version: data.netWorthDefinition.version,
         },
     });
 }

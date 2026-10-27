@@ -78,9 +78,14 @@ export const psxSnapshotSchema = z.object({
             symbol: z.string().min(1),
             holding: z.coerce.number(),
             market_rate: z.coerce.number(),
-            custody_val: z.coerce.number()
-        })
-    )
+            custody_val: z.coerce.number(),
+            // Cost basis — kept so gains survive re-pricing (it used to be stripped).
+            cost_per_unit: z.coerce.number().min(0).optional(),
+            total_cost: z.coerce.number().min(0).optional(),
+        }).passthrough()
+    ),
+    // CDC account summary (trading cash etc.) — optional on upload.
+    summary_data: z.record(z.string(), z.unknown()).optional().nullable(),
 });
 
 export const bankInvestmentSchema = z.object({

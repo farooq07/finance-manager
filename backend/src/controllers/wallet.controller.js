@@ -1,12 +1,14 @@
 import prisma from '../utils/prisma.js';
+import { approveImportedTransaction } from '../services/transactionApproval.service.js';
 import logger from '../utils/logger.js';
 import { encryptSecret, decryptSecret } from '../utils/crypto.js';
 import { extractPdfText, getFileHash } from '../services/pdfParser.service.js';
 import { parseTransactions, validateBalance, parseStatementBalances } from '../services/transactionParser.service.js';
 import { parseCsvTransactions, inspectCsv, parseCsvWithMapping } from '../services/csvParser.service.js';
 import { reconcile, importGate } from '../services/reconcile.service.js';
-import { categorizeTransactionBatch, recordUserCategory } from '../services/categorizer.service.js';
-import { findWalletDuplicates, isWalletFilePreviouslyImported, markAsDuplicate } from '../services/duplicateDetector.service.js';
+import { recordUserCategory } from '../services/categorizer.service.js';
+import { isWalletFilePreviouslyImported } from '../services/duplicateDetector.service.js';
+import { saveStatementImport } from '../services/statementImport.service.js';
 import fs from 'fs';
 import path from 'path';
 
@@ -151,54 +153,30 @@ export const bulkApproveTransactions = async (req, res) => {
             return res.status(400).json({ message: 'No transactions provided' });
         }
 
-        const wallet = await prisma.wallet.findUnique({ where: { id: walletId, user_id: req.user.id } });
-        if (!wallet) return res.status(404).json({ message: 'Wallet not found' });
-
-        const txIds = items.map(i => i.txId);
-        const txLogs = await prisma.walletTransactionLog.findMany({
-            where: { id: { in: txIds }, wallet_statement: { wallet_id: walletId } }
-        });
-        const txMap = new Map(txLogs.map(t => [t.id, t]));
-
         let successCount = 0;
         const errors = [];
 
-        await Promise.all(items.map(async ({ txId, approvedCategory }) => {
-            const txLog = txMap.get(txId);
-            if (!txLog || txLog.processing_status === 'approved') return;
-
-            const category = approvedCategory || txLog.suggested_category || 'Other';
-            const isCredit = Number(txLog.net_amount) > 0;
+        // Sequential: each approval is its own small transaction, and a retry
+        // of the whole request skips the ones already approved.
+        for (const { txId, approvedCategory } of items) {
             try {
-                let expenseId = null;
-                if (!isCredit) {
-                    const expense = await prisma.expense.create({
-                        data: {
-                            user_id: req.user.id,
-                            amount: Math.abs(Number(txLog.net_amount)),
-                            category,
-                            expense_date: txLog.transaction_date,
-                            payment_method: 'Wallet',
-                            notes: txLog.description
-                        }
-                    });
-                    expenseId = expense.id;
-                }
-                await prisma.walletTransactionLog.update({
-                    where: { id: txId },
-                    data: { user_approved: true, approved_category: category, created_expense_id: expenseId, processing_status: 'approved' }
+                const result = await approveImportedTransaction({
+                    kind: 'wallet', userId: req.user.id, accountId: walletId, txId, category: approvedCategory,
                 });
-                await recordUserCategory(req.user.id, txLog.description, category);
-                successCount++;
+                if (!result) { errors.push(txId); continue; }
+                if (result.approved) {
+                    await recordUserCategory(req.user.id, result.description, result.category);
+                    successCount++;
+                }
             } catch (err) {
                 errors.push(txId);
             }
-        }));
+        }
 
         res.json({ message: `Approved ${successCount} transactions`, successCount, errors });
-    } catch (err) {
-        console.error('Error bulk approving wallet transactions:', err);
-        res.status(500).json({ message: 'Failed to bulk approve' });
+    } catch (error) {
+        console.error('Error bulk approving transactions:', error);
+        res.status(500).json({ message: 'Failed to bulk approve transactions' });
     }
 };
 
@@ -240,7 +218,9 @@ export const createWallet = async (req, res) => {
                 currency: currency || 'PKR',
                 exchange_rate: exchange_rate != null ? Number(exchange_rate) : 1.00,
                 color_theme: color_theme || 'blue',
-                account_num
+                account_num,
+                balance_as_of: new Date(),
+                balance_source: 'opening',
             }
         });
 
@@ -264,7 +244,8 @@ export const updateWalletBalance = async (req, res) => {
 
         const updatedWallet = await prisma.wallet.update({
             where: { id },
-            data: { balance: Number(balance) }
+            // A balance typed in by the user is true as of today.
+            data: { balance: Number(balance), balance_as_of: new Date(), balance_source: 'manual', balance_statement_id: null }
         });
 
         res.json(updatedWallet);
@@ -445,9 +426,14 @@ export const uploadStatement = async (req, res) => {
 
         logger.log('[WALLET_STATEMENT] Balances — opening:', openingBalance, 'closing:', closingBalance);
 
-        const walletStatement = await prisma.walletStatement.create({
-            data: {
-                wallet_id: walletId,
+        // Statement, rows and balance are saved together or not at all.
+        const { statement: walletStatement, transactionLogs, duplicateCount, possibleDuplicateCount } = await saveStatementImport({
+            kind: 'wallet',
+            userId: req.user.id,
+            accountId: walletId,
+            parsedTxs,
+            closingBalance,
+            statementData: {
                 month,
                 year,
                 file_path: filePath,
@@ -457,76 +443,19 @@ export const uploadStatement = async (req, res) => {
                 processing_status: 'pending',
                 opening_balance: openingBalance !== null ? openingBalance : undefined,
                 closing_balance: closingBalance !== null ? closingBalance : undefined,
-            }
+            },
         });
 
-        // Sync wallet balance with closing balance from statement
-        if (closingBalance !== null) {
-            await prisma.wallet.update({
-                where: { id: walletId },
-                data: { balance: closingBalance }
-            });
-            logger.log('[WALLET_STATEMENT] Updated wallet balance to', closingBalance);
-        }
-
-        logger.log('[WALLET_STATEMENT] Checking for duplicates and categorizing...');
-        let duplicateMap = new Map();
-        let transactionLogs = [];
-
-        if (parsedTxs.length > 0) {
-            try {
-                duplicateMap = await findWalletDuplicates(req.user.id, walletStatement.id, parsedTxs);
-            } catch (dupError) {
-                console.error('[WALLET_STATEMENT] Duplicate detection error:', dupError.message);
-                duplicateMap = new Map();
-            }
-
-            let categorizations = [];
-            try {
-                categorizations = await categorizeTransactionBatch(req.user.id, parsedTxs);
-            } catch (catError) {
-                console.error('[WALLET_STATEMENT] Batch categorization error:', catError.message);
-                categorizations = parsedTxs.map(() => ({ category: 'Other', confidence: 0, method: 'default' }));
-            }
-
-            for (let i = 0; i < parsedTxs.length; i++) {
-                try {
-                    const tx = parsedTxs[i];
-                    const isDupTx = duplicateMap.has(i);
-                    const categorization = categorizations[i] || { category: 'Other', confidence: 0 };
-
-                    const txLog = await prisma.walletTransactionLog.create({
-                        data: {
-                            wallet_statement_id: walletStatement.id,
-                            transaction_date: tx.transaction_date,
-                            description: tx.description,
-                            debit_amount: tx.debit_amount || null,
-                            credit_amount: tx.credit_amount || null,
-                            net_amount: tx.net_amount,
-                            suggested_category: categorization.category,
-                            category_confidence: categorization.confidence,
-                            is_duplicate: isDupTx,
-                            duplicate_of_id: isDupTx ? duplicateMap.get(i).duplicateOfId : null,
-                            processing_status: isDupTx ? 'rejected' : 'pending'
-                        }
-                    });
-
-                    transactionLogs.push(txLog);
-                } catch (txError) {
-                    console.error('[WALLET_STATEMENT] Error creating transaction log:', txError.message);
-                }
-            }
-        }
-
-        logger.log(`[WALLET_STATEMENT] Imported ${transactionLogs.length} transactions (${duplicateMap.size} duplicates)`);
+        logger.log(`[WALLET_STATEMENT] Imported ${transactionLogs.length} transactions (${duplicateCount} duplicates)`);
 
         res.status(201).json({
             message: 'Statement uploaded and processed',
             statementId: walletStatement.id,
             summary: {
                 totalParsed: parsedTxs.length,
-                duplicates: duplicateMap.size,
-                unique: parsedTxs.length - duplicateMap.size,
+                duplicates: duplicateCount,
+                possibleDuplicates: possibleDuplicateCount,
+                unique: parsedTxs.length - duplicateCount,
                 pageCount
             },
             transactions: transactionLogs
@@ -561,9 +490,13 @@ async function finalizeWalletImport({ userId, walletId, parsedTxs, openingBalanc
         year = d.getFullYear();
     }
 
-    const statement = await prisma.walletStatement.create({
-        data: {
-            wallet_id: walletId,
+    return saveStatementImport({
+        kind: 'wallet',
+        userId,
+        accountId: walletId,
+        parsedTxs,
+        closingBalance,
+        statementData: {
             month,
             year,
             file_path: filePath,
@@ -576,52 +509,6 @@ async function finalizeWalletImport({ userId, walletId, parsedTxs, openingBalanc
             closing_balance: closingBalance !== null && closingBalance !== undefined ? closingBalance : undefined,
         },
     });
-
-    if (closingBalance !== null && closingBalance !== undefined) {
-        await prisma.wallet.update({ where: { id: walletId }, data: { balance: closingBalance } });
-    }
-
-    let duplicateMap = new Map();
-    const transactionLogs = [];
-
-    if (parsedTxs.length > 0) {
-        try {
-            duplicateMap = await findWalletDuplicates(userId, statement.id, parsedTxs);
-        } catch (e) { console.error('[WALLET_COMMIT] dup error:', e.message); }
-
-        let categorizations = [];
-        try {
-            categorizations = await categorizeTransactionBatch(userId, parsedTxs);
-        } catch (e) {
-            categorizations = parsedTxs.map(() => ({ category: 'Other', confidence: 0 }));
-        }
-
-        for (let i = 0; i < parsedTxs.length; i++) {
-            try {
-                const tx = parsedTxs[i];
-                const isDupTx = duplicateMap.has(i);
-                const cat = categorizations[i] || { category: 'Other', confidence: 0 };
-                const txLog = await prisma.walletTransactionLog.create({
-                    data: {
-                        wallet_statement_id: statement.id,
-                        transaction_date: tx.transaction_date,
-                        description: tx.description,
-                        debit_amount: tx.debit_amount || null,
-                        credit_amount: tx.credit_amount || null,
-                        net_amount: tx.net_amount,
-                        suggested_category: cat.category,
-                        category_confidence: cat.confidence,
-                        is_duplicate: isDupTx,
-                        duplicate_of_id: isDupTx ? duplicateMap.get(i).duplicateOfId : null,
-                        processing_status: isDupTx ? 'rejected' : 'pending',
-                    },
-                });
-                transactionLogs.push(txLog);
-            } catch (e) { console.error('[WALLET_COMMIT] log error:', e.message); }
-        }
-    }
-
-    return { statement, transactionLogs, duplicateCount: duplicateMap.size };
 }
 
 /**
@@ -757,7 +644,7 @@ export const commitStatement = async (req, res) => {
             } catch (e) { logger.log('[WALLET_COMMIT] cleanup failed:', e.message); }
         }
 
-        const { statement, transactionLogs, duplicateCount } = await finalizeWalletImport({
+        const { statement, transactionLogs, duplicateCount, possibleDuplicateCount } = await finalizeWalletImport({
             userId: req.user.id, walletId, parsedTxs, openingBalance, closingBalance, filePath, fileHash, password,
             reconciled: reconciliation.ok,
         });
@@ -766,7 +653,7 @@ export const commitStatement = async (req, res) => {
             message: 'Statement imported',
             statementId: statement.id,
             reconciliation,
-            summary: { totalParsed: parsedTxs.length, duplicates: duplicateCount, unique: parsedTxs.length - duplicateCount },
+            summary: { totalParsed: parsedTxs.length, duplicates: duplicateCount, possibleDuplicates: possibleDuplicateCount, unique: parsedTxs.length - duplicateCount },
             transactions: transactionLogs,
         });
     } catch (error) {
@@ -813,57 +700,22 @@ export const approveTransaction = async (req, res) => {
         const { walletId, txId } = req.params;
         const { approvedCategory, notes } = req.body;
 
-        const wallet = await prisma.wallet.findUnique({
-            where: { id: walletId, user_id: req.user.id }
+        const result = await approveImportedTransaction({
+            kind: 'wallet', userId: req.user.id, accountId: walletId, txId, category: approvedCategory, notes,
         });
+        if (!result) return res.status(404).json({ message: 'Transaction not found' });
 
-        if (!wallet) {
-            return res.status(404).json({ message: 'Wallet not found' });
+        // Learn from the user's choice (only on the first approval)
+        if (result.approved && approvedCategory) {
+            await recordUserCategory(req.user.id, result.description, approvedCategory);
         }
 
-        const txLog = await prisma.walletTransactionLog.findFirst({
-            where: { id: txId, wallet_statement: { wallet_id: walletId } }
+        res.json({
+            message: result.approved ? 'Transaction approved' : 'Transaction already approved',
+            expenseId: result.expenseId,
+            isCredit: result.isCredit,
+            alreadyApproved: !result.approved,
         });
-
-        if (!txLog) {
-            return res.status(404).json({ message: 'Transaction not found' });
-        }
-
-        // Learn from user's choice
-        if (approvedCategory) {
-            await recordUserCategory(req.user.id, txLog.description, approvedCategory);
-        }
-
-        const isCredit = Number(txLog.net_amount) > 0;
-
-        // Only create an Expense for debit (outgoing) transactions
-        let expenseId = null;
-        if (!isCredit) {
-            const expense = await prisma.expense.create({
-                data: {
-                    user_id: req.user.id,
-                    amount: Math.abs(txLog.net_amount),
-                    category: approvedCategory || txLog.suggested_category || 'Other',
-                    expense_date: txLog.transaction_date,
-                    payment_method: 'Wallet',
-                    notes: notes || txLog.description
-                }
-            });
-            expenseId = expense.id;
-        }
-
-        await prisma.walletTransactionLog.update({
-            where: { id: txId },
-            data: {
-                user_approved: true,
-                approved_category: approvedCategory,
-                created_expense_id: expenseId,
-                processing_status: 'approved',
-                notes
-            }
-        });
-
-        res.json({ message: 'Transaction approved', expenseId, isCredit });
     } catch (error) {
         console.error('Error approving transaction:', error);
         res.status(500).json({ message: 'Failed to approve transaction' });
@@ -990,9 +842,19 @@ export const syncStatementBalance = async (req, res) => {
             }
         });
 
+        // The user explicitly chose this statement's balance; record the date it's true for.
+        const last = await prisma.walletTransactionLog.aggregate({
+            where: { wallet_statement_id: statementId },
+            _max: { transaction_date: true },
+        });
         await prisma.wallet.update({
             where: { id: walletId },
-            data: { balance: closingBalance }
+            data: {
+                balance: closingBalance,
+                balance_as_of: last._max.transaction_date ?? new Date(),
+                balance_source: 'statement',
+                balance_statement_id: statementId,
+            }
         });
 
         res.json({ message: 'Balance synced', closingBalance, openingBalance });

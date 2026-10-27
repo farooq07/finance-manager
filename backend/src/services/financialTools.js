@@ -1,5 +1,7 @@
 import prisma from '../utils/prisma.js';
 import { fetchDashboardData } from '../controllers/dashboard.controller.js';
+import { computeWealth, zakatFromWealth } from './wealth.service.js';
+import { loadMoneyEvents, summarizeFlows, FLOW } from './moneyFlow.service.js';
 import {
   NISAB_GRAMS,
   ZAKAT_RATE,
@@ -8,7 +10,8 @@ import {
   getLatestPriceRow,
 } from './goldValuation.service.js';
 
-const ZAKAT_RATE_NETWORTH = 0.025; // 2.5% of zakatable net worth (mirrors Zakat.jsx)
+const DAY_MS = 24 * 60 * 60 * 1000;
+const monthKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 
 // Shared gold aggregation used by the gold, zakat and overview tools.
 async function computeGoldTotals(userId) {
@@ -255,26 +258,23 @@ export const GROQ_TOOL_DEFINITIONS = TOOL_DEFINITIONS.map(t => ({
 export async function executeTool(toolName, args, userId) {
   switch (toolName) {
     case 'getExpenseSummary': {
-      const since = new Date();
-      since.setMonth(since.getMonth() - (args.months || 1));
-      const where = { user_id: userId, expense_date: { gte: since } };
-      if (args.category) where.category = { contains: args.category, mode: 'insensitive' };
+      // Same spending rules as the dashboard: imported + manual, each event once.
+      const now = new Date();
+      const since = new Date(now.getFullYear(), now.getMonth() - (args.months || 1), now.getDate());
+      const events = (await loadMoneyEvents(userId, since, new Date(now.getTime() + DAY_MS)))
+        .filter(e => e.kind === FLOW.SPEND)
+        .filter(e => !args.category || e.category.toLowerCase().includes(String(args.category).toLowerCase()));
 
-      const rows = await prisma.expense.groupBy({
-        by: ['category'],
-        where,
-        _sum: { amount: true },
-        _count: { id: true },
-        _avg: { amount: true },
-        orderBy: { _sum: { amount: 'desc' } }
-      });
-
-      return rows.map(r => ({
-        category: r.category,
-        total: Number(r._sum.amount),
-        count: r._count.id,
-        avg: Math.round(Number(r._avg.amount))
-      }));
+      const byCat = new Map();
+      for (const e of events) {
+        const c = byCat.get(e.category) || { category: e.category, total: 0, count: 0 };
+        c.total += e.amount;
+        c.count += 1;
+        byCat.set(e.category, c);
+      }
+      return [...byCat.values()]
+        .sort((a, b) => b.total - a.total)
+        .map(c => ({ category: c.category, total: Math.round(c.total), count: c.count, avg: Math.round(c.total / c.count) }));
     }
 
     case 'getTransactionList': {
@@ -349,44 +349,19 @@ export async function executeTool(toolName, args, userId) {
 
     case 'getIncomeVsExpense': {
       const months = Math.min(args.months || 6, 24);
+      const now = new Date();
       const result = [];
-
       for (let i = months - 1; i >= 0; i--) {
-        const d = new Date();
-        d.setMonth(d.getMonth() - i);
-        const year = d.getFullYear();
-        const month = d.getMonth() + 1;
-        const start = new Date(year, month - 1, 1);
-        const end = new Date(year, month, 0, 23, 59, 59);
-
-        const [credits, debits, expenseSum] = await Promise.all([
-          prisma.bankTransactionLog.aggregate({
-            where: { bank_statement: { bank: { user_id: userId } }, transaction_date: { gte: start, lte: end }, net_amount: { gt: 0 }, user_approved: true },
-            _sum: { net_amount: true }
-          }),
-          prisma.bankTransactionLog.aggregate({
-            where: { bank_statement: { bank: { user_id: userId } }, transaction_date: { gte: start, lte: end }, net_amount: { lt: 0 }, user_approved: true },
-            _sum: { net_amount: true }
-          }),
-          prisma.expense.aggregate({
-            where: { user_id: userId, expense_date: { gte: start, lte: end } },
-            _sum: { amount: true }
-          })
-        ]);
-
-        const income = Number(credits._sum.net_amount || 0);
-        const bankDebits = Math.abs(Number(debits._sum.net_amount || 0));
-        const manualExpenses = Number(expenseSum._sum.amount || 0);
-        const expenses = bankDebits + manualExpenses;
-
+        const start = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const end = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
+        const { totals } = summarizeFlows(await loadMoneyEvents(userId, start, end));
         result.push({
-          month: `${year}-${String(month).padStart(2, '0')}`,
-          income: Math.round(income),
-          expenses: Math.round(expenses),
-          net: Math.round(income - expenses)
+          month: monthKey(start),
+          income: Math.round(totals.income),
+          expenses: Math.round(totals.spend),
+          net: Math.round(totals.income - totals.spend),
         });
       }
-
       return result;
     }
 
@@ -445,58 +420,40 @@ export async function executeTool(toolName, args, userId) {
       const month = args.month || (now.getMonth() + 1);
       const year = args.year || now.getFullYear();
       const start = new Date(year, month - 1, 1);
-      const end = new Date(year, month, 0, 23, 59, 59);
+      const end = new Date(year, month, 1);
 
-      const rows = await prisma.expense.groupBy({
-        by: ['category'],
-        where: { user_id: userId, expense_date: { gte: start, lte: end } },
-        _sum: { amount: true },
-        _count: { id: true },
-        orderBy: { _sum: { amount: 'desc' } }
-      });
-
-      const total = rows.reduce((s, r) => s + Number(r._sum.amount), 0);
+      const events = await loadMoneyEvents(userId, start, end);
+      const { totals, spendByCategory } = summarizeFlows(events);
+      const counts = new Map();
+      for (const e of events) if (e.kind === FLOW.SPEND) counts.set(e.category, (counts.get(e.category) || 0) + 1);
 
       return {
-        month: `${year}-${String(month).padStart(2, '0')}`,
-        total: Math.round(total),
-        categories: rows.map(r => ({
-          category: r.category,
-          amount: Math.round(Number(r._sum.amount)),
-          count: r._count.id
-        }))
+        month: monthKey(start),
+        total: Math.round(totals.spend),
+        refunds: Math.round(totals.refunds),
+        transfers_between_own_accounts: Math.round(totals.transfers),
+        cash_withdrawn: Math.round(totals.cashWithdrawn),
+        categories: [...spendByCategory]
+          .sort((a, b) => b[1] - a[1])
+          .map(([category, amount]) => ({ category, amount: Math.round(amount), count: counts.get(category) || 0 })),
       };
     }
 
     case 'getCashFlow': {
+      // Income minus spending per month; money moved between your own
+      // accounts is neither.
       const months = Math.min(args.months || 6, 24);
+      const now = new Date();
       const result = [];
       let running = 0;
-
       for (let i = months - 1; i >= 0; i--) {
-        const d = new Date();
-        d.setMonth(d.getMonth() - i);
-        const year = d.getFullYear();
-        const month = d.getMonth() + 1;
-        const start = new Date(year, month - 1, 1);
-        const end = new Date(year, month, 0, 23, 59, 59);
-
-        const [credits, debits] = await Promise.all([
-          prisma.bankTransactionLog.aggregate({
-            where: { bank_statement: { bank: { user_id: userId } }, transaction_date: { gte: start, lte: end }, net_amount: { gt: 0 }, user_approved: true },
-            _sum: { net_amount: true }
-          }),
-          prisma.bankTransactionLog.aggregate({
-            where: { bank_statement: { bank: { user_id: userId } }, transaction_date: { gte: start, lte: end }, net_amount: { lt: 0 }, user_approved: true },
-            _sum: { net_amount: true }
-          })
-        ]);
-
-        const net = Math.round(Number(credits._sum.net_amount || 0) + Number(debits._sum.net_amount || 0));
+        const start = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const end = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
+        const { totals } = summarizeFlows(await loadMoneyEvents(userId, start, end));
+        const net = Math.round(totals.income - totals.spend);
         running += net;
-        result.push({ month: `${year}-${String(month).padStart(2, '0')}`, net, running_total: running });
+        result.push({ month: monthKey(start), net, running_total: running });
       }
-
       return result;
     }
 
@@ -683,11 +640,9 @@ export async function executeTool(toolName, args, userId) {
     }
 
     case 'getFinancialOverview': {
-      const [data, gold] = await Promise.all([
-        fetchDashboardData(userId),
-        computeGoldTotals(userId)
-      ]);
+      const [data, wealth] = await Promise.all([fetchDashboardData(userId), computeWealth(userId)]);
       const m = data.metrics;
+      const zakat = zakatFromWealth(wealth);
 
       const yearStart = new Date(new Date().getFullYear(), 0, 1);
       const zakatGiven = await prisma.zakat.aggregate({
@@ -695,26 +650,27 @@ export async function executeTool(toolName, args, userId) {
         _sum: { amount: true }
       });
 
-      // Zakat due mirrors the Zakat page: 2.5% of (net worth − receivables).
-      const zakatableBase = Math.max(0, Number(m.netWorth) - Number(m.totalReceivable));
-
       return {
-        // net_worth matches the Dashboard card (gold is surfaced separately, as on the dashboard)
-        net_worth: Math.round(Number(m.netWorth)),
-        total_bank: Math.round(Number(m.totalBankBalance)),
-        total_wallet: Math.round(Number(m.totalWalletBalance)),
-        total_investments: Math.round(Number(m.totalInvestments)),
-        mutual_fund_value: Math.round(Number(m.mutualFundValue)),
-        stock_value: Math.round(Number(m.stockValue)),
-        gold_value: gold.total_value,
-        asset_value: Math.round(Number(m.totalAssetValue)),
-        rent_balance: Math.round(Number(m.totalRentBalance)),
-        receivable: Math.round(Number(m.totalReceivable)),
-        payable: Math.round(Number(m.totalPayable)),
-        debt: Math.round(Number(m.totalDebt)),
+        // Same figures, same definitions as the Dashboard and Zakat pages.
+        net_worth: Math.round(wealth.netWorth),
+        net_worth_definition: 'cash + investments + gold + physical assets - debts (rent received and ledger dues not included)',
+        valuation_date: wealth.valuationDate,
+        total_bank: Math.round(wealth.cash.bank),
+        total_wallet: Math.round(wealth.cash.wallet),
+        total_investments: Math.round(wealth.investments.total),
+        mutual_fund_value: Math.round(wealth.investments.mutualFunds.value),
+        stock_value: Math.round(wealth.investments.stocks.value),
+        gold_value: wealth.gold.value == null ? null : Math.round(wealth.gold.value),
+        gold_price_date: wealth.sources.goldPriceDate,
+        asset_value: Math.round(wealth.assets),
+        rent_received_all_time: Math.round(wealth.rentReceived),
+        receivable: Math.round(wealth.dues.receivable),
+        payable: Math.round(wealth.dues.payable),
+        debt: Math.round(wealth.debts.outstanding),
         current_month_expenses: Math.round(Number(m.currentMonthExpenses)),
         zakat_given_this_year: Math.round(Number(zakatGiven._sum.amount || 0)),
-        zakat_due_estimate: Math.round(zakatableBase * ZAKAT_RATE_NETWORTH)
+        zakat_due_estimate: Math.round(zakat.zakatDue),
+        zakat_nisab_met: zakat.isNisabMet,
       };
     }
 
@@ -723,7 +679,7 @@ export async function executeTool(toolName, args, userId) {
       const yStart = new Date(year, 0, 1);
       const yEnd = new Date(year, 11, 31, 23, 59, 59);
 
-      const [yearAgg, allAgg, entries, data, gold] = await Promise.all([
+      const [yearAgg, allAgg, entries, wealth] = await Promise.all([
         prisma.zakat.aggregate({ where: { user_id: userId, date: { gte: yStart, lte: yEnd } }, _sum: { amount: true } }),
         prisma.zakat.aggregate({ where: { user_id: userId }, _sum: { amount: true } }),
         prisma.zakat.findMany({
@@ -732,21 +688,23 @@ export async function executeTool(toolName, args, userId) {
           take: 10,
           select: { date: true, amount: true, description: true }
         }),
-        fetchDashboardData(userId),
-        computeGoldTotals(userId)
+        computeWealth(userId),
       ]);
-
-      const m = data.metrics;
-      const zakatableBase = Math.max(0, Number(m.netWorth) - Number(m.totalReceivable));
+      // The Zakat page's formula, not a separate estimate.
+      const zakat = zakatFromWealth(wealth);
 
       return {
         year,
         given_this_year: Math.round(Number(yearAgg._sum.amount || 0)),
         given_all_time: Math.round(Number(allAgg._sum.amount || 0)),
-        estimated_due: Math.round(zakatableBase * ZAKAT_RATE_NETWORTH),
-        zakatable_net_worth: Math.round(zakatableBase),
-        gold_zakat_due: gold.gold_zakat_due,
-        is_nisab_met: gold.is_nisab_met,
+        estimated_due: Math.round(zakat.zakatDue),
+        net_zakatable_wealth: Math.round(zakat.netZakatable),
+        zakatable_assets: Math.round(zakat.zakatableAssets),
+        deductions: Math.round(zakat.deductions),
+        nisab_value: zakat.nisabValue == null ? null : Math.round(zakat.nisabValue),
+        is_nisab_met: zakat.isNisabMet,
+        gold_price_date: zakat.goldPriceDate,
+        valuation_date: zakat.valuationDate,
         entries: entries.map(e => ({
           date: e.date,
           amount: Math.round(Number(e.amount)),

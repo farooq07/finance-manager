@@ -1,156 +1,135 @@
 import { compareTwoStrings } from 'string-similarity';
 import prisma from '../utils/prisma.js';
-import Decimal from 'decimal.js';
 
 /**
- * Find duplicate transactions using fuzzy matching (for Banks)
- * Checks: description similarity + amount + date proximity
+ * Duplicate detection for statement imports.
+ *
+ * A row can only repeat an earlier row of the SAME account, inside the date
+ * range the new statement covers (± a few days for posting delays). Amount
+ * (to the paisa) and direction must always match. Beyond that:
+ *
+ *  - certain  → same reference number, or same day + near-identical
+ *               description. Saved as a rejected duplicate.
+ *  - possible → within 3 days and a similar description. Saved as a normal
+ *               pending row flagged for the user to decide — never dropped.
+ *
+ * Different reference numbers mean different transactions, however alike
+ * the rest looks. Each earlier row can be matched at most once, so two real
+ * identical purchases are not both swallowed by one earlier row.
  */
-export async function findDuplicates(userId, bankStatementId, transactions) {
-    const duplicates = new Map();
 
-    // Get all existing transactions from this user's bank account
-    const existingTransactions = await prisma.bankTransactionLog.findMany({
-        where: {
-            bank_statement: {
-                bank: {
-                    user_id: userId
-                }
-            }
-        },
-        select: {
-            id: true,
-            description: true,
-            net_amount: true,
-            transaction_date: true
-        }
-    });
+const DAY_MS = 24 * 60 * 60 * 1000;
+const WINDOW_DAYS = 3;
 
-    // Check each new transaction against existing ones
-    for (let i = 0; i < transactions.length; i++) {
-        const newTx = transactions[i];
+const toDay = (d) => {
+    const x = new Date(d);
+    return Date.UTC(x.getUTCFullYear(), x.getUTCMonth(), x.getUTCDate());
+};
+const dayDiff = (a, b) => Math.round(Math.abs(toDay(a) - toDay(b)) / DAY_MS);
+const toPaisa = (v) => Math.round(Number(v) * 100);
 
-        for (const existing of existingTransactions) {
-            const similarity = calculateSimilarity(newTx, existing);
-
-            if (similarity.isDuplicate) {
-                duplicates.set(i, {
-                    duplicateOfId: existing.id,
-                    similarity: similarity.score,
-                    reason: similarity.reason
-                });
-                break; // Found duplicate, move to next transaction
-            }
-        }
-    }
-
-    return duplicates;
+/** Reference-like tokens: long digit runs and letter-prefixed codes (FT2603123456). */
+export function extractRefs(description) {
+    const refs = new Set();
+    for (const m of String(description || '').toUpperCase().matchAll(/\b[A-Z]{0,4}\d{6,}\b/g)) refs.add(m[0].replace(/^[A-Z]+/, ''));
+    return refs;
 }
 
-/**
- * Find duplicate transactions for Wallets using fuzzy matching
- * Checks: description similarity + amount + date proximity
- */
-export async function findWalletDuplicates(userId, walletStatementId, transactions) {
-    const duplicates = new Map();
+const normalise = (d) => String(d || '').toLowerCase().replace(/\s+/g, ' ').trim();
 
-    // Get all existing transactions from this user's wallet
-    const existingTransactions = await prisma.walletTransactionLog.findMany({
-        where: {
-            wallet_statement: {
-                wallet: {
-                    user_id: userId
-                }
-            }
-        },
-        select: {
-            id: true,
-            description: true,
-            net_amount: true,
-            transaction_date: true
-        }
-    });
+/** How a new row relates to an earlier one: 'certain' | 'possible' | null. */
+export function matchStrength(newTx, existing) {
+    const a = toPaisa(newTx.net_amount);
+    const b = toPaisa(existing.net_amount);
+    if (a !== b || a === 0) return null;          // amount and direction (sign) must match
 
-    // Check each new transaction against existing ones
-    for (let i = 0; i < transactions.length; i++) {
-        const newTx = transactions[i];
+    const days = dayDiff(newTx.transaction_date, existing.transaction_date);
+    if (days > WINDOW_DAYS) return null;
 
-        for (const existing of existingTransactions) {
-            const similarity = calculateSimilarity(newTx, existing);
-
-            if (similarity.isDuplicate) {
-                duplicates.set(i, {
-                    duplicateOfId: existing.id,
-                    similarity: similarity.score,
-                    reason: similarity.reason
-                });
-                break; // Found duplicate, move to next transaction
-            }
-        }
+    const refsA = extractRefs(newTx.description);
+    const refsB = extractRefs(existing.description);
+    if (refsA.size && refsB.size) {
+        const shared = [...refsA].some((r) => refsB.has(r));
+        return shared ? 'certain' : null;           // different references → different transactions
     }
 
-    return duplicates;
+    const similarity = compareTwoStrings(normalise(newTx.description), normalise(existing.description));
+    if (days === 0 && similarity >= 0.9) return 'certain';
+    if (similarity >= 0.6) return 'possible';
+    return null;
 }
 
-/**
- * Calculate similarity between two transactions
- * Returns: {isDuplicate: bool, score: 0-1, reason: string}
- */
-function calculateSimilarity(newTx, existingTx) {
-    // 1. Description similarity (using fuzzy string matching)
-    const descSimilarity = compareTwoStrings(
-        newTx.description.toLowerCase(),
-        existingTx.description.toLowerCase()
-    );
-
-    // 2. Amount match (exact or within 1% tolerance for fee variations)
-    const newAmount = new Decimal(newTx.net_amount);
-    const existingAmount = new Decimal(existingTx.net_amount);
-
-    const amountDiff = newAmount.minus(existingAmount).abs();
-    const percentDiff = amountDiff.dividedBy(existingAmount.abs()).toNumber();
-    const amountMatch = percentDiff < 0.01; // 1% tolerance
-
-    // 3. Date proximity (within 5 days - accounts for processing delays)
-    const newDate = new Date(newTx.transaction_date);
-    const existingDate = new Date(existingTx.transaction_date);
-    const daysDiff = Math.abs((newDate - existingDate) / (1000 * 60 * 60 * 24));
-    const dateProximity = daysDiff <= 5;
-
-    // Decision logic:
-    // High description match + exact amount = likely duplicate
-    // High description match + date proximity = likely duplicate
-    const descriptionConfident = descSimilarity > 0.85;
-    const amountExact = newAmount.equals(existingAmount);
-
-    if (descriptionConfident && amountExact && dateProximity) {
-        return {
-            isDuplicate: true,
-            score: Math.min(descSimilarity, 1),
-            reason: 'Description + amount + date match'
-        };
-    }
-
-    if (descriptionConfident && amountExact) {
-        return {
-            isDuplicate: true,
-            score: Math.min(descSimilarity * 0.95, 1),
-            reason: 'Description + amount match'
-        };
-    }
-
-    if (descriptionConfident && dateProximity) {
-        return {
-            isDuplicate: true,
-            score: Math.min(descSimilarity * 0.8, 1),
-            reason: 'Description + date proximity match'
-        };
-    }
-
+function dateWindow(transactions) {
+    const days = transactions.map((t) => toDay(t.transaction_date)).filter(Number.isFinite);
+    if (!days.length) return null;
     return {
-        isDuplicate: false,
-        score: descSimilarity,
-        reason: 'No strong match'
+        gte: new Date(Math.min(...days) - WINDOW_DAYS * DAY_MS),
+        lte: new Date(Math.max(...days) + WINDOW_DAYS * DAY_MS),
+    };
+}
+
+/** Pair new rows with earlier rows one-to-one, certain matches first. */
+export function matchDuplicates(transactions, existingRows) {
+    const result = new Map();
+    const used = new Set();
+    for (const wanted of ['certain', 'possible']) {
+        transactions.forEach((tx, i) => {
+            if (result.has(i)) return;
+            const hit = existingRows.find((e) => !used.has(e.id) && matchStrength(tx, e) === wanted);
+            if (hit) {
+                used.add(hit.id);
+                result.set(i, {
+                    duplicateOfId: hit.id,
+                    match: wanted,
+                    reason: wanted === 'certain' ? 'Same amount, date and reference/description' : 'Same amount, similar description, close date',
+                });
+            }
+        });
+    }
+    return result;
+}
+
+const EXISTING_SELECT = { id: true, description: true, net_amount: true, transaction_date: true };
+
+/** Duplicates of `transactions` already imported into this bank account. Map(index → match). */
+export async function findDuplicates(userId, bankId, transactions) {
+    const window = dateWindow(transactions);
+    if (!window) return new Map();
+    const existing = await prisma.bankTransactionLog.findMany({
+        where: {
+            is_duplicate: false,
+            transaction_date: window,
+            bank_statement: { bank_id: bankId, bank: { user_id: userId } },
+        },
+        select: EXISTING_SELECT,
+    });
+    return matchDuplicates(transactions, existing);
+}
+
+/** Duplicates of `transactions` already imported into this wallet. Map(index → match). */
+export async function findWalletDuplicates(userId, walletId, transactions) {
+    const window = dateWindow(transactions);
+    if (!window) return new Map();
+    const existing = await prisma.walletTransactionLog.findMany({
+        where: {
+            is_duplicate: false,
+            transaction_date: window,
+            wallet_statement: { wallet_id: walletId, wallet: { user_id: userId } },
+        },
+        select: EXISTING_SELECT,
+    });
+    return matchDuplicates(transactions, existing);
+}
+
+/** The log fields for a new row given its duplicate match (if any). */
+export function duplicateFields(match) {
+    if (!match) return { is_duplicate: false, duplicate_of_id: null, duplicate_match: null, processing_status: 'pending' };
+    const certain = match.match === 'certain';
+    return {
+        is_duplicate: certain,
+        duplicate_of_id: match.duplicateOfId,
+        duplicate_match: match.match,
+        processing_status: certain ? 'rejected' : 'pending',
     };
 }
 
@@ -186,18 +165,4 @@ export async function isWalletFilePreviouslyImported(userId, fileHash, walletId)
     });
 
     return !!existing;
-}
-
-/**
- * Mark transactions as duplicates
- */
-export async function markAsDuplicate(transactionLogId, duplicateOfId) {
-    await prisma.bankTransactionLog.update({
-        where: { id: transactionLogId },
-        data: {
-            is_duplicate: true,
-            duplicate_of_id: duplicateOfId,
-            processing_status: 'rejected'
-        }
-    });
 }

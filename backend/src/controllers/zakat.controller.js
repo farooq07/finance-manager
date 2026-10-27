@@ -1,40 +1,14 @@
 import prisma from '../utils/prisma.js';
 import logger from '../utils/logger.js';
-import { fetchDashboardData } from './dashboard.controller.js';
-import { NISAB_GRAMS, getLatestPriceRow, summarizeGold } from '../services/goldValuation.service.js';
-import { computeZakat, zakatDeductibleDebt } from '../services/zakat.service.js';
+import { computeWealth, zakatFromWealth } from '../services/wealth.service.js';
 
 // GET /api/zakat/summary — Zakat due on the user's whole wealth (cash,
-// investments, gold, dues, debts). Rules live in services/zakat.service.js.
+// investments, gold, dues, debts). One formula for every surface:
+// wealth.service.js (what you own) + zakat.service.js (the rules).
 export const getZakatSummary = async (req, res) => {
     try {
-        const userId = req.user.id;
-        const [{ metrics: m }, goldItems, priceRow, debts] = await Promise.all([
-            fetchDashboardData(userId),
-            prisma.goldItem.findMany({ where: { user_id: userId } }),
-            getLatestPriceRow(),
-            prisma.debt.findMany({ where: { user_id: userId, is_active: true } }),
-        ]);
-
-        const perGram = priceRow ? Number(priceRow.price_24k_per_gram) : 0;
-        const { totalValue: goldValue } = summarizeGold(goldItems, perGram);
-
-        const breakdown = {
-            // Rent entries are a log of rent received into an account, so the
-            // money is already in the bank/wallet balances — don't add it twice.
-            cash: m.totalBankBalance + m.totalWalletBalance,
-            investments: m.totalInvestments,
-            goldValue,
-            receivables: m.totalReceivable,
-            payables: m.totalPayable,
-            debts: zakatDeductibleDebt(debts),
-        };
-
-        res.json({
-            breakdown,
-            ...computeZakat({ ...breakdown, nisabValue: perGram ? NISAB_GRAMS * perGram : null }),
-            goldPriceDate: priceRow?.date ?? null,
-        });
+        const wealth = await computeWealth(req.user.id);
+        res.json(zakatFromWealth(wealth));
     } catch (error) {
         logger.error('[ZAKAT] summary failed:', error);
         res.status(500).json({ message: 'Could not compute zakat summary' });

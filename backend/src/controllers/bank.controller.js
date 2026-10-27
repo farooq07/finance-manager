@@ -1,12 +1,14 @@
 import prisma from '../utils/prisma.js';
+import { approveImportedTransaction } from '../services/transactionApproval.service.js';
 import logger from '../utils/logger.js';
 import { encryptSecret, decryptSecret } from '../utils/crypto.js';
 import { extractPdfText, getFileHash } from '../services/pdfParser.service.js';
 import { parseTransactions, validateBalance, parseStatementBalances } from '../services/transactionParser.service.js';
 import { parseCsvTransactions, inspectCsv, parseCsvWithMapping } from '../services/csvParser.service.js';
 import { reconcile, importGate } from '../services/reconcile.service.js';
-import { categorizeTransactionBatch, recordUserCategory } from '../services/categorizer.service.js';
-import { findDuplicates, isFilePreviouslyImported, markAsDuplicate } from '../services/duplicateDetector.service.js';
+import { recordUserCategory } from '../services/categorizer.service.js';
+import { isFilePreviouslyImported } from '../services/duplicateDetector.service.js';
+import { saveStatementImport } from '../services/statementImport.service.js';
 import { linkTransactionsToBeneficiaries } from './beneficiary.controller.js';
 import fs from 'fs';
 import path from 'path';
@@ -46,6 +48,8 @@ export const createBank = async (req, res) => {
                 iban_no,
                 starting_balance,
                 current_balance: starting_balance, // Initially, current equals starting
+                balance_as_of: new Date(),
+                balance_source: 'opening',
             }
         });
 
@@ -130,7 +134,8 @@ export const updateBankBalance = async (req, res) => {
 
         const updatedBank = await prisma.bank.update({
             where: { id },
-            data: { current_balance: Number(current_balance) }
+            // A balance typed in by the user is true as of today.
+            data: { current_balance: Number(current_balance), balance_as_of: new Date(), balance_source: 'manual', balance_statement_id: null }
         });
 
         res.json(updatedBank);
@@ -327,9 +332,14 @@ export const uploadStatement = async (req, res) => {
 
         logger.log('[STATEMENT] Balances extracted — opening:', openingBalance, 'closing:', closingBalance);
 
-        const bankStatement = await prisma.bankStatement.create({
-            data: {
-                bank_id: bankId,
+        // Statement, rows and balance are saved together or not at all.
+        const { statement: bankStatement, transactionLogs, duplicateCount, possibleDuplicateCount } = await saveStatementImport({
+            kind: 'bank',
+            userId: req.user.id,
+            accountId: bankId,
+            parsedTxs,
+            closingBalance,
+            statementData: {
                 month,
                 year,
                 file_path: filePath,
@@ -339,81 +349,23 @@ export const uploadStatement = async (req, res) => {
                 processing_status: 'pending',
                 opening_balance: openingBalance !== null ? openingBalance : undefined,
                 closing_balance: closingBalance !== null ? closingBalance : undefined,
-            }
+            },
         });
 
-        // Sync bank current_balance with closing balance from statement
-        if (closingBalance !== null) {
-            await prisma.bank.update({
-                where: { id: bankId },
-                data: { current_balance: closingBalance }
-            });
-            logger.log('[STATEMENT] Updated bank current_balance to', closingBalance);
-        }
+        logger.log(`[STATEMENT] Imported ${transactionLogs.length} transactions (${duplicateCount} duplicates)`);
 
-        // Step 5: Check for duplicates and auto-categorize
-        logger.log('[STATEMENT] Checking for duplicates and categorizing...');
-        let duplicateMap = new Map();
-        let transactionLogs = [];
-
-        if (parsedTxs.length > 0) {
-            try {
-                duplicateMap = await findDuplicates(req.user.id, bankStatement.id, parsedTxs);
-            } catch (dupError) {
-                console.error('[STATEMENT] Duplicate detection error:', dupError.message);
-                duplicateMap = new Map();
-            }
-
-            // Step 6: Batch categorise then create transaction logs
-            let categorizations = [];
-            try {
-                categorizations = await categorizeTransactionBatch(req.user.id, parsedTxs);
-            } catch (catError) {
-                console.error('[STATEMENT] Batch categorization error:', catError.message);
-                categorizations = parsedTxs.map(() => ({ category: 'Other', confidence: 0, method: 'default' }));
-            }
-
-            for (let i = 0; i < parsedTxs.length; i++) {
-                try {
-                    const tx = parsedTxs[i];
-                    const isDupTx = duplicateMap.has(i);
-                    const categorization = categorizations[i] || { category: 'Other', confidence: 0 };
-
-                    const txLog = await prisma.bankTransactionLog.create({
-                        data: {
-                            bank_statement_id: bankStatement.id,
-                            transaction_date: tx.transaction_date,
-                            description: tx.description,
-                            debit_amount: tx.debit_amount || null,
-                            credit_amount: tx.credit_amount || null,
-                            net_amount: tx.net_amount,
-                            suggested_category: categorization.category,
-                            category_confidence: categorization.confidence,
-                            is_duplicate: isDupTx,
-                            duplicate_of_id: isDupTx ? duplicateMap.get(i).duplicateOfId : null,
-                            processing_status: isDupTx ? 'rejected' : 'pending'
-                        }
-                    });
-
-                    transactionLogs.push(txLog);
-                } catch (txError) {
-                    console.error('[STATEMENT] Error creating transaction log:', txError.message);
-                }
-            }
-        }
-
-        logger.log(`[STATEMENT] Imported ${transactionLogs.length} transactions (${duplicateMap.size} duplicates)`);
-
-        // Auto-link transactions to beneficiaries
-        await linkTransactionsToBeneficiaries(req.user.id, transactionLogs);
+        // Auto-link transactions to beneficiaries (best effort — the import is already saved)
+        await linkTransactionsToBeneficiaries(req.user.id, transactionLogs).catch((e) =>
+            console.error('[STATEMENT] Beneficiary linking failed:', e.message));
 
         res.status(201).json({
             message: 'Statement uploaded and processed',
             statementId: bankStatement.id,
             summary: {
                 totalParsed: parsedTxs.length,
-                duplicates: duplicateMap.size,
-                unique: parsedTxs.length - duplicateMap.size,
+                duplicates: duplicateCount,
+                possibleDuplicates: possibleDuplicateCount,
+                unique: parsedTxs.length - duplicateCount,
                 pageCount
             },
             transactions: transactionLogs
@@ -446,7 +398,7 @@ export const uploadStatement = async (req, res) => {
  * transaction logs, links beneficiaries, and syncs the bank balance.
  * Used by the mapping-based commit flow (preview → map → commit).
  *
- * Returns { statement, transactionLogs, duplicateCount }.
+ * Returns { statement, transactionLogs, duplicateCount, possibleDuplicateCount, balanceUpdated }.
  */
 async function finalizeImport({ userId, bankId, parsedTxs, openingBalance, closingBalance, filePath, fileHash, password, reconciled = true }) {
     // Derive month/year from the earliest transaction
@@ -459,9 +411,13 @@ async function finalizeImport({ userId, bankId, parsedTxs, openingBalance, closi
         year = d.getFullYear();
     }
 
-    const statement = await prisma.bankStatement.create({
-        data: {
-            bank_id: bankId,
+    const saved = await saveStatementImport({
+        kind: 'bank',
+        userId,
+        accountId: bankId,
+        parsedTxs,
+        closingBalance,
+        statementData: {
             month,
             year,
             file_path: filePath,
@@ -475,58 +431,10 @@ async function finalizeImport({ userId, bankId, parsedTxs, openingBalance, closi
         },
     });
 
-    if (closingBalance !== null && closingBalance !== undefined) {
-        await prisma.bank.update({ where: { id: bankId }, data: { current_balance: closingBalance } });
-    }
+    await linkTransactionsToBeneficiaries(userId, saved.transactionLogs).catch((e) =>
+        console.error('[COMMIT] Beneficiary linking failed:', e.message));
 
-    let duplicateMap = new Map();
-    const transactionLogs = [];
-
-    if (parsedTxs.length > 0) {
-        try {
-            duplicateMap = await findDuplicates(userId, statement.id, parsedTxs);
-        } catch (e) {
-            console.error('[COMMIT] Duplicate detection error:', e.message);
-        }
-
-        let categorizations = [];
-        try {
-            categorizations = await categorizeTransactionBatch(userId, parsedTxs);
-        } catch (e) {
-            console.error('[COMMIT] Categorization error:', e.message);
-            categorizations = parsedTxs.map(() => ({ category: 'Other', confidence: 0 }));
-        }
-
-        for (let i = 0; i < parsedTxs.length; i++) {
-            try {
-                const tx = parsedTxs[i];
-                const isDupTx = duplicateMap.has(i);
-                const cat = categorizations[i] || { category: 'Other', confidence: 0 };
-                const txLog = await prisma.bankTransactionLog.create({
-                    data: {
-                        bank_statement_id: statement.id,
-                        transaction_date: tx.transaction_date,
-                        description: tx.description,
-                        debit_amount: tx.debit_amount || null,
-                        credit_amount: tx.credit_amount || null,
-                        net_amount: tx.net_amount,
-                        suggested_category: cat.category,
-                        category_confidence: cat.confidence,
-                        is_duplicate: isDupTx,
-                        duplicate_of_id: isDupTx ? duplicateMap.get(i).duplicateOfId : null,
-                        processing_status: isDupTx ? 'rejected' : 'pending',
-                    },
-                });
-                transactionLogs.push(txLog);
-            } catch (e) {
-                console.error('[COMMIT] Error creating transaction log:', e.message);
-            }
-        }
-    }
-
-    await linkTransactionsToBeneficiaries(userId, transactionLogs);
-
-    return { statement, transactionLogs, duplicateCount: duplicateMap.size };
+    return saved;
 }
 
 /**
@@ -686,7 +594,7 @@ export const commitStatement = async (req, res) => {
             } catch (e) { logger.log('[COMMIT] cleanup failed:', e.message); }
         }
 
-        const { statement, transactionLogs, duplicateCount } = await finalizeImport({
+        const { statement, transactionLogs, duplicateCount, possibleDuplicateCount } = await finalizeImport({
             userId: req.user.id,
             bankId,
             parsedTxs,
@@ -705,6 +613,7 @@ export const commitStatement = async (req, res) => {
             summary: {
                 totalParsed: parsedTxs.length,
                 duplicates: duplicateCount,
+                possibleDuplicates: possibleDuplicateCount,
                 unique: parsedTxs.length - duplicateCount,
             },
             transactions: transactionLogs,
@@ -781,62 +690,25 @@ export const getAllTransactions = async (req, res) => {
  */
 export const approveTransaction = async (req, res) => {
     try {
-        const { bankId, statementId, txId } = req.params;
+        const { bankId, txId } = req.params;
         const { approvedCategory, notes } = req.body;
 
-        // Verify ownership
-        const bank = await prisma.bank.findUnique({
-            where: { id: bankId, user_id: req.user.id }
+        const result = await approveImportedTransaction({
+            kind: 'bank', userId: req.user.id, accountId: bankId, txId, category: approvedCategory, notes,
         });
+        if (!result) return res.status(404).json({ message: 'Transaction not found' });
 
-        if (!bank) {
-            return res.status(404).json({ message: 'Bank not found' });
+        // Learn from the user's choice (only on the first approval)
+        if (result.approved && approvedCategory) {
+            await recordUserCategory(req.user.id, result.description, approvedCategory);
         }
 
-        const txLog = await prisma.bankTransactionLog.findFirst({
-            where: { id: txId, bank_statement: { bank_id: bankId } }
+        res.json({
+            message: result.approved ? 'Transaction approved' : 'Transaction already approved',
+            expenseId: result.expenseId,
+            isCredit: result.isCredit,
+            alreadyApproved: !result.approved,
         });
-
-        if (!txLog) {
-            return res.status(404).json({ message: 'Transaction not found' });
-        }
-
-        // Learn from user's choice
-        if (approvedCategory) {
-            await recordUserCategory(req.user.id, txLog.description, approvedCategory);
-        }
-
-        const isCredit = Number(txLog.net_amount) > 0;
-
-        // Only create an Expense for debit (outgoing) transactions
-        let expenseId = null;
-        if (!isCredit) {
-            const expense = await prisma.expense.create({
-                data: {
-                    user_id: req.user.id,
-                    amount: Math.abs(txLog.net_amount),
-                    category: approvedCategory || txLog.suggested_category || 'Other',
-                    expense_date: txLog.transaction_date,
-                    payment_method: 'Bank Transfer',
-                    notes: notes || txLog.description
-                }
-            });
-            expenseId = expense.id;
-        }
-
-        // Update transaction log
-        await prisma.bankTransactionLog.update({
-            where: { id: txId },
-            data: {
-                user_approved: true,
-                approved_category: approvedCategory,
-                created_expense_id: expenseId,
-                processing_status: 'approved',
-                notes
-            }
-        });
-
-        res.json({ message: 'Transaction approved', expenseId, isCredit });
     } catch (error) {
         console.error('Error approving transaction:', error);
         res.status(500).json({ message: 'Failed to approve transaction' });
@@ -969,64 +841,29 @@ export const bulkApproveTransactions = async (req, res) => {
     try {
         const { bankId } = req.params;
         const { transactions: items } = req.body;
-
         if (!Array.isArray(items) || items.length === 0) {
             return res.status(400).json({ message: 'No transactions provided' });
         }
 
-        const bank = await prisma.bank.findUnique({
-            where: { id: bankId, user_id: req.user.id }
-        });
-        if (!bank) return res.status(404).json({ message: 'Bank not found' });
-
-        // Fetch all requested transaction logs, scoped to this bank only
-        const txIds = items.map(i => i.txId);
-        const txLogs = await prisma.bankTransactionLog.findMany({
-            where: { id: { in: txIds }, bank_statement: { bank_id: bankId } }
-        });
-        const txMap = new Map(txLogs.map(t => [t.id, t]));
-
         let successCount = 0;
         const errors = [];
 
-        await Promise.all(items.map(async ({ txId, approvedCategory }) => {
-            const txLog = txMap.get(txId);
-            if (!txLog || txLog.processing_status === 'approved') return;
-
-            const category = approvedCategory || txLog.suggested_category || 'Other';
-            const isCredit = Number(txLog.net_amount) > 0;
+        // Sequential: each approval is its own small transaction, and a retry
+        // of the whole request skips the ones already approved.
+        for (const { txId, approvedCategory } of items) {
             try {
-                let expenseId = null;
-                if (!isCredit) {
-                    const expense = await prisma.expense.create({
-                        data: {
-                            user_id: req.user.id,
-                            amount: Math.abs(txLog.net_amount),
-                            category,
-                            expense_date: txLog.transaction_date,
-                            payment_method: 'Bank Transfer',
-                            notes: txLog.description
-                        }
-                    });
-                    expenseId = expense.id;
-                }
-
-                await prisma.bankTransactionLog.update({
-                    where: { id: txId },
-                    data: {
-                        user_approved: true,
-                        approved_category: category,
-                        created_expense_id: expenseId,
-                        processing_status: 'approved'
-                    }
+                const result = await approveImportedTransaction({
+                    kind: 'bank', userId: req.user.id, accountId: bankId, txId, category: approvedCategory,
                 });
-
-                await recordUserCategory(req.user.id, txLog.description, category);
-                successCount++;
+                if (!result) { errors.push(txId); continue; }
+                if (result.approved) {
+                    await recordUserCategory(req.user.id, result.description, result.category);
+                    successCount++;
+                }
             } catch (err) {
                 errors.push(txId);
             }
-        }));
+        }
 
         res.json({ message: `Approved ${successCount} transactions`, successCount, errors });
     } catch (error) {
@@ -1196,9 +1033,19 @@ export const syncStatementBalance = async (req, res) => {
             }
         });
 
+        // The user explicitly chose this statement's balance; record the date it's true for.
+        const last = await prisma.bankTransactionLog.aggregate({
+            where: { bank_statement_id: statementId },
+            _max: { transaction_date: true },
+        });
         await prisma.bank.update({
             where: { id: bankId },
-            data: { current_balance: closingBalance }
+            data: {
+                current_balance: closingBalance,
+                balance_as_of: last._max.transaction_date ?? new Date(),
+                balance_source: 'statement',
+                balance_statement_id: statementId,
+            }
         });
 
         res.json({ message: 'Balance synced', closingBalance, openingBalance });

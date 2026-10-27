@@ -86,7 +86,7 @@ export const getPsxSnapshots = async (req, res) => {
 
 export const uploadPsxSnapshot = async (req, res) => {
     try {
-        const { snapshot_date, total_custody, holdings_data } = req.body;
+        const { snapshot_date, total_custody, holdings_data, summary_data } = req.body;
         const parsedDate = new Date(snapshot_date);
 
         // Calculate total invested AT THIS MOMENT from BankInvestments
@@ -111,14 +111,16 @@ export const uploadPsxSnapshot = async (req, res) => {
             update: {
                 total_custody,
                 total_invested,
-                holdings_data
+                holdings_data,
+                ...(summary_data ? { summary_data } : {})
             },
             create: {
                 user_id: req.user.id,
                 snapshot_date: parsedDate,
                 total_custody,
                 total_invested,
-                holdings_data
+                holdings_data,
+                ...(summary_data ? { summary_data } : {})
             }
         });
 
@@ -131,7 +133,7 @@ export const uploadPsxSnapshot = async (req, res) => {
 
 export const syncPsxData = async (req, res) => {
     try {
-        const { snapshot_date, total_custody, holdings_data } = req.body;
+        const { snapshot_date, total_custody, holdings_data, summary_data } = req.body;
         const parsedDate = new Date(snapshot_date);
 
         // Sum up investment up to this date
@@ -155,14 +157,16 @@ export const syncPsxData = async (req, res) => {
             update: {
                 total_custody,
                 total_invested,
-                holdings_data
+                holdings_data,
+                ...(summary_data ? { summary_data } : {})
             },
             create: {
                 user_id: req.user.id,
                 snapshot_date: parsedDate,
                 total_custody,
                 total_invested,
-                holdings_data
+                holdings_data,
+                ...(summary_data ? { summary_data } : {})
             }
         });
 

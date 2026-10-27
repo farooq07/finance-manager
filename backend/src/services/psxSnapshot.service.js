@@ -90,6 +90,8 @@ export async function snapshotUserPortfolio(userId, { at = new Date() } = {}) {
             total_custody: totalCustody.toDecimalPlaces(2).toString(),
             total_invested: (invested._sum.amount ?? 0).toString(),
             holdings_data: revalued,
+            // Brokerage cash doesn't change with market prices — carry it forward.
+            ...(latest.summary_data ? { summary_data: latest.summary_data } : {}),
         },
     });
 }

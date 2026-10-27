@@ -1,5 +1,5 @@
-import prisma from '../utils/prisma.js';
 import logger from '../utils/logger.js';
+import { loadMoneyEvents, summarizeFlows, spendEvents } from '../services/moneyFlow.service.js';
 
 // Merchant cleaning -----------------------------------------------------------
 // Bank statement descriptions are mostly noise: running balances, account
@@ -87,93 +87,7 @@ function getRanges(period, anchor) {
     return { currentStart, currentEnd, previousStart, previousEnd };
 }
 
-// Returns spend (debits) and income (credits) keyed by category for a period.
-// Note: bank/wallet transaction logs have no user_id — ownership is via
-// statement → bank/wallet. Categories live on approved_/suggested_category;
-// amounts on debit_amount/credit_amount. We normalise to debit/credit/category.
-async function loadCategorizedFlows(userId, start, end) {
-    const [bankRaw, walletRaw, expenseRows] = await Promise.all([
-        prisma.bankTransactionLog.findMany({
-            where: {
-                transaction_date: { gte: start, lt: end },
-                bank_statement: { bank: { user_id: userId } },
-            },
-            select: {
-                approved_category: true,
-                suggested_category: true,
-                debit_amount: true,
-                credit_amount: true,
-                description: true,
-                transaction_date: true,
-            },
-        }),
-        prisma.walletTransactionLog.findMany({
-            where: {
-                transaction_date: { gte: start, lt: end },
-                wallet_statement: { wallet: { user_id: userId } },
-            },
-            select: {
-                approved_category: true,
-                suggested_category: true,
-                debit_amount: true,
-                credit_amount: true,
-                description: true,
-                transaction_date: true,
-            },
-        }),
-        prisma.expense.findMany({
-            where: { user_id: userId, expense_date: { gte: start, lt: end } },
-            select: { category: true, amount: true, notes: true, expense_date: true },
-        }),
-    ]);
-
-    const normalise = (r) => ({
-        category: r.approved_category || r.suggested_category || 'Uncategorised',
-        debit: r.debit_amount,
-        credit: r.credit_amount,
-        description: r.description,
-        transaction_date: r.transaction_date,
-    });
-    const bankRows = bankRaw.map(normalise);
-    const walletRows = walletRaw.map(normalise);
-    const normalisedExpenses = expenseRows.map((r) => ({
-        category: r.category,
-        amount: r.amount,
-        description: r.notes,
-        expense_date: r.expense_date,
-    }));
-
-    return { bankRows, walletRows, expenseRows: normalisedExpenses };
-}
-
-function sumDebits(rows) {
-    return rows.reduce((s, r) => s + Number(r.debit || 0), 0);
-}
-function sumCredits(rows) {
-    return rows.reduce((s, r) => s + Number(r.credit || 0), 0);
-}
-function sumAmounts(rows) {
-    return rows.reduce((s, r) => s + Number(r.amount || 0), 0);
-}
-
-function bucketByCategory(rows, getAmount) {
-    const out = new Map();
-    for (const r of rows) {
-        const key = r.category || 'Uncategorised';
-        const amt = getAmount(r);
-        if (amt <= 0) continue;
-        out.set(key, (out.get(key) || 0) + amt);
-    }
-    return out;
-}
-
-function mergeBuckets(...maps) {
-    const out = new Map();
-    for (const m of maps) {
-        for (const [k, v] of m) out.set(k, (out.get(k) || 0) + v);
-    }
-    return out;
-}
+const add = (m, k, v) => m.set(k, (m.get(k) || 0) + v);
 
 // GET /api/dashboard/insights?period=month|quarter|year&anchor=YYYY-MM-DD
 // anchor lets the client ask for a specific historical period rather than
@@ -198,25 +112,19 @@ export const getInsights = async (req, res) => {
             ? new Date(previousStart.getTime() + (now.getTime() - currentStart.getTime()))
             : previousEnd;
 
-        const current  = await loadCategorizedFlows(userId, currentStart,  currentEnd);
-        const previous = await loadCategorizedFlows(userId, previousStart, prevCompareEnd);
+        // Every figure below comes from the shared money-flow rules: each event
+        // counted once, rejected duplicates and own-account transfers excluded.
+        const [currentEvents, previousEvents] = await Promise.all([
+            loadMoneyEvents(userId, currentStart, currentEnd),
+            loadMoneyEvents(userId, previousStart, prevCompareEnd),
+        ]);
+        const current = summarizeFlows(currentEvents);
+        const previous = summarizeFlows(previousEvents);
 
-        // Totals
-        const currentSpend =
-            sumDebits(current.bankRows) +
-            sumDebits(current.walletRows) +
-            sumAmounts(current.expenseRows);
-        const currentIncome =
-            sumCredits(current.bankRows) +
-            sumCredits(current.walletRows);
-
-        const previousSpend =
-            sumDebits(previous.bankRows) +
-            sumDebits(previous.walletRows) +
-            sumAmounts(previous.expenseRows);
-        const previousIncome =
-            sumCredits(previous.bankRows) +
-            sumCredits(previous.walletRows);
+        const currentSpend = current.totals.spend;
+        const currentIncome = current.totals.income;
+        const previousSpend = previous.totals.spend;
+        const previousIncome = previous.totals.income;
 
         const spendDelta  = previousSpend  > 0 ? ((currentSpend  - previousSpend)  / previousSpend)  * 100 : null;
         const incomeDelta = previousIncome > 0 ? ((currentIncome - previousIncome) / previousIncome) * 100 : null;
@@ -232,26 +140,20 @@ export const getInsights = async (req, res) => {
 
         // Category breakdown (spend only) — current and the same-span previous,
         // the latter powering the "X× vs last period" callouts.
-        const merged = mergeBuckets(
-            bucketByCategory(current.bankRows,    (r) => Number(r.debit  || 0)),
-            bucketByCategory(current.walletRows,  (r) => Number(r.debit  || 0)),
-            bucketByCategory(current.expenseRows, (r) => Number(r.amount || 0)),
-        );
-        const prevMerged = mergeBuckets(
-            bucketByCategory(previous.bankRows,    (r) => Number(r.debit  || 0)),
-            bucketByCategory(previous.walletRows,  (r) => Number(r.debit  || 0)),
-            bucketByCategory(previous.expenseRows, (r) => Number(r.amount || 0)),
-        );
+        const merged = current.spendByCategory;
+        const prevMerged = previous.spendByCategory;
         const categoryBreakdown = Array.from(merged, ([category, total]) => ({ category, total }))
             .sort((a, b) => b.total - a.total)
             .slice(0, 12);
 
-        // Source split — delivers on the "bank + wallet + manual" promise in the
-        // page subtitle by showing where each rupee of spend was recorded.
+        // Source split — where each rupee of spend was recorded.
+        const spent = spendEvents(currentEvents);
+        const bySource = new Map();
+        for (const e of spent) add(bySource, e.source, e.amount);
         const sourceBreakdown = [
-            { source: 'bank',   label: 'Bank statements',    total: sumDebits(current.bankRows) },
-            { source: 'wallet', label: 'Wallet transactions', total: sumDebits(current.walletRows) },
-            { source: 'manual', label: 'Manual & journal',   total: sumAmounts(current.expenseRows) },
+            { source: 'bank',   label: 'Bank statements',    total: bySource.get('bank') || 0 },
+            { source: 'wallet', label: 'Wallet transactions', total: bySource.get('wallet') || 0 },
+            { source: 'manual', label: 'Manual & journal',   total: bySource.get('manual') || 0 },
         ].filter((s) => s.total > 0);
 
         // Auto callouts — structured so the client owns currency formatting.
@@ -291,9 +193,7 @@ export const getInsights = async (req, res) => {
                 merchantMap.set(key, { merchant: name, total: amt, count: 1 });
             }
         };
-        current.bankRows.forEach(r    => collectMerchant(r.description, Number(r.debit || 0)));
-        current.walletRows.forEach(r  => collectMerchant(r.description, Number(r.debit || 0)));
-        current.expenseRows.forEach(r => collectMerchant(r.description, Number(r.amount || 0)));
+        spent.forEach((e) => collectMerchant(e.description, e.amount));
         const topMerchants = Array.from(merchantMap.values())
             .sort((a, b) => b.total - a.total)
             .slice(0, 8)
@@ -307,9 +207,7 @@ export const getInsights = async (req, res) => {
             const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
             dayMap.set(key, (dayMap.get(key) || 0) + amt);
         };
-        current.bankRows.forEach(r    => addDaily(r.transaction_date, Number(r.debit  || 0)));
-        current.walletRows.forEach(r  => addDaily(r.transaction_date, Number(r.debit  || 0)));
-        current.expenseRows.forEach(r => addDaily(r.expense_date,     Number(r.amount || 0)));
+        spent.forEach((e) => addDaily(e.date, e.amount));
         // Fill EVERY calendar day in the period (up to "as of") with zeros so a
         // month with three spending days reads as three bars on an empty axis —
         // not a smooth line implying a trend across days that have no data.
@@ -331,9 +229,7 @@ export const getInsights = async (req, res) => {
             weekdayTotals[w] += amt;
             weekdayCount[w]  += 1;
         };
-        current.bankRows.forEach(r    => addWeekday(r.transaction_date, Number(r.debit  || 0)));
-        current.walletRows.forEach(r  => addWeekday(r.transaction_date, Number(r.debit  || 0)));
-        current.expenseRows.forEach(r => addWeekday(r.expense_date,     Number(r.amount || 0)));
+        spent.forEach((e) => addWeekday(e.date, e.amount));
         const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
         const weekdayPattern = weekdays.map((label, i) => ({
             day: label,
@@ -356,6 +252,12 @@ export const getInsights = async (req, res) => {
                 spendDelta,   // % change vs previous period (same-span when mtd)
                 incomeDelta,
                 netDelta,
+                // Movements that are not spending, shown separately
+                refunds: current.totals.refunds,
+                transfers: current.totals.transfers,
+                cashWithdrawn: current.totals.cashWithdrawn,
+                invested: current.totals.invested,
+                debtRepaid: current.totals.debtRepaid,
             },
             categoryBreakdown,
             sourceBreakdown,
@@ -385,101 +287,22 @@ export const getSpendingRows = async (req, res) => {
         const anchor = req.query.anchor ? new Date(req.query.anchor) : new Date();
         const { currentStart, currentEnd } = getRanges(period, anchor);
 
-        const [bankRows, walletRows, expenseRows] = await Promise.all([
-            prisma.bankTransactionLog.findMany({
-                where: {
-                    transaction_date: { gte: currentStart, lt: currentEnd },
-                    bank_statement: { bank: { user_id: userId } },
-                },
-                select: {
-                    id: true,
-                    transaction_date: true,
-                    description: true,
-                    debit_amount: true,
-                    credit_amount: true,
-                    approved_category: true,
-                    suggested_category: true,
-                    processing_status: true,
-                    bank_statement: { select: { bank: { select: { id: true, name: true } } } },
-                },
-            }),
-            prisma.walletTransactionLog.findMany({
-                where: {
-                    transaction_date: { gte: currentStart, lt: currentEnd },
-                    wallet_statement: { wallet: { user_id: userId } },
-                },
-                select: {
-                    id: true,
-                    transaction_date: true,
-                    description: true,
-                    debit_amount: true,
-                    credit_amount: true,
-                    approved_category: true,
-                    suggested_category: true,
-                    processing_status: true,
-                    wallet_statement: { select: { wallet: { select: { id: true, name: true, institution: true } } } },
-                },
-            }),
-            prisma.expense.findMany({
-                where: { user_id: userId, expense_date: { gte: currentStart, lt: currentEnd } },
-                select: { id: true, category: true, amount: true, notes: true, expense_date: true, payment_method: true },
-            }),
-        ]);
-
-        const rows = [];
-
-        for (const tx of bankRows) {
-            const debit = Number(tx.debit_amount || 0);
-            const credit = Number(tx.credit_amount || 0);
-            const amount = credit > 0 ? credit : debit;
-            const kind = credit > 0 ? 'credit' : 'debit';
-            rows.push({
-                id: `bank:${tx.id}`,
-                source: 'bank',
-                sourceId: tx.bank_statement?.bank?.id,
-                sourceLabel: tx.bank_statement?.bank?.name || 'Bank',
-                date: tx.transaction_date,
-                description: tx.description || '',
-                category: tx.approved_category || tx.suggested_category || 'Uncategorised',
-                amount,
-                kind,
-                status: tx.processing_status || 'approved',
-            });
-        }
-
-        for (const tx of walletRows) {
-            const debit = Number(tx.debit_amount || 0);
-            const credit = Number(tx.credit_amount || 0);
-            const amount = credit > 0 ? credit : debit;
-            const kind = credit > 0 ? 'credit' : 'debit';
-            rows.push({
-                id: `wallet:${tx.id}`,
-                source: 'wallet',
-                sourceId: tx.wallet_statement?.wallet?.id,
-                sourceLabel: tx.wallet_statement?.wallet?.institution || tx.wallet_statement?.wallet?.name || 'Wallet',
-                date: tx.transaction_date,
-                description: tx.description || '',
-                category: tx.approved_category || tx.suggested_category || 'Uncategorised',
-                amount,
-                kind,
-                status: tx.processing_status || 'approved',
-            });
-        }
-
-        for (const e of expenseRows) {
-            rows.push({
-                id: `manual:${e.id}`,
-                source: 'manual',
-                sourceId: null,
-                sourceLabel: e.payment_method || 'Manual',
-                date: e.expense_date,
-                description: e.notes || '',
-                category: e.category || 'Uncategorised',
-                amount: Number(e.amount || 0),
-                kind: 'debit',
-                status: 'approved',
-            });
-        }
+        // Same events as the hero figures, so the table always matches them.
+        const events = await loadMoneyEvents(userId, currentStart, currentEnd);
+        const rows = events.map((e) => ({
+            id: e.id,
+            source: e.source,
+            sourceId: e.accountId,
+            sourceLabel: e.accountLabel,
+            date: e.date,
+            description: e.description,
+            category: e.category,
+            amount: e.amount,
+            kind: e.direction === 'in' ? 'credit' : 'debit',
+            flow: e.kind,           // spend | income | refund | transfer | cash | investment | debt
+            status: e.status,
+            possibleDuplicate: e.possibleDuplicate,
+        }));
 
         rows.sort((a, b) => new Date(b.date) - new Date(a.date));
 
