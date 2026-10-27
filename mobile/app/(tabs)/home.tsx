@@ -1,6 +1,3 @@
-import { ComingSoon } from '../../src/features/shell/ComingSoon';
+import { HomeScreen } from '../../src/features/home/HomeScreen';
 
-// Replaced by the net-worth Home screen in Task 9.
-export default function HomeTab() {
-    return <ComingSoon title="Home" />;
-}
+export default HomeScreen;
