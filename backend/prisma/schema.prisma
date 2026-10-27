@@ -922,3 +922,20 @@ model UploadSession {
   @@index([expires_at])
   @@map("upload_sessions")
 }
+
+// One row per scheduled job run. The unique (job, run_key) claim means that
+// with several API replicas only one runs each scheduled slot; the row also
+// records how the run went.
+model JobRun {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  job         String    @db.VarChar(50)
+  run_key     String    @db.VarChar(40) // the scheduled slot, e.g. 2026-10-27T08:00
+  status      String    @default("running") @db.VarChar(16) // running | ok | failed
+  started_at  DateTime  @default(now()) @db.Timestamptz(6)
+  finished_at DateTime? @db.Timestamptz(6)
+  error       String?
+
+  @@unique([job, run_key])
+  @@index([started_at])
+  @@map("job_runs")
+}

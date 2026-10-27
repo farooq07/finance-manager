@@ -30,7 +30,10 @@ import fxRateRoutes from './src/routes/fxRate.routes.js';
 import goldRoutes from './src/routes/gold.routes.js';
 import feedbackRoutes from './src/routes/feedback.routes.js';
 import watchlistRoutes from './src/routes/watchlist.routes.js';
-import { initCronJobs } from './src/services/cron.service.js';
+import healthRoutes from './src/routes/health.routes.js';
+import { initCronJobs, stopCronJobs } from './src/services/cron.service.js';
+import prisma from './src/utils/prisma.js';
+import logger from './src/utils/logger.js';
 
 dotenv.config();
 
@@ -118,6 +121,7 @@ app.use('/api/fx', fxRateRoutes);
 app.use('/api/gold', goldRoutes);
 app.use('/api/feedback', feedbackRoutes);
 app.use('/api/watchlist', watchlistRoutes);
+app.use('/api/health', healthRoutes);
 
 // Root route / Health check
 app.get('/', (req, res) => {
@@ -141,9 +145,33 @@ app.use((err, req, res, next) => {
     return next(err);
 });
 
-app.listen(PORT, () => {
+// Secrets at rest must not depend on the login-token secret: rotating
+// JWT_SECRET would otherwise make every stored statement password unreadable.
+if (process.env.NODE_ENV === 'production' && !process.env.STATEMENT_ENCRYPTION_KEY) {
+    logger.error('[Startup] STATEMENT_ENCRYPTION_KEY is not set — stored secrets are encrypted with a key derived from JWT_SECRET. Set a dedicated key (and re-encrypt) before rotating JWT_SECRET.');
+}
+
+const server = app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
-    
+
     // Initialize cron jobs after server starts
     initCronJobs();
 });
+
+// Graceful shutdown (Railway sends SIGTERM on every deploy): stop taking new
+// requests and jobs, let in-flight requests finish, then close the database.
+let shuttingDown = false;
+function shutdown(signal) {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    logger.warn(`[Shutdown] ${signal} received — draining`);
+    stopCronJobs();
+    const force = setTimeout(() => process.exit(1), 25_000);
+    force.unref();
+    server.close(async () => {
+        await prisma.$disconnect().catch(() => {});
+        process.exit(0);
+    });
+}
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
